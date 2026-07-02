@@ -1,8 +1,11 @@
+import { DownloadProgressBar } from '@/components/DownloadProgressBar';
+
 type DownloadPublicationModalProps = {
   open: boolean;
   title: string;
   sizeMb?: number;
   downloading: boolean;
+  downloadPercent?: number | null;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -12,6 +15,7 @@ export function DownloadPublicationModal({
   title,
   sizeMb,
   downloading,
+  downloadPercent,
   onConfirm,
   onCancel,
 }: DownloadPublicationModalProps) {
@@ -29,6 +33,9 @@ export function DownloadPublicationModal({
           Baixar {title}
         </h2>
         {sizeMb ? <p className="mt-3 text-center text-sm text-white/70">{sizeMb} MB</p> : null}
+        {downloading && downloadPercent !== null && downloadPercent !== undefined ? (
+          <DownloadProgressBar percent={downloadPercent} label="Baixando" className="mt-4 [&_p]:text-white/70" />
+        ) : null}
         <div className="mt-6 flex gap-3">
           <button
             type="button"

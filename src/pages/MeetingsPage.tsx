@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { MeetingWeek } from '@/lib/meeting-types';
 import { MEETING_PUBLICATIONS } from '@/lib/types';
+import { DownloadProgressBar, getDownloadPercent } from '@/components/DownloadProgressBar';
 import { IconChevronLeft, IconChevronRight, IconCloudDownload, IconMore } from '@/components/Icons';
 import { AiToolsMenu } from '@/components/AiToolsMenu';
 
@@ -19,8 +20,10 @@ type MeetingsPageProps = {
   onDownloadMeetingPubs: () => Promise<void>;
   onDownloadPub: (pub: 'mwb' | 'w', issue: string) => Promise<void>;
   loadingWeeks: boolean;
+  refreshingWeeks: boolean;
   downloading: boolean;
   downloadingPubKey: string | null;
+  downloadProgressMap: Record<string, number>;
   loadError: string | null;
 };
 
@@ -32,19 +35,23 @@ export function MeetingsPage({
   onDownloadMeetingPubs,
   onDownloadPub,
   loadingWeeks,
+  refreshingWeeks: _refreshingWeeks,
   downloading,
   downloadingPubKey,
+  downloadProgressMap,
   loadError,
 }: MeetingsPageProps) {
   const [aiOpen, setAiOpen] = useState(false);
 
   const week = weeks[weekIndex];
   const weekLabel = week ? `${week.label}${week.isCurrentWeek ? ' · Esta semana' : ''}` : '—';
+  const initialLoading = loadingWeeks && weeks.length === 0;
 
-  if (loadingWeeks) {
+  if (initialLoading) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-jw-muted">
-        Carregando semanas…
+      <div className="flex h-64 flex-col items-center justify-center gap-4 px-8 text-sm text-jw-muted">
+        <p>Carregando semanas…</p>
+        <DownloadProgressBar percent={35} className="max-w-xs w-full" />
       </div>
     );
   }
@@ -114,6 +121,7 @@ export function MeetingsPage({
           <DownloadMeetingRow
             label={week.mwbPubLabel ?? 'Apostila Vida e Ministério'}
             downloading={downloadingPubKey === `mwb_${week.mwbIssue}`}
+            downloadPercent={getDownloadPercent(downloadProgressMap, `mwb_${week.mwbIssue}`, downloadingPubKey === `mwb_${week.mwbIssue}`)}
             disabled={!week.mwbIssue || downloading}
             onDownload={() => week.mwbIssue && void onDownloadPub('mwb', week.mwbIssue)}
           />
@@ -140,6 +148,7 @@ export function MeetingsPage({
             label={week.wPubLabel ?? 'A Sentinela'}
             secondary={week.watchtowerTitle !== '—' ? week.watchtowerTitle : undefined}
             downloading={downloadingPubKey === `w_${week.wIssue}`}
+            downloadPercent={getDownloadPercent(downloadProgressMap, `w_${week.wIssue}`, downloadingPubKey === `w_${week.wIssue}`)}
             disabled={!week.wIssue || downloading}
             onDownload={() => week.wIssue && void onDownloadPub('w', week.wIssue)}
           />
@@ -152,6 +161,7 @@ export function MeetingsPage({
           subtitle={week.mwbPubLabel}
           needsDownload={Boolean(week.mwbIssue && !week.mwbDownloaded)}
           downloading={downloadingPubKey === `mwb_${week.mwbIssue}`}
+          downloadPercent={getDownloadPercent(downloadProgressMap, `mwb_${week.mwbIssue}`, downloadingPubKey === `mwb_${week.mwbIssue}`)}
           onDownload={
             week.mwbIssue && !week.mwbDownloaded
               ? () => void onDownloadPub('mwb', week.mwbIssue!)
@@ -163,6 +173,7 @@ export function MeetingsPage({
           subtitle={week.wPubLabel ?? 'Edição de Estudo'}
           needsDownload={Boolean(week.wIssue && !week.wDownloaded)}
           downloading={downloadingPubKey === `w_${week.wIssue}`}
+          downloadPercent={getDownloadPercent(downloadProgressMap, `w_${week.wIssue}`, downloadingPubKey === `w_${week.wIssue}`)}
           onDownload={
             week.wIssue && !week.wDownloaded
               ? () => void onDownloadPub('w', week.wIssue!)
@@ -251,32 +262,39 @@ function DownloadMeetingRow({
   label,
   secondary,
   downloading,
+  downloadPercent,
   disabled,
   onDownload,
 }: {
   label: string;
   secondary?: string;
   downloading?: boolean;
+  downloadPercent?: number | null;
   disabled?: boolean;
   onDownload: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onDownload}
-      disabled={disabled}
-      className="flex w-full items-center gap-3 rounded-lg px-1 py-2 text-left text-jw-purple hover:bg-jw-surface disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {downloading ? (
-        <span className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-jw-purple border-t-transparent" />
-      ) : (
-        <IconCloudDownload className="h-5 w-5 shrink-0" />
-      )}
-      <span className="min-w-0">
-        <span className="block text-sm">{label}</span>
-        {secondary ? <span className="mt-0.5 block text-xs text-jw-muted">{secondary}</span> : null}
-      </span>
-    </button>
+    <div className="rounded-lg px-1 py-2">
+      <button
+        type="button"
+        onClick={onDownload}
+        disabled={disabled}
+        className="flex w-full items-center gap-3 text-left text-jw-purple hover:bg-jw-surface disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {downloading && downloadPercent === null ? (
+          <span className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-jw-purple border-t-transparent" />
+        ) : (
+          <IconCloudDownload className="h-5 w-5 shrink-0" />
+        )}
+        <span className="min-w-0">
+          <span className="block text-sm">{label}</span>
+          {secondary ? <span className="mt-0.5 block text-xs text-jw-muted">{secondary}</span> : null}
+        </span>
+      </button>
+      {downloading && downloadPercent !== null ? (
+        <DownloadProgressBar percent={downloadPercent} className="mt-2 pl-8" label="Baixando" />
+      ) : null}
+    </div>
   );
 }
 
@@ -285,41 +303,44 @@ function PublicationRow({
   subtitle,
   needsDownload,
   downloading,
+  downloadPercent,
   onDownload,
 }: {
   title: string;
   subtitle?: string;
   needsDownload?: boolean;
   downloading?: boolean;
+  downloadPercent?: number | null;
   onDownload?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-lg px-1 py-2 hover:bg-jw-surface">
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-jw-border/60 text-[10px] font-semibold text-jw-muted">
-        PUB
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-jw-text">{title}</p>
-        {subtitle ? <p className="truncate text-xs text-jw-muted">{subtitle}</p> : null}
-      </div>
-      {needsDownload && onDownload ? (
-        <button
-          type="button"
-          onClick={onDownload}
-          disabled={downloading}
-          className="rounded p-2 text-jw-purple hover:bg-jw-purple-light disabled:opacity-50"
-          title="Baixar do jw.org"
-        >
-          {downloading ? (
-            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-jw-purple border-t-transparent" />
-          ) : (
+    <div className="rounded-lg px-1 py-2 hover:bg-jw-surface">
+      <div className="flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-jw-border/60 text-[10px] font-semibold text-jw-muted">
+          PUB
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm text-jw-text">{title}</p>
+          {subtitle ? <p className="truncate text-xs text-jw-muted">{subtitle}</p> : null}
+        </div>
+        {needsDownload && onDownload ? (
+          <button
+            type="button"
+            onClick={onDownload}
+            disabled={downloading}
+            className="rounded p-2 text-jw-purple hover:bg-jw-purple-light disabled:opacity-50"
+            title="Baixar do jw.org"
+          >
             <IconCloudDownload className="h-5 w-5" />
-          )}
+          </button>
+        ) : null}
+        <button type="button" className="rounded p-2 text-jw-muted hover:bg-jw-bg">
+          <IconMore className="h-5 w-5" />
         </button>
+      </div>
+      {needsDownload && downloading && downloadPercent !== null ? (
+        <DownloadProgressBar percent={downloadPercent} className="mt-2 pl-[4.5rem]" label="Baixando" />
       ) : null}
-      <button type="button" className="rounded p-2 text-jw-muted hover:bg-jw-bg">
-        <IconMore className="h-5 w-5" />
-      </button>
     </div>
   );
 }

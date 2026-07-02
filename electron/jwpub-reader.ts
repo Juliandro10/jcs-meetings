@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   fetchPubMediaInfo,
-  isPubCached,
   issueCandidates,
   loadSchedulesFromIssue,
   meetingPubLabel,
@@ -151,7 +150,7 @@ function mergeMwbWeeks(candidates: LoadedMwb[]): MwbWeekEntry[] {
   for (const candidate of candidates) {
     candidate.schedules.forEach((schedule, scheduleIndex) => {
       const dateIso = parseIsoDate(schedule.mwb_week_date);
-      byDate.set(dateIso, {
+      const nextEntry: MwbWeekEntry = {
         dateIso,
         schedule,
         issue: candidate.issue,
@@ -159,23 +158,73 @@ function mergeMwbWeeks(candidates: LoadedMwb[]): MwbWeekEntry[] {
         pubLabel: candidate.pubLabel,
         downloaded: candidate.downloaded,
         path: candidate.path,
-      });
+      };
+      const existing = byDate.get(dateIso);
+      if (existing) {
+        if (existing.downloaded && !nextEntry.downloaded) return;
+        if (!existing.downloaded && nextEntry.downloaded) {
+          byDate.set(dateIso, nextEntry);
+          return;
+        }
+        if (nextEntry.downloaded && candidate.issue >= existing.issue) {
+          byDate.set(dateIso, nextEntry);
+          return;
+        }
+        if (!existing.downloaded && !nextEntry.downloaded && candidate.issue >= existing.issue) {
+          byDate.set(dateIso, nextEntry);
+        }
+        return;
+      }
+      byDate.set(dateIso, nextEntry);
     });
   }
 
   return [...byDate.values()].sort((a, b) => a.dateIso.localeCompare(b.dateIso));
 }
 
-async function loadMwbCandidates(cacheDir: string, lang = 'T', errors: string[] = []): Promise<LoadedMwb[]> {
+async function loadIssueSchedules<T extends MWBSchedule[] | WSchedule[]>(
+  cacheDir: string,
+  pub: 'mwb' | 'w',
+  issue: string,
+  lang: string,
+): Promise<{ schedules: T; downloaded: boolean; filePath?: string }> {
+  const filePath = path.join(cacheDir, `${pub}_${lang}_${issue}.jwpub`);
+
+  try {
+    const stat = await fs.stat(filePath);
+    if (stat.size > 0) {
+      return {
+        schedules: (await loadPub(filePath)) as T,
+        downloaded: true,
+        filePath,
+      };
+    }
+  } catch {
+    // fall through to online schedule
+  }
+
+  return {
+    schedules: (await loadSchedulesFromIssue(pub, issue, lang)) as T,
+    downloaded: false,
+  };
+}
+
+async function loadMwbCandidates(
+  cacheDir: string,
+  userDataRoot: string,
+  lang = 'T',
+  errors: string[] = [],
+): Promise<LoadedMwb[]> {
   const loaded: LoadedMwb[] = [];
 
   for (const issue of issueCandidates().mwb) {
     try {
-      const downloaded = await isPubCached(cacheDir, 'mwb', issue, lang);
-      const filePath = downloaded ? path.join(cacheDir, `mwb_${lang}_${issue}.jwpub`) : undefined;
-      const schedules = downloaded && filePath
-        ? ((await loadPub(filePath)) as MWBSchedule[])
-        : ((await loadSchedulesFromIssue('mwb', issue, lang)) as MWBSchedule[]);
+      const { schedules, downloaded, filePath } = await loadIssueSchedules<MWBSchedule[]>(
+        cacheDir,
+        'mwb',
+        issue,
+        lang,
+      );
       const info = await fetchPubMediaInfo('mwb', issue, lang);
 
       if (schedules.length === 0 || !info) {
@@ -199,16 +248,18 @@ async function loadMwbCandidates(cacheDir: string, lang = 'T', errors: string[] 
   return loaded.sort((a, b) => a.issue.localeCompare(b.issue));
 }
 
-async function buildWByDate(cacheDir: string, lang = 'T', errors: string[] = []): Promise<Map<string, WWeekInfo>> {
+async function buildWByDate(
+  cacheDir: string,
+  userDataRoot: string,
+  lang = 'T',
+  errors: string[] = [],
+): Promise<Map<string, WWeekInfo>> {
   const map = new Map<string, WWeekInfo>();
 
   for (const issue of issueCandidates().w) {
     try {
-      const downloaded = await isPubCached(cacheDir, 'w', issue, lang);
+      const { schedules, downloaded } = await loadIssueSchedules<WSchedule[]>(cacheDir, 'w', issue, lang);
       const wPath = downloaded ? path.join(cacheDir, `w_${lang}_${issue}.jwpub`) : undefined;
-      const schedules = downloaded && wPath
-        ? ((await loadPub(wPath)) as WSchedule[])
-        : ((await loadSchedulesFromIssue('w', issue, lang)) as WSchedule[]);
       const info = await fetchPubMediaInfo('w', issue, lang);
 
       if (schedules.length === 0 || !info) {
@@ -222,13 +273,30 @@ async function buildWByDate(cacheDir: string, lang = 'T', errors: string[] = [])
 
       for (const schedule of schedules) {
         const dateIso = parseIsoDate(schedule.w_study_date);
-        map.set(dateIso, {
+        const nextInfo: WWeekInfo = {
           schedule,
           documentId: docByTitle.get(normalizeTitle(schedule.w_study_title)),
           issue,
           pubLabel,
           downloaded,
-        });
+        };
+        const existing = map.get(dateIso);
+        if (existing) {
+          if (existing.downloaded && !nextInfo.downloaded) continue;
+          if (!existing.downloaded && nextInfo.downloaded) {
+            map.set(dateIso, nextInfo);
+            continue;
+          }
+          if (nextInfo.downloaded && issue >= existing.issue) {
+            map.set(dateIso, nextInfo);
+            continue;
+          }
+          if (!existing.downloaded && !nextInfo.downloaded && issue >= existing.issue) {
+            map.set(dateIso, nextInfo);
+          }
+          continue;
+        }
+        map.set(dateIso, nextInfo);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -300,14 +368,14 @@ export async function resolveCachedPubPath(
   return findCachedPub(cacheDir, pub);
 }
 
-export async function loadMeetingWeeks(cacheDir: string): Promise<LoadMeetingWeeksResult> {
+export async function loadMeetingWeeks(cacheDir: string, userDataRoot: string): Promise<LoadMeetingWeeksResult> {
   docsCache.clear();
   clearJwpubBundleCache();
 
   const errors: string[] = [];
-  const mwbCandidates = await loadMwbCandidates(cacheDir, 'T', errors);
+  const mwbCandidates = await loadMwbCandidates(cacheDir, userDataRoot, 'T', errors);
   const mwbWeeks = mergeMwbWeeks(mwbCandidates);
-  const wByDate = await buildWByDate(cacheDir, 'T', errors);
+  const wByDate = await buildWByDate(cacheDir, userDataRoot, 'T', errors);
 
   if (mwbWeeks.length === 0 && wByDate.size === 0) {
     return {

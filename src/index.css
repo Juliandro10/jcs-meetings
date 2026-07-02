@@ -10,8 +10,9 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   background: #f2f2f2;
+  -webkit-font-smoothing: antialiased;
 }
 
 ::-webkit-scrollbar {
@@ -211,4 +212,25 @@ body {
 
 .jcs-lfb-study-field {
   margin-bottom: 0.5rem;
+}
+
+.prose-bible p {
+  margin: 0.65rem 0;
+}
+
+.prose-bible sup {
+  color: #5c3d6e;
+  font-weight: 600;
+  margin-right: 0.2rem;
+}
+
+.prose-bible .vl,
+.prose-bible .cl {
+  color: #5c3d6e;
+  font-weight: 600;
+}
+
+.prose-bible img {
+  max-width: 100%;
+  height: auto;
 }

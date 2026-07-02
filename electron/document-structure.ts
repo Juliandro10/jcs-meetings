@@ -84,15 +84,28 @@ function detectKind(text: string, section: string): MeetingPartKind {
   return 'other';
 }
 
-function partTitle(text: string) {
-  const numbered = text.match(/^(\d+\.\s[^.?]{3,120})/);
+function partTitle(text: string, lastNumberedTitle?: string) {
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+
+  const numbered = trimmed.match(/^(\d+\.\s.+)/);
   if (numbered) return numbered[1].trim();
-  if (/^\(\d+\s*min\)/i.test(text)) {
-    const snippet = text.match(/^(\(\d+\s*min\)[^.]{0,100})/i);
-    if (snippet) return snippet[1].trim();
+
+  if (/^\(\d+\s*min\)/i.test(trimmed)) {
+    if (lastNumberedTitle) return lastNumberedTitle;
+    return trimmed.length <= 180 ? trimmed : `${trimmed.slice(0, 177).trim()}…`;
   }
-  if (text.length <= 90) return text;
-  return text.slice(0, 90).trim() + '…';
+
+  if ((lower.includes('joias espirituais') && trimmed.includes('?')) || (/ — /.test(trimmed) && /\b[A-Za-zÁ-ú]{2,4}\.\s*\d/.test(trimmed))) {
+    return trimmed;
+  }
+
+  if (lower.includes('necessidades locais') || lower.includes('estudo bíblico de congregação') || lower.includes('estudo biblico')) {
+    return trimmed;
+  }
+
+  if (trimmed.length <= 180) return trimmed;
+  return `${trimmed.slice(0, 177).trim()}…`;
 }
 
 function noteAnchorForPart(text: string) {
@@ -173,6 +186,7 @@ export function extractDocumentStructure(html: string): DocumentStructure {
   const fieldByBlock = new Map(fields.map((field) => [field.afterBlockId ?? '', field.fieldId]));
 
   let section = '';
+  let lastNumberedPartTitle = '';
   const parts: MeetingPart[] = [];
   for (const block of blocks) {
     if (isSectionHeader(block.text)) {
@@ -186,10 +200,15 @@ export function extractDocumentStructure(html: string): DocumentStructure {
     const kind = detectKind(block.text, section);
     if (/^\d+\.\s/.test(block.text) && kind === 'joias' && !block.text.includes('?')) continue;
 
+    const title = partTitle(block.text, lastNumberedPartTitle);
+    if (/^\d+\.\s/.test(block.text)) {
+      lastNumberedPartTitle = title;
+    }
+
     parts.push({
       blockId: block.blockId,
       text: block.text,
-      title: partTitle(block.text),
+      title,
       kind,
       fieldId: fieldByBlock.get(block.blockId),
       noteAnchorText: noteAnchorForPart(block.text),
@@ -227,6 +246,22 @@ export function formatJoiasField(options: string[]) {
     .slice(0, 3)
     .map((opt, index) => `${index + 1}) ${opt.trim()}`)
     .join('\n\n');
+}
+
+/** Título canônico da parte da reunião para notas (sem truncar perguntas nem usar só "(10 min)"). */
+export function resolveNoteTitle(structure: DocumentStructure, blockId: string): string | undefined {
+  const direct = structure.parts.find((part) => part.blockId === blockId);
+  if (direct) return direct.title;
+
+  const blockIndex = structure.blocks.findIndex((block) => block.blockId === blockId);
+  if (blockIndex < 0) return undefined;
+
+  for (let index = blockIndex; index >= 0; index -= 1) {
+    const part = structure.parts.find((item) => item.blockId === structure.blocks[index]?.blockId);
+    if (part) return part.title;
+  }
+
+  return undefined;
 }
 
 export function findAnchorInBlock(blockText: string, anchorText: string) {

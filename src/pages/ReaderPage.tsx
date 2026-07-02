@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { referencePlainText } from '@/components/AssistantChat';
+import { getDownloadPercent } from '@/components/DownloadProgressBar';
 import { DownloadPublicationModal } from '@/components/DownloadPublicationModal';
 import { HighlightToolbar } from '@/components/HighlightToolbar';
 import { NotePanel } from '@/components/NotePanel';
@@ -26,6 +27,7 @@ type ReaderPageProps = {
   target: ReaderOpenTarget;
   weekLabel: string;
   bibleReading?: string;
+  downloadProgressMap: Record<string, number>;
   onBack: () => void;
 };
 
@@ -36,7 +38,7 @@ function getSelectedTextFromReader() {
   return text.length >= 3 ? text : undefined;
 }
 
-export function ReaderPage({ target, weekLabel, bibleReading, onBack }: ReaderPageProps) {
+export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMap, onBack }: ReaderPageProps) {
   const readerRef = useRef<PublicationReaderHandle>(null);
   const studyReaderRef = useRef<PublicationReaderHandle>(null);
   const pendingStudyBookOpenRef = useRef(false);
@@ -44,6 +46,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, onBack }: ReaderPa
   const [panelTab, setPanelTab] = useState<SidePanelTab>('assistant');
   const [panelLoading, setPanelLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [autoPrepping, setAutoPrepping] = useState(false);
   const [lfbPrepping, setLfbPrepping] = useState(false);
@@ -220,16 +223,21 @@ export function ReaderPage({ target, weekLabel, bibleReading, onBack }: ReaderPa
     [target.issue, target.pub],
   );
 
+  const activeDownloadPercent = getDownloadPercent(downloadProgressMap, downloadingKey, downloading);
+
   const handleDownloadPublication = useCallback(async () => {
     const download = reference?.download;
     if (!download || !window.jcs?.downloadPub) return;
 
+    const key = `${download.pub}_${download.issue}`;
+    setDownloadingKey(key);
     setDownloading(true);
     const result = await window.jcs.downloadPub({
       pub: download.pub,
       issue: download.issue,
     });
     setDownloading(false);
+    setDownloadingKey(null);
     setDownloadModalOpen(false);
 
     if (result.ok && reference?.studyBook) {
@@ -487,6 +495,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, onBack }: ReaderPa
           title={reference?.download?.label ?? 'Aprenda com as Histórias da Bíblia'}
           sizeMb={reference?.download?.sizeMb}
           downloading={downloading}
+          downloadPercent={activeDownloadPercent}
           onConfirm={() => void handleDownloadPublication()}
           onCancel={() => {
             pendingStudyBookOpenRef.current = false;
@@ -606,6 +615,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, onBack }: ReaderPa
           referenceLoading={panelLoading}
           reference={reference}
           downloading={downloading}
+          downloadPercent={activeDownloadPercent}
           onLinkClick={(href, label) => {
             void openReference(href, label);
           }}
@@ -627,6 +637,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, onBack }: ReaderPa
         title={reference?.download?.label ?? 'Aprenda com as Histórias da Bíblia'}
         sizeMb={reference?.download?.sizeMb}
         downloading={downloading}
+        downloadPercent={activeDownloadPercent}
         onConfirm={() => void handleDownloadPublication()}
         onCancel={() => {
           pendingStudyBookOpenRef.current = false;

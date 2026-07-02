@@ -120,3 +120,32 @@ export function IconChevronRight(props: IconProps) {
     </svg>
   );
 }
+
+export function IconHeadphones(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M4 14v3a2 2 0 0 0 2 2h1v-7H5a1 1 0 0 0-1 1v1Z" />
+      <path d="M20 14v3a2 2 0 0 1-2 2h-1v-7h2a1 1 0 0 1 1 1v1Z" />
+      <path d="M4 14a8 8 0 0 1 16 0" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconGlobe(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.8 4 6 4 9s-1.5 6.2-4 9M12 3c-2.5 2.8-4 6-4 9s1.5 6.2 4 9" />
+    </svg>
+  );
+}
+
+export function IconBookOpen(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" {...props}>
+      <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H18v17.5H7.5A2.5 2.5 0 0 0 5 23V5.5Z" />
+      <path d="M5 5.5A2.5 2.5 0 0 0 7.5 3H18" />
+      <path d="M9 7.5h6M9 11h6" strokeLinecap="round" />
+    </svg>
+  );
+}

@@ -1,8 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export function loadEnvFile(appRoot: string) {
-  const envPath = path.join(appRoot, '.env');
+export type EnvLoadOptions = {
+  appRoot: string;
+  resourcesPath?: string;
+};
+
+function applyEnvFile(envPath: string) {
   if (!fs.existsSync(envPath)) return;
 
   const raw = fs.readFileSync(envPath, 'utf8');
@@ -23,4 +27,13 @@ export function loadEnvFile(appRoot: string) {
       process.env[key] = value;
     }
   }
+}
+
+/** Dev: `.env` na raiz do projeto. Empacotado: `app.env` em `process.resourcesPath`. */
+export function loadEnvFile(options: EnvLoadOptions) {
+  if (options.resourcesPath) {
+    applyEnvFile(path.join(options.resourcesPath, 'app.env'));
+    return;
+  }
+  applyEnvFile(path.join(options.appRoot, '.env'));
 }

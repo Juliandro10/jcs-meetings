@@ -20,6 +20,9 @@ const ICONS: Record<AppSection, typeof IconHome> = {
   'personal-study': IconDiamond,
 };
 
+/** Ordem e itens visíveis como no JW Library (só seções habilitadas). */
+const NAV_SECTIONS = SECTIONS.filter((section) => section.enabled);
+
 type SidebarProps = {
   active: AppSection;
   onChange: (section: AppSection) => void;
@@ -27,12 +30,19 @@ type SidebarProps = {
 
 export function Sidebar({ active, onChange }: SidebarProps) {
   return (
-    <aside className="flex w-14 shrink-0 flex-col items-center border-r border-jw-border bg-[#FAFAFA] py-2">
-      <button type="button" className="mb-3 rounded p-2 text-jw-muted hover:bg-jw-purple-light hover:text-jw-purple">
+    <aside
+      className="flex w-14 shrink-0 flex-col items-center border-r border-[#1f1b24] py-2"
+      style={{ backgroundColor: '#2E2933' }}
+    >
+      <button
+        type="button"
+        className="mb-3 rounded-md p-2 text-[#b8b0c4] hover:bg-white/10 hover:text-white"
+        aria-label="Menu"
+      >
         <IconMenu className="h-5 w-5" />
       </button>
 
-      {SECTIONS.map((section) => {
+      {NAV_SECTIONS.map((section) => {
         const Icon = ICONS[section.id];
         const isActive = section.id === active;
 
@@ -40,11 +50,10 @@ export function Sidebar({ active, onChange }: SidebarProps) {
           <SidebarButton
             key={section.id}
             active={isActive}
-            disabled={!section.enabled}
             title={section.title}
-            onClick={() => section.enabled && onChange(section.id)}
+            onClick={() => onChange(section.id)}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-5 w-5" strokeWidth={1.7} />
           </SidebarButton>
         );
       })}
@@ -54,13 +63,11 @@ export function Sidebar({ active, onChange }: SidebarProps) {
 
 function SidebarButton({
   active,
-  disabled,
   title,
   onClick,
   children,
 }: {
   active: boolean;
-  disabled?: boolean;
   title: string;
   onClick: () => void;
   children: ReactNode;
@@ -69,15 +76,16 @@ function SidebarButton({
     <button
       type="button"
       title={title}
-      disabled={disabled}
+      aria-label={title}
+      aria-current={active ? 'page' : undefined}
       onClick={onClick}
       className={[
         'relative mb-1 flex h-11 w-11 items-center justify-center rounded-lg transition-colors',
-        active ? 'bg-jw-purple-light text-jw-purple' : 'text-jw-muted hover:bg-jw-purple-light/60 hover:text-jw-purple',
-        disabled ? 'cursor-not-allowed opacity-35' : 'cursor-pointer',
+        active
+          ? 'bg-[#453A52] text-white shadow-inner'
+          : 'text-[#c4bccf] hover:bg-white/10 hover:text-white',
       ].join(' ')}
     >
-      {active ? <span className="absolute left-0 top-2 h-7 w-1 rounded-r bg-jw-purple" /> : null}
       {children}
     </button>
   );

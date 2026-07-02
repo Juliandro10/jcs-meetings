@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AssistantChat, referencePlainText } from '@/components/AssistantChat';
+import { DownloadProgressBar } from '@/components/DownloadProgressBar';
 import type { AiChatContext, ResolveLinkResult } from '../../electron/types';
 
 export type SidePanelTab = 'references' | 'assistant';
@@ -12,6 +13,7 @@ type SidePanelProps = {
   referenceLoading: boolean;
   reference: ResolveLinkResult | null;
   downloading: boolean;
+  downloadPercent?: number | null;
   onLinkClick: (href: string, label: string) => void;
   onDownloadPublication: () => void;
   onExpandStudyBook?: () => void;
@@ -26,6 +28,7 @@ export function SidePanel({
   referenceLoading,
   reference,
   downloading,
+  downloadPercent,
   onLinkClick,
   onDownloadPublication,
   onExpandStudyBook,
@@ -117,14 +120,19 @@ export function SidePanel({
                 )}
 
                 {needsDownload ? (
-                  <button
-                    type="button"
-                    onClick={onDownloadPublication}
-                    disabled={downloading}
-                    className="mb-4 w-full rounded-lg border border-jw-border bg-white px-3 py-2 text-sm text-jw-text hover:border-jw-purple disabled:opacity-60"
-                  >
-                    {downloading ? 'Baixando publicação…' : 'Baixar publicação'}
-                  </button>
+                  <div className="mb-4">
+                    <button
+                      type="button"
+                      onClick={onDownloadPublication}
+                      disabled={downloading}
+                      className="w-full rounded-lg border border-jw-border bg-white px-3 py-2 text-sm text-jw-text hover:border-jw-purple disabled:opacity-60"
+                    >
+                      {downloading ? 'Baixando publicação…' : 'Baixar publicação'}
+                    </button>
+                    {downloading && downloadPercent !== null && downloadPercent !== undefined ? (
+                      <DownloadProgressBar percent={downloadPercent} label="Baixando" className="mt-2" />
+                    ) : null}
+                  </div>
                 ) : null}
 
                 <div

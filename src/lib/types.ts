@@ -13,8 +13,8 @@ export type SectionMeta = {
 };
 
 export const SECTIONS: SectionMeta[] = [
-  { id: 'home', title: 'Início', enabled: false },
-  { id: 'bible', title: 'Tradução do Novo Mundo', enabled: false },
+  { id: 'home', title: 'Início', enabled: true },
+  { id: 'bible', title: 'Bíblia de Estudo', enabled: true },
   { id: 'library', title: 'Biblioteca', enabled: true },
   { id: 'media', title: 'Mídia', enabled: false },
   { id: 'meetings', title: 'Reuniões', enabled: true },

@@ -11,7 +11,52 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "node scripts/check-env-for-release.mjs && npm run build && electron-builder --win nsis",
+    "electron:build:dir": "node scripts/check-env-for-release.mjs && npm run build && electron-builder --win dir"
+  },
+  "build": {
+    "appId": "com.jcs.meetings",
+    "productName": "JCS Meetings",
+    "copyright": "Copyright © 2026",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/sql.js/**"
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": "app.env"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "forceCodeSigning": false,
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": [
+        "pt_BR",
+        "en_US"
+      ],
+      "language": "1046"
+    }
   },
   "dependencies": {
     "jszip": "^3.10.1",

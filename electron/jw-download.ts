@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { writeJwpubFile } from './jwpub-storage';
 import { loadPub } from 'meeting-schedules-parser/dist/node/index.js';
 import type { MWBSchedule, WSchedule } from 'meeting-schedules-parser/dist/node/index.js';
 
@@ -8,6 +9,18 @@ export type DownloadPubParams = {
   issue: string;
   lang?: string;
   cacheDir: string;
+  onProgress?: (progress: DownloadProgress) => void;
+};
+
+export type DownloadProgress = {
+  percent: number;
+  phase: 'api' | 'download' | 'save' | 'done';
+};
+
+export type DownloadProgressEvent = {
+  key: string;
+  percent: number;
+  phase?: DownloadProgress['phase'];
 };
 
 export type DownloadPubResult = {
@@ -115,10 +128,14 @@ export async function downloadJwpub(params: DownloadPubParams): Promise<Download
   const lang = params.lang ?? 'T';
   const fileName = `${params.pub}_${lang}_${params.issue}.jwpub`;
   const filePath = path.join(params.cacheDir, fileName);
+  const report = (percent: number, phase: DownloadProgress['phase']) => {
+    params.onProgress?.({ percent, phase });
+  };
 
   await fs.mkdir(params.cacheDir, { recursive: true });
 
   try {
+    report(5, 'api');
     const apiUrl = new URL(API_BASE);
     apiUrl.searchParams.set('pub', params.pub);
     apiUrl.searchParams.set('issue', params.issue);
@@ -142,13 +159,51 @@ export async function downloadJwpub(params: DownloadPubParams): Promise<Download
       return { ok: false, error: 'URL de download não encontrada na resposta.' };
     }
 
+    report(10, 'download');
     const fileRes = await fetch(jwpubUrl);
     if (!fileRes.ok) {
       return { ok: false, error: `Download falhou com ${fileRes.status}` };
     }
 
-    const buffer = Buffer.from(await fileRes.arrayBuffer());
-    await fs.writeFile(filePath, buffer);
+    const totalBytes = Number(fileRes.headers.get('content-length')) || 0;
+    const reader = fileRes.body?.getReader();
+
+    if (!reader) {
+      const buffer = Buffer.from(await fileRes.arrayBuffer());
+      report(95, 'save');
+      await writeJwpubFile(filePath, buffer);
+      const savedSize = (await fs.stat(filePath)).size;
+      if (savedSize <= 0) {
+        return { ok: false, error: 'Arquivo salvo vazio no disco.' };
+      }
+      report(100, 'done');
+      return { ok: true, filePath, fileName };
+    }
+
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      chunks.push(value);
+      received += value.length;
+      if (totalBytes > 0) {
+        const ratio = received / totalBytes;
+        report(10 + Math.round(ratio * 85), 'download');
+      } else {
+        report(Math.min(90, 10 + Math.floor(received / 200_000)), 'download');
+      }
+    }
+
+    report(96, 'save');
+    await writeJwpubFile(filePath, Buffer.concat(chunks));
+    const savedSize = (await fs.stat(filePath)).size;
+    if (savedSize <= 0) {
+      return { ok: false, error: 'Arquivo salvo vazio no disco.' };
+    }
+    report(100, 'done');
 
     return { ok: true, filePath, fileName };
   } catch (err) {
@@ -177,23 +232,42 @@ function shiftIssue(issue: string, delta: number) {
 export async function downloadMeetingPublications(
   cacheDir: string,
   lang = 'T',
+  onProgress?: (progress: DownloadProgressEvent) => void,
 ): Promise<{ mwb: DownloadPubResult[]; w: DownloadPubResult[]; errors: string[] }> {
   const candidates = issueCandidates();
   const errors: string[] = [];
   const mwb: DownloadPubResult[] = [];
   const w: DownloadPubResult[] = [];
+  const jobs = [
+    ...candidates.mwb.map((issue) => ({ pub: 'mwb', issue })),
+    ...candidates.w.map((issue) => ({ pub: 'w', issue })),
+  ];
 
-  for (const issue of candidates.mwb) {
-    const result = await downloadJwpub({ pub: 'mwb', issue, lang, cacheDir });
-    if (result.ok) mwb.push(result);
-    else errors.push(`mwb ${issue}: ${result.error}`);
+  for (let index = 0; index < jobs.length; index += 1) {
+    const job = jobs[index]!;
+    const result = await downloadJwpub({
+      pub: job.pub,
+      issue: job.issue,
+      lang,
+      cacheDir,
+      onProgress: (progress) => {
+        const slice = 100 / jobs.length;
+        const base = index * slice;
+        onProgress?.({
+          key: 'meeting-bulk',
+          percent: Math.min(100, Math.round(base + (progress.percent / 100) * slice)),
+          phase: progress.phase,
+        });
+      },
+    });
+    if (result.ok) {
+      if (job.pub === 'mwb') mwb.push(result);
+      else w.push(result);
+    } else {
+      errors.push(`${job.pub} ${job.issue}: ${result.error}`);
+    }
   }
 
-  for (const issue of candidates.w) {
-    const result = await downloadJwpub({ pub: 'w', issue, lang, cacheDir });
-    if (result.ok) w.push(result);
-    else errors.push(`w ${issue}: ${result.error}`);
-  }
-
+  onProgress?.({ key: 'meeting-bulk', percent: 100, phase: 'done' });
   return { mwb, w, errors };
 }

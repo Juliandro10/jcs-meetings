@@ -1,14 +1,22 @@
 import { useState } from 'react';
+import { DownloadProgressBar, getDownloadPercent } from '@/components/DownloadProgressBar';
 import { LIBRARY_CATEGORIES } from '@/lib/types';
 
 type LibraryPageProps = {
   downloadedPubs: Set<string>;
   onDownloadMeetingPubs: () => Promise<void>;
   downloading: boolean;
+  downloadProgressMap: Record<string, number>;
 };
 
-export function LibraryPage({ downloadedPubs, onDownloadMeetingPubs, downloading }: LibraryPageProps) {
+export function LibraryPage({
+  downloadedPubs,
+  onDownloadMeetingPubs,
+  downloading,
+  downloadProgressMap,
+}: LibraryPageProps) {
   const [tab, setTab] = useState<'publications' | 'downloaded'>('publications');
+  const bulkPercent = getDownloadPercent(downloadProgressMap, 'meeting-bulk', downloading);
 
   return (
     <div className="px-6 py-4">
@@ -41,11 +49,14 @@ export function LibraryPage({ downloadedPubs, onDownloadMeetingPubs, downloading
           <button
             type="button"
             disabled={downloading}
-            onClick={() => onDownloadMeetingPubs()}
+            onClick={() => void onDownloadMeetingPubs()}
             className="rounded-lg bg-jw-purple px-5 py-2.5 text-sm font-medium text-white hover:bg-jw-purple-dark disabled:opacity-60"
           >
-            {downloading ? 'Baixando…' : 'Atualizar publicações da reunião (jw.org)'}
+            Atualizar publicações da reunião (jw.org)
           </button>
+          {downloading && bulkPercent !== null ? (
+            <DownloadProgressBar percent={bulkPercent} label="Baixando publicações" className="mt-3 max-w-md" />
+          ) : null}
         </>
       ) : (
         <div className="space-y-2">

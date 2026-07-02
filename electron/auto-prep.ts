@@ -1,10 +1,5 @@
 import { loadBibleReadingText } from './bible-reading-context';
-import {
-  extractDocumentStructure,
-  findAnchorInBlock,
-  formatJoiasField,
-  type MeetingPart,
-} from './document-structure';
+import { extractDocumentStructure, findAnchorInBlock, formatJoiasField, resolveNoteTitle, type DocumentStructure, type MeetingPart } from './document-structure';
 import { buildAiSystemPrompt, JW_AI_GROUNDING_RULES, JW_HIGHLIGHT_RULES, JW_JOIAS_RULES, JW_TRIBUNE_NOTE_RULES } from './ai-prompts';
 import { enrichAiContext } from './ai-context';
 import { getDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
@@ -121,9 +116,9 @@ function refineHighlights(
 
 function normalizeNotesAgainstStructure(
   notes: AutoPrepNote[],
-  parts: MeetingPart[],
-  blocks: Array<{ blockId: string; text: string }>,
+  structure: DocumentStructure,
 ): AutoPrepNote[] {
+  const { parts, blocks } = structure;
   const blockById = new Map(blocks.map((block) => [block.blockId, block.text]));
 
   const normalized = notes.map((note) => {
@@ -131,13 +126,15 @@ function normalizeNotesAgainstStructure(
       parts.find((item) => item.blockId === note.blockId) ??
       parts.find((item) => note.title.includes(item.title.slice(0, 12)));
 
-    const blockText = blockById.get(note.blockId) ?? part?.text ?? '';
+    const blockId = part?.blockId ?? note.blockId;
+    const blockText = blockById.get(blockId) ?? part?.text ?? '';
     const anchorText = findAnchorInBlock(blockText, note.anchorText || part?.noteAnchorText || note.title);
+    const title = resolveNoteTitle(structure, blockId) ?? part?.title ?? note.title;
 
     return {
       ...note,
-      blockId: part?.blockId ?? note.blockId,
-      title: part?.title ?? note.title,
+      blockId,
+      title,
       anchorText,
       tags: note.tags?.length ? note.tags : ['auto-prep'],
     };
@@ -207,11 +204,11 @@ async function requestJoiasOptions(
 
 async function requestMissingNotes(
   apiKey: string,
-  parts: MeetingPart[],
-  blocks: Array<{ blockId: string; text: string }>,
+  structure: DocumentStructure,
   documentExcerpt: string,
   existing: AutoPrepNote[],
 ): Promise<AutoPrepNote[]> {
+  const { parts } = structure;
   const missing = parts.filter((part) => !existing.some((note) => note.blockId === part.blockId));
   if (missing.length === 0) return existing;
 
@@ -230,9 +227,10 @@ async function requestMissingNotes(
           role: 'system',
           content: [
             'Complete notas de preparação da reunião. APENAS JSON.',
-            '{"notes":[{"blockId":"20","anchorText":"trecho EXATO","title":"título","body":"roteiro de tribuna","tags":["auto-prep"]}]}',
+            '{"notes":[{"blockId":"20","anchorText":"trecho EXATO","title":"título EXATO da parte (copie da lista abaixo)","body":"roteiro de tribuna","tags":["auto-prep"]}]}',
             JW_AI_GROUNDING_RULES,
             JW_TRIBUNE_NOTE_RULES,
+            'Use o title EXATO de cada parte listada abaixo — nunca só "(10 min)" ou trecho parcial.',
             'Para EBC: roteiro de condução do estudo (sem respostas das 3 perguntas — essas ficam no livro lfb).',
             'anchorText = trecho EXATO copiado do parágrafo indicado.',
             'Partes pendentes:',
@@ -257,7 +255,7 @@ async function requestMissingNotes(
 
   const parsed = JSON.parse(raw) as { notes?: AutoPrepNote[] };
   const extra = (parsed.notes ?? []).filter((note) => note.blockId && note.title && note.body);
-  return normalizeNotesAgainstStructure([...existing, ...extra], parts, blocks).filter((note) => note.body);
+  return normalizeNotesAgainstStructure([...existing, ...extra], structure).filter((note) => note.body);
 }
 
 export async function runAutoPrep(
@@ -417,17 +415,11 @@ export async function runAutoPrep(
       fieldValues.push({ fieldId: joiasFieldId, value: formatJoiasField(joiasOptions) });
     }
 
-    let notes = normalizeNotesAgainstStructure(parsed.notes ?? [], structure.parts, structure.blocks);
+    let notes = normalizeNotesAgainstStructure(parsed.notes ?? [], structure);
     notes = notes.filter((note) => note.body?.trim());
 
     if (notes.length < structure.parts.length) {
-      notes = await requestMissingNotes(
-        apiKey,
-        structure.parts,
-        structure.blocks,
-        documentExcerpt,
-        notes,
-      );
+      notes = await requestMissingNotes(apiKey, structure, documentExcerpt, notes);
     }
 
     if (highlights.length > 0) {

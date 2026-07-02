@@ -11,6 +11,12 @@ export type DownloadPubResult = {
   error?: string;
 };
 
+export type DownloadProgressEvent = {
+  key: string;
+  percent: number;
+  phase?: 'api' | 'download' | 'save' | 'done';
+};
+
 export type LoadMeetingWeeksResult = {
   weeks: MeetingWeek[];
   error?: string;
@@ -193,5 +199,108 @@ export type AutoPrepResult = {
   highlights?: AutoPrepHighlight[];
   fields?: AutoPrepField[];
   notes?: AutoPrepNote[];
+  error?: string;
+};
+
+export type JwLibraryExportResult = {
+  ok: boolean;
+  filePath?: string;
+  stats?: {
+    locations: number;
+    inputFields: number;
+    userMarks: number;
+    blockRanges: number;
+    notes: number;
+  };
+  error?: string;
+};
+
+export type JwLibraryImportResult = {
+  ok: boolean;
+  stats?: { fields: number; highlights: number; notes: number };
+  error?: string;
+};
+
+export type BibleBookInfo = {
+  bookNumber: number;
+  title: string;
+  abbreviation: string;
+  chapterCount: number;
+  hasAudio: boolean;
+};
+
+export type BibleChapterResult = {
+  ok: boolean;
+  bookTitle?: string;
+  chapterNumber?: number;
+  html?: string;
+  error?: string;
+};
+
+export type NwtLanguageOption = {
+  lang: string;
+  name: string;
+  downloaded: boolean;
+  pubTitle?: string;
+};
+
+export type BibleAudioTrack = {
+  bookNumber: number;
+  chapterNumber: number;
+  title: string;
+  url: string;
+  filesize: number;
+};
+
+export type BibleNavItem = {
+  itemId: number;
+  documentId: number | null;
+  title: string;
+  subtitle?: string;
+  depth: number;
+  isSectionHeader?: boolean;
+};
+
+export type BibleDocumentResult = {
+  ok: boolean;
+  title?: string;
+  html?: string;
+  error?: string;
+};
+
+export type PlaylistItemType = 'image' | 'audio' | 'song';
+
+export type PlaylistItem = {
+  id: string;
+  type: PlaylistItemType;
+  title: string;
+  filePath?: string;
+  audioPath?: string;
+  audioUrl?: string;
+  songNumber?: number;
+  songTitle?: string;
+  lang?: string;
+};
+
+export type Playlist = {
+  id: string;
+  label: string;
+  items: PlaylistItem[];
+  updatedAt: string;
+};
+
+export type SongAudioTrack = {
+  songNumber: number;
+  title: string;
+  url: string;
+  filesize: number;
+};
+
+export type DailyTextResult = {
+  ok: boolean;
+  dateLabel?: string;
+  scriptureHtml?: string;
+  bodyHtml?: string;
+  wolUrl?: string;
   error?: string;
 };
