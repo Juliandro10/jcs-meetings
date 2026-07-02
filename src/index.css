@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #f2f2f2;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c8c8c0;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Conteúdo renderizado do .jwpub */
+.jwpub-content {
+  color: #333;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.jwpub-content h1,
+.jwpub-content h2,
+.jwpub-content h3 {
+  color: #4a315c;
+  margin: 1.25rem 0 0.75rem;
+}
+
+.jwpub-content p {
+  margin: 0.75rem 0;
+}
+
+.jwpub-content .qu {
+  font-weight: 600;
+}
+
+.jwpub-content .gen-field {
+  margin: 0.75rem 0 1rem;
+}
+
+.jwpub-content textarea,
+.jwpub-content .jcs-editable-field {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fafafa;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  line-height: 1.6;
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  field-sizing: content;
+}
+
+.jwpub-content textarea:focus,
+.jwpub-content .jcs-editable-field:focus {
+  outline: 2px solid #5c3d6e;
+  background: #fff;
+}
+
+.jwpub-content a {
+  color: #5c3d6e;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.jwpub-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 0.75rem 0;
+}
+
+.jwpub-content .inlineSVG,
+.jwpub-content svg {
+  max-width: 100%;
+}
+
+.study-panel-content,
+.study-panel-content.jwpub-content {
+  color: #333;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.study-panel-content a {
+  color: #4a6fa5;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.study-panel-content .bible-verse {
+  margin: 0.5rem 0;
+}
+
+.study-panel-content .bible-verse sup {
+  color: #5c3d6e;
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.study-panel-content p {
+  margin: 0.65rem 0;
+}
+
+.jwpub-content mark[class^='jcs-hl-'] {
+  border-radius: 2px;
+  padding: 0 1px;
+  color: inherit;
+}
+
+.jwpub-content .jcs-hl-yellow {
+  background-color: rgba(255, 241, 118, 0.85);
+}
+
+.jwpub-content .jcs-hl-green {
+  background-color: rgba(165, 214, 167, 0.9);
+}
+
+.jwpub-content .jcs-hl-blue {
+  background-color: rgba(144, 202, 249, 0.9);
+}
+
+.jwpub-content .jcs-hl-pink {
+  background-color: rgba(244, 143, 177, 0.85);
+}
+
+.jwpub-content .jcs-hl-purple {
+  background-color: rgba(206, 147, 216, 0.85);
+}
+
+.jwpub-content .jcs-hl-orange {
+  background-color: rgba(255, 204, 128, 0.9);
+}
+
+.jwpub-content .jcs-note-anchor {
+  text-decoration: underline dotted #7c4dff;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  background-color: rgba(124, 77, 255, 0.08);
+  border-radius: 2px;
+}
+
+.jwpub-content .jcs-note-anchor:hover {
+  background-color: rgba(124, 77, 255, 0.16);
+}
+
+.jcs-lfb-story {
+  margin: 1.5rem 0 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.jcs-lfb-story-title {
+  margin: 0 0 0.75rem;
+  color: #4a315c;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.jcs-lfb-story-body {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.jcs-lfb-download-hint {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.jcs-lfb-study-prep {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 2px solid #5c3d6e;
+}
+
+.jcs-lfb-study-heading {
+  margin: 0 0 1rem;
+  color: #4a315c;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.jcs-lfb-study-label {
+  display: block;
+  margin: 1rem 0 0.35rem;
+  color: #444;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.jcs-lfb-study-field {
+  margin-bottom: 0.5rem;
+}

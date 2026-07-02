@@ -1,0 +1,662 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { referencePlainText } from '@/components/AssistantChat';
+import { DownloadPublicationModal } from '@/components/DownloadPublicationModal';
+import { HighlightToolbar } from '@/components/HighlightToolbar';
+import { NotePanel } from '@/components/NotePanel';
+import { PublicationReader, type PublicationReaderHandle } from '@/components/PublicationReader';
+import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
+import { StudyBookReader } from '@/components/StudyBookReader';
+import type { ReaderOpenTarget } from '@/pages/MeetingsPage';
+import {
+  applyHighlight,
+  serializeSelection,
+  type HighlightColorId,
+} from '@/lib/highlight-dom';
+import { applyNoteAnchor, noteFromSelection, removeNoteAnchor, type DocumentNote } from '@/lib/note-dom';
+import type { ResolveLinkResult, StudyBookStoryRef } from '../../electron/types';
+
+type StudyBookSession = {
+  href: string;
+  linkLabel?: string;
+  stories: StudyBookStoryRef[];
+  currentIndex: number;
+};
+
+type ReaderPageProps = {
+  target: ReaderOpenTarget;
+  weekLabel: string;
+  bibleReading?: string;
+  onBack: () => void;
+};
+
+function getSelectedTextFromReader() {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed) return undefined;
+  const text = selection.toString().replace(/\s+/g, ' ').trim();
+  return text.length >= 3 ? text : undefined;
+}
+
+export function ReaderPage({ target, weekLabel, bibleReading, onBack }: ReaderPageProps) {
+  const readerRef = useRef<PublicationReaderHandle>(null);
+  const studyReaderRef = useRef<PublicationReaderHandle>(null);
+  const pendingStudyBookOpenRef = useRef(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelTab, setPanelTab] = useState<SidePanelTab>('assistant');
+  const [panelLoading, setPanelLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
+  const [autoPrepping, setAutoPrepping] = useState(false);
+  const [lfbPrepping, setLfbPrepping] = useState(false);
+  const [clearingPrep, setClearingPrep] = useState(false);
+  const [autoPrepMessage, setAutoPrepMessage] = useState<string | null>(null);
+  const [lfbPrepMessage, setLfbPrepMessage] = useState<string | null>(null);
+  const [reference, setReference] = useState<ResolveLinkResult | null>(null);
+  const [studyBookSession, setStudyBookSession] = useState<StudyBookSession | null>(null);
+  const [selectedText, setSelectedText] = useState<string | undefined>();
+  const [toolbar, setToolbar] = useState({ open: false, x: 0, y: 0 });
+  const [notes, setNotes] = useState<DocumentNote[]>([]);
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+  const saveNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const title =
+    target.pub === 'mwb'
+      ? 'Apostila da Reunião Vida e Ministério Cristão'
+      : 'A Sentinela — Edição de Estudo';
+
+  const activeNote = useMemo(
+    () => notes.find((note) => note.id === activeNoteId) ?? null,
+    [activeNoteId, notes],
+  );
+
+  const activeStory = studyBookSession?.stories[studyBookSession.currentIndex] ?? null;
+
+  const loadNotes = useCallback(async () => {
+    if (!window.jcs?.getNotes || !target.issue) return;
+    const pub = studyBookSession ? 'lfb' : target.pub;
+    const issue = studyBookSession ? '' : target.issue;
+    const documentId = studyBookSession ? activeStory?.documentId : target.documentId;
+    if (!documentId) return;
+
+    const loaded = await window.jcs.getNotes({ pub, issue, documentId });
+    setNotes(loaded);
+  }, [activeStory?.documentId, studyBookSession, target.documentId, target.issue, target.pub]);
+
+  useEffect(() => {
+    void loadNotes();
+  }, [loadNotes]);
+
+  useEffect(() => {
+    setLfbPrepMessage(null);
+  }, [studyBookSession?.currentIndex, activeStory?.documentId]);
+
+  const persistNote = useCallback(
+    (note: DocumentNote) => {
+      if (!window.jcs?.saveNote || !target.issue) return;
+      if (saveNoteTimerRef.current) clearTimeout(saveNoteTimerRef.current);
+      saveNoteTimerRef.current = setTimeout(() => {
+        void window.jcs
+          ?.saveNote?.({
+            pub: target.pub,
+            issue: target.issue!,
+            documentId: target.documentId,
+            note,
+          })
+          .then(setNotes);
+      }, 350);
+    },
+    [target.documentId, target.issue, target.pub],
+  );
+
+  const openNote = useCallback((noteId: string) => {
+    setActiveNoteId(noteId);
+  }, []);
+
+  const createNoteFromSelection = useCallback(async () => {
+    if (!target.issue) return;
+    const root = document.querySelector<HTMLElement>('.jwpub-content');
+    if (!root) return;
+
+    const draft = noteFromSelection(root);
+    if (!draft) {
+      setAutoPrepMessage('Selecione um trecho na matéria para criar a nota.');
+      setToolbar({ open: false, x: 0, y: 0 });
+      return;
+    }
+
+    const note: DocumentNote = { ...draft, body: '', tags: [] };
+    applyNoteAnchor(root, note);
+
+    const saved = await window.jcs?.saveNote?.({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+      note,
+    });
+    if (saved) setNotes(saved);
+
+    window.getSelection()?.removeAllRanges();
+    setToolbar({ open: false, x: 0, y: 0 });
+    setActiveNoteId(note.id);
+  }, [target.documentId, target.issue, target.pub]);
+
+  const updateActiveNote = useCallback(
+    (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => {
+      if (!activeNoteId) return;
+      setNotes((current) => {
+        const next = current.map((note) =>
+          note.id === activeNoteId ? { ...note, ...patch } : note,
+        );
+        const updated = next.find((note) => note.id === activeNoteId);
+        if (updated) persistNote(updated);
+        return next;
+      });
+    },
+    [activeNoteId, persistNote],
+  );
+
+  const deleteActiveNote = useCallback(async () => {
+    if (!activeNoteId || !window.jcs?.removeNote || !target.issue) return;
+
+    const root = document.querySelector<HTMLElement>('.jwpub-content');
+    if (root) removeNoteAnchor(root, activeNoteId);
+
+    const saved = await window.jcs.removeNote({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+      noteId: activeNoteId,
+    });
+    setNotes(saved);
+    setActiveNoteId(null);
+  }, [activeNoteId, target.documentId, target.issue, target.pub]);
+
+  useEffect(() => {
+    const syncSelection = () => setSelectedText(getSelectedTextFromReader());
+    document.addEventListener('selectionchange', syncSelection);
+    return () => document.removeEventListener('selectionchange', syncSelection);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (saveNoteTimerRef.current) clearTimeout(saveNoteTimerRef.current);
+    },
+    [],
+  );
+
+  const assistantContext = useMemo(
+    () => ({
+      weekLabel,
+      publicationTitle: `${title} — ${target.title}`,
+      bibleReading,
+      selectedText,
+      sourcePub: target.pub,
+      sourceIssue: target.issue,
+      sourceDocumentId: target.documentId,
+      referenceTitle: reference?.ok ? reference.title : undefined,
+      referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
+    }),
+    [bibleReading, reference, selectedText, target.documentId, target.issue, target.pub, target.title, title, weekLabel],
+  );
+
+  const openReference = useCallback(
+    async (href: string, linkLabel: string) => {
+      if (!window.jcs?.resolveLink || !target.issue) return;
+
+      setPanelOpen(true);
+      setPanelTab('references');
+      setPanelLoading(true);
+      setReference(null);
+
+      const result = await window.jcs.resolveLink({
+        href,
+        linkLabel,
+        sourcePub: target.pub,
+        sourceIssue: target.issue,
+      });
+
+      setReference(result);
+      setPanelLoading(false);
+    },
+    [target.issue, target.pub],
+  );
+
+  const handleDownloadPublication = useCallback(async () => {
+    const download = reference?.download;
+    if (!download || !window.jcs?.downloadPub) return;
+
+    setDownloading(true);
+    const result = await window.jcs.downloadPub({
+      pub: download.pub,
+      issue: download.issue,
+    });
+    setDownloading(false);
+    setDownloadModalOpen(false);
+
+    if (result.ok && reference?.studyBook) {
+      const refreshed = await window.jcs.resolveLink?.({
+        href: reference.studyBook.href,
+        linkLabel: reference.studyBook.linkLabel,
+        sourcePub: target.pub,
+        sourceIssue: target.issue!,
+      });
+      if (refreshed) setReference(refreshed);
+
+      if (pendingStudyBookOpenRef.current && refreshed?.studyBook?.stories.some((s) => s.documentId > 0)) {
+        pendingStudyBookOpenRef.current = false;
+        setStudyBookSession({
+          href: refreshed.studyBook.href,
+          linkLabel: refreshed.studyBook.linkLabel,
+          stories: refreshed.studyBook.stories.filter((s) => s.documentId > 0),
+          currentIndex: 0,
+        });
+        setPanelOpen(false);
+      }
+    } else if (!result.ok) {
+      setReference((current) =>
+        current ? { ...current, error: result.error ?? 'Falha ao baixar publicação.' } : current,
+      );
+    }
+  }, [reference?.download, reference?.studyBook, target.issue, target.pub]);
+
+  const openStudyBookFromReference = useCallback((ref: ResolveLinkResult) => {
+    const stories = ref.studyBook?.stories.filter((story) => story.documentId > 0) ?? [];
+    if (!ref.studyBook || stories.length === 0) {
+      setAutoPrepMessage('Baixe o livro lfb para abrir as histórias.');
+      return;
+    }
+
+    setStudyBookSession({
+      href: ref.studyBook.href,
+      linkLabel: ref.studyBook.linkLabel,
+      stories,
+      currentIndex: 0,
+    });
+    setPanelOpen(false);
+    setLfbPrepMessage(null);
+  }, []);
+
+  const handleExpandStudyBook = useCallback(() => {
+    if (!reference?.studyBook) return;
+
+    if (reference.download?.downloaded === false) {
+      pendingStudyBookOpenRef.current = true;
+      setDownloadModalOpen(true);
+      return;
+    }
+
+    openStudyBookFromReference(reference);
+  }, [openStudyBookFromReference, reference]);
+
+  const handleLfbPrep = useCallback(async () => {
+    if (!window.jcs?.lfbPrep || !studyBookSession || !activeStory?.documentId) return;
+
+    setLfbPrepping(true);
+    setLfbPrepMessage(null);
+
+    const result = await window.jcs.lfbPrep({
+      documentIds: [activeStory.documentId],
+      weekLabel,
+    });
+
+    setLfbPrepping(false);
+
+    if (!result.ok) {
+      setLfbPrepMessage(result.error ?? 'Falha ao preparar lições.');
+      return;
+    }
+
+    await studyReaderRef.current?.reloadDocument();
+    const highlights = await window.jcs.getHighlights({
+      pub: 'lfb',
+      issue: '',
+      documentId: activeStory.documentId,
+    });
+    studyReaderRef.current?.applyHighlights(highlights);
+
+    setLfbPrepMessage(
+      `Lições preparadas: ${result.highlights?.length ?? 0} grifo(s) e ${result.fields?.length ?? 0} resposta(s).`,
+    );
+  }, [activeStory?.documentId, studyBookSession, weekLabel]);
+
+  const applyHighlightColor = useCallback(
+    async (color: HighlightColorId) => {
+      if (!target.issue) return;
+      const root = document.querySelector<HTMLElement>('.jwpub-content');
+      if (!root) return;
+
+      const draft = serializeSelection(root);
+      if (!draft) {
+        setToolbar({ open: false, x: 0, y: 0 });
+        return;
+      }
+
+      draft.color = color;
+      if (!applyHighlight(root, draft)) {
+        setAutoPrepMessage('Não foi possível grifar este trecho.');
+        setToolbar({ open: false, x: 0, y: 0 });
+        return;
+      }
+
+      await window.jcs?.saveHighlight?.({
+        pub: target.pub,
+        issue: target.issue,
+        documentId: target.documentId,
+        highlight: draft,
+      });
+
+      window.getSelection()?.removeAllRanges();
+      setToolbar({ open: false, x: 0, y: 0 });
+    },
+    [target.documentId, target.issue, target.pub],
+  );
+
+  const handleClearPrep = useCallback(async () => {
+    if (!window.jcs?.clearDocumentPrep || !target.issue) return;
+    if (!window.confirm('Limpar grifos, notas e campos preenchidos desta matéria?')) return;
+
+    setClearingPrep(true);
+    setAutoPrepMessage(null);
+
+    const removed = await window.jcs.clearDocumentPrep({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+    });
+
+    setNotes([]);
+    setActiveNoteId(null);
+    await readerRef.current?.reloadDocument();
+    setClearingPrep(false);
+    setAutoPrepMessage(
+      `Preparação limpa: ${removed.highlights} grifo(s), ${removed.fields} campo(s) e ${removed.notes} nota(s) removidos.`,
+    );
+  }, [target.documentId, target.issue, target.pub]);
+
+  const handleAutoPrep = useCallback(async () => {
+    if (!window.jcs?.autoPrep || !target.issue) return;
+
+    setAutoPrepping(true);
+    setAutoPrepMessage(null);
+
+    const result = await window.jcs.autoPrep({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+      weekLabel,
+      bibleReading,
+      publicationTitle: `${title} — ${target.title}`,
+    });
+
+    setAutoPrepping(false);
+
+    if (!result.ok) {
+      setAutoPrepMessage(result.error ?? 'Falha na preparação automática.');
+      return;
+    }
+
+    await readerRef.current?.reloadDocument();
+
+    const highlights = await window.jcs.getHighlights({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+    });
+    readerRef.current?.applyHighlights(highlights);
+
+    const loadedNotes = await window.jcs.getNotes?.({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+    });
+    if (loadedNotes?.length) {
+      setNotes(loadedNotes);
+      readerRef.current?.applyNotes(loadedNotes);
+    }
+
+    const count = result.highlights?.length ?? 0;
+    const fields = result.fields?.length ?? 0;
+    const noteCount = result.notes?.length ?? 0;
+    setAutoPrepMessage(
+      `Preparação concluída: ${count} grifo(s), ${fields} campo(s) e ${noteCount} nota(s).`,
+    );
+  }, [bibleReading, target, title, weekLabel]);
+
+  if (studyBookSession && activeStory) {
+    return (
+      <>
+        <StudyBookReader
+          weekLabel={weekLabel}
+          storyNumber={activeStory.storyNumber}
+          storyTitle={activeStory.title}
+          storyIndex={studyBookSession.currentIndex}
+          storyCount={studyBookSession.stories.length}
+          prepping={lfbPrepping}
+          prepMessage={lfbPrepMessage}
+          panelOpen={panelOpen}
+          panelTab={panelTab}
+          panelLoading={panelLoading}
+          reference={reference}
+          downloading={downloading}
+          assistantContext={assistantContext}
+          reader={
+            <PublicationReader
+              ref={studyReaderRef}
+              pub="lfb"
+              documentId={activeStory.documentId}
+              issue=""
+              onJwpubLinkClick={(href, label) => {
+                void openReference(href, label);
+                setPanelOpen(true);
+                setPanelTab('references');
+              }}
+              onSelectionToolbar={setToolbar}
+              onNoteClick={openNote}
+            />
+          }
+          onBackToApostila={() => {
+            setStudyBookSession(null);
+            setPanelOpen(true);
+            setPanelTab('references');
+          }}
+          onPrevStory={() => {
+            setStudyBookSession((current) =>
+              current && current.currentIndex > 0
+                ? { ...current, currentIndex: current.currentIndex - 1 }
+                : current,
+            );
+          }}
+          onNextStory={() => {
+            setStudyBookSession((current) =>
+              current && current.currentIndex < current.stories.length - 1
+                ? { ...current, currentIndex: current.currentIndex + 1 }
+                : current,
+            );
+          }}
+          onPrepareLessons={() => void handleLfbPrep()}
+          onPanelClose={() => setPanelOpen(false)}
+          onPanelTabChange={setPanelTab}
+          onLinkClick={(href, label) => {
+            void openReference(href, label);
+          }}
+          onDownloadPublication={() => {
+            void handleDownloadPublication();
+          }}
+        />
+        <DownloadPublicationModal
+          open={downloadModalOpen}
+          title={reference?.download?.label ?? 'Aprenda com as Histórias da Bíblia'}
+          sizeMb={reference?.download?.sizeMb}
+          downloading={downloading}
+          onConfirm={() => void handleDownloadPublication()}
+          onCancel={() => {
+            pendingStudyBookOpenRef.current = false;
+            setDownloadModalOpen(false);
+          }}
+        />
+      </>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col bg-jw-bg">
+      <div className="flex items-center gap-3 border-b border-jw-border bg-jw-surface px-4 py-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-lg px-3 py-1.5 text-sm text-jw-purple hover:bg-jw-purple-light"
+        >
+          ← Reuniões
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-jw-text">{title}</p>
+          <p className="truncate text-xs text-jw-muted">
+            {weekLabel} · {target.title}
+          </p>
+          {autoPrepMessage ? (
+            <p className="truncate text-xs text-jw-purple">{autoPrepMessage}</p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <ToolbarButton
+            label="Destacar — selecione um trecho na matéria"
+            onClick={() => {
+              const root = document.querySelector<HTMLElement>('.jwpub-content');
+              const selection = window.getSelection();
+              if (root && selection && !selection.isCollapsed && root.contains(selection.anchorNode)) {
+                const rect = selection.getRangeAt(0).getBoundingClientRect();
+                setToolbar({ open: true, x: rect.left + rect.width / 2, y: rect.top });
+              } else {
+                setAutoPrepMessage('Selecione um trecho na matéria para grifar.');
+              }
+            }}
+          >
+            Destacar
+          </ToolbarButton>
+          <ToolbarButton
+            label="Limpar preparação desta matéria"
+            onClick={() => void handleClearPrep()}
+            disabled={clearingPrep || autoPrepping}
+          >
+            {clearingPrep ? 'Limpando…' : 'Limpar preparação'}
+          </ToolbarButton>
+          <ToolbarButton
+            label="Preparar automaticamente"
+            onClick={() => void handleAutoPrep()}
+            disabled={autoPrepping || clearingPrep}
+          >
+            {autoPrepping ? 'Preparando…' : 'Preparar automático'}
+          </ToolbarButton>
+          {!panelOpen ? (
+            <ToolbarButton
+              label="Abrir assistente IA"
+              onClick={() => {
+                setPanelOpen(true);
+                setPanelTab('assistant');
+              }}
+            >
+              Assistente IA
+            </ToolbarButton>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="relative min-w-0 flex-1 overflow-auto bg-jw-surface">
+          <PublicationReader
+            ref={readerRef}
+            pub={target.pub}
+            documentId={target.documentId}
+            issue={target.issue}
+            onJwpubLinkClick={(href, label) => {
+              void openReference(href, label);
+            }}
+            onSelectionToolbar={setToolbar}
+            onNoteClick={openNote}
+          />
+          <HighlightToolbar
+            open={toolbar.open}
+            x={toolbar.x}
+            y={toolbar.y}
+            onClose={() => setToolbar({ open: false, x: 0, y: 0 })}
+            onPickColor={(color) => {
+              void applyHighlightColor(color);
+            }}
+            onAddNote={() => {
+              void createNoteFromSelection();
+            }}
+          />
+        </div>
+
+        {activeNote ? (
+          <NotePanel
+            note={activeNote}
+            onChange={updateActiveNote}
+            onClose={() => setActiveNoteId(null)}
+            onDelete={() => {
+              void deleteActiveNote();
+            }}
+          />
+        ) : null}
+
+        <SidePanel
+          open={panelOpen}
+          tab={panelTab}
+          onTabChange={setPanelTab}
+          onClose={() => setPanelOpen(false)}
+          referenceLoading={panelLoading}
+          reference={reference}
+          downloading={downloading}
+          onLinkClick={(href, label) => {
+            void openReference(href, label);
+          }}
+          onDownloadPublication={() => {
+            if (reference?.download?.downloaded === false && reference.kind === 'study-book') {
+              pendingStudyBookOpenRef.current = false;
+              setDownloadModalOpen(true);
+              return;
+            }
+            void handleDownloadPublication();
+          }}
+          onExpandStudyBook={reference?.kind === 'study-book' ? handleExpandStudyBook : undefined}
+          assistantContext={assistantContext}
+        />
+      </div>
+
+      <DownloadPublicationModal
+        open={downloadModalOpen}
+        title={reference?.download?.label ?? 'Aprenda com as Histórias da Bíblia'}
+        sizeMb={reference?.download?.sizeMb}
+        downloading={downloading}
+        onConfirm={() => void handleDownloadPublication()}
+        onCancel={() => {
+          pendingStudyBookOpenRef.current = false;
+          setDownloadModalOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+function ToolbarButton({
+  label,
+  children,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-full border border-jw-border px-3 py-1 text-xs text-jw-muted hover:border-jw-purple hover:text-jw-purple disabled:opacity-50"
+    >
+      {children}
+    </button>
+  );
+}

@@ -1,9 +1,77 @@
-# JW Prep — Planejamento do projeto
+# JCS Meetings — Planejamento técnico
 
-> Documento de referência para desenvolvimento.  
-> **Stack escolhida:** Electron + React + TypeScript (Web).  
-> **Pasta:** `C:\Stoll-Pr\jw-prep` (separada do PULSO).  
-> **Status:** planejamento — código inicia na próxima sessão.
+> Detalhes de implementação. **Escopo de produto:** [ESCOPO.md](./ESCOPO.md)  
+> **Stack:** Electron + React + TypeScript + Vite + Tailwind  
+> **Pasta:** `C:\Stoll-Pr\JCS meetings` (separada do PULSO).  
+> **Status:** **MVP funcional em teste** — leitor, IA, lfb e prep local prontos; falta export `.jwlibrary`.
+
+---
+
+## Estado atual (julho 2026)
+
+### Implementado e testável
+
+| Área | Detalhe |
+|------|---------|
+| **Shell + Reuniões** | Electron, sidebar, lista de semanas, download `mwb`/`w` via jw.org |
+| **Leitor de publicação** | HTML descriptografado, imagens (`jcs-media://`), links `jwpub://` |
+| **Campos editáveis** | Persistência local (`prep-data.json`), auto-resize estilo JW Library |
+| **Destaques** | Marca-texto manual + grifos no preparar automático (1 cor por parágrafo) |
+| **Notas** | Painel lateral estilo JW, âncoras no texto, persistência local |
+| **Painel Referências** | Bíblia NWT (lazy download), matérias `w`/`p`, **livro lfb** (histórias CBS) |
+| **Assistente IA** | Chat no painel, regras JW, contexto da matéria e referências |
+| **Preparar automático** | OpenAI **`gpt-4o`**: grifos, campos, joias (3× cap:vers + aplicação), notas por parte, EBC com 3 perguntas por história lfb |
+| **Limpar preparação** | Remove grifos, notas e campos da matéria aberta |
+| **Busca online** | Fallback WOL/jw.org quando Extract local falha |
+
+### Arquivos principais
+
+- `electron/auto-prep.ts`, `lfb-reader.ts`, `jw-link-resolver.ts`, `user-prep-store.ts`
+- `src/pages/ReaderPage.tsx`, `PublicationReader.tsx`, `NotePanel.tsx`, `SidePanel.tsx`
+
+### Ainda não feito (bloqueia MVP “fechado”)
+
+- [ ] **Export/import `.jwlibrary`** (primeiro teste previsto após próxima rodada de testes manuais)
+- [ ] Modos presidente / dirigente / discurso
+- [ ] Resumo da semana (atalho dedicado)
+- [ ] `userData.db` schema v14 (hoje: `prep-data.json` intermediário)
+- [ ] Instalador Windows, tema escuro, polish geral
+
+---
+
+## Próximos passos (ordem acordada)
+
+### 1. Próximo teste manual (agora)
+
+Validar na semana **29 jun–5 jul 2026** (Jeremias 11–12):
+
+1. Limpar preparação → Preparar automático → revisar joias, notas, EBC.
+2. Clicar **lfb histórias 98–99** e confirmar histórias no painel.
+3. Editar campos e notas; confirmar auto-resize dos textareas.
+
+### 2. Primeiro salvamento para JW Library (logo após teste OK)
+
+- Implementar **export `.jwlibrary`** (`userData.db` v14 + manifest + hash).
+- Testar **restauração no JW Library mobile** (Android): campos, grifos e notas na apostila.
+- Opcional: usuário envia backup manual (1 campo preenchido) para calibrar mapeamento `InputField` / `UserMark`.
+
+### 3. Após MVP funcional fechado — separar dois modos de IA
+
+| Modo | Público | Conteúdo |
+|------|---------|----------|
+| **Assistência** | Filha (depois esposa) | Joias, campos, notas **curtas**, EBC com 3 perguntas — preparação do dia a dia |
+| **Tribuna** | **Somente você** (família restrita) | Roteiros longos de condução, notas detalhadas por parte, ferramentas de condutor |
+
+**Regras de acesso (não distribuir publicamente):**
+
+- Modo Tribuna **desligado por padrão**; desbloqueio local (PIN ou allowlist de usuário Windows).
+- Modo Assistência disponível para família autorizada na máquina — **não** expor ferramentas de tribuna em build compartilhado.
+- Rollout: **você** → **filha** → **esposa** (fases separadas).
+
+### 4. Depois
+
+- Modos presidente / dirigente / discurso (P1).
+- Bíblia completa no painel; Início, busca, instalador (P2).
 
 ---
 
@@ -29,7 +97,7 @@ Aplicativo de **preparação automática de reuniões** para uso com o **JW Libr
 
 ## 2. Contexto validado pelo usuário
 
-Hoje o fluxo manual já funciona com **Gemini + `.jwpub`**: o modelo busca respostas na matéria, na Bíblia e no jw.org, e monta comentários para a reunião completa. O app **automatiza e padroniza** esse fluxo e adiciona a **exportação para JW Library**.
+Hoje o fluxo manual já funciona com **Gemini + `.jwpub`**. No app, a **preparação automática e resumos** usam **OpenAI** (API já disponível). O JCS Meetings **replica o JW Library** para preparação manual e adiciona IA + modos presidente/dirigente/discurso.
 
 ---
 
@@ -42,16 +110,17 @@ Hoje o fluxo manual já funciona com **Gemini + `.jwpub`**: o modelo busca respo
 | Estilo | **Tailwind CSS** |
 | Parser de publicações | **`meeting-schedules-parser`** (JWPUB/EPUB, URL ou arquivo local) |
 | Download oficial | API **`GETPUBMEDIALINKS`** (`b.jw-cdn.org`) |
-| IA / síntese | **Google Gemini API** (mesma lógica do fluxo atual) |
-| Busca complementar jw.org | Fase 2: WOL / busca jw.org (ex.: `jwlib`, wrappers WOL) |
-| Export JW Library | **JSZip + sql.js** → arquivo `.jwlibrary` |
+| IA (preparar, resumo, modos) | **OpenAI API** (`gpt-4o` no preparar automático; assistente `gpt-4o-mini`) |
+| Busca complementar jw.org | WOL / busca jw.org (Fase 2+) |
+| Dados locais | **`userData.db`** (schema JW Library v14) em `%APPDATA%/JCS meetings/` |
+| Export mobile | **JSZip + sql.js** → `.jwlibrary` |
 
 ### Variáveis de ambiente
 
 ```env
-GEMINI_API_KEY=...
-# Fase 2+
-# WOL / outras chaves se necessário
+OPENAI_API_KEY=...
+# Opcional: modelo do preparar automático (padrão gpt-4o)
+OPENAI_AUTO_PREP_MODEL=gpt-4o
 ```
 
 ---
@@ -62,6 +131,8 @@ GEMINI_API_KEY=...
 |--------|----------------|-----|
 | `mwb` | `mwb_T_YYYYMM.jwpub` | Reunião Vida e Ministério (meio de semana) |
 | `w` | `w_T_YYYYMM.jwpub` | Sentinela — Edição de Estudo (fim de semana) |
+| `lfb` | `lfb_T_.jwpub` | Lições que Você Pode Aprender da Bíblia (estudo de congregação) |
+| `nwt` | `nwt_T_.jwpub` | Tradução do Novo Mundo (referências bíblicas) |
 
 - **`T`** = idioma português (Brasil), conforme convenção JW.
 - **`YYYYMM`** = ano + mês da edição (ex.: `202604` = abril/2026).
@@ -139,7 +210,7 @@ Ordem de prioridade das fontes:
 1. Publicação da semana (mwb / w) — parágrafos, quadros, perguntas adjacentes
 2. Versículos citados — Bíblia NWT (jwpub nwt ou WOL)
 3. Fallback — busca WOL / jw.org (artigos, estudos, brochuras relacionadas)
-4. Síntese — Gemini monta resposta + comentários/aplicações citando fontes
+4. Síntese — OpenAI monta resposta + comentários/aplicações citando fontes
 ```
 
 ### Prompt (diretrizes)
@@ -177,7 +248,7 @@ Tela de revisão semana a semana, pergunta a pergunta, antes de exportar.
 ## 10. Arquitetura do app
 
 ```
-jw-prep/
+jcs-meetings/
 ├── electron/
 │   ├── main.ts              # janela, IPC, fs, download
 │   └── preload.ts           # bridge seguro renderer ↔ main
@@ -216,44 +287,43 @@ jw-prep/
 
 ## 11. Fases de desenvolvimento
 
-### Fase 1 — Fundação (primeira sessão de código)
+### Fase 1 — Fundação ✅
 
-- [ ] Scaffold Electron + Vite + React + TypeScript + Tailwind
-- [ ] Tela: seleção de mês + botão “Baixar publicações”
-- [ ] Integração `GETPUBMEDIALINKS` (mwb + w, lang `T`)
-- [ ] Cache local em `%APPDATA%/jw-prep/cache/`
-- [ ] Parser: listar semanas via `meeting-schedules-parser`
-- [ ] UI: cards por semana (data, leitura bíblica, partes)
+- [x] Scaffold Electron + Vite + React + TypeScript + Tailwind
+- [x] Download `GETPUBMEDIALINKS` (mwb + w, lang `T`)
+- [x] Cache local em `%APPDATA%/JCS meetings/cache/`
+- [x] Parser: semanas via `meeting-schedules-parser`
+- [x] UI: cards por semana
 
-**Critério de pronto:** baixar abril/2026, ver semanas listadas na UI.
+### Fase 2 — Leitor + preparação manual ✅
 
-### Fase 2 — Geração de conteúdo
+- [x] Leitor HTML `.jwpub` + imagens + links
+- [x] Campos editáveis persistentes + auto-resize
+- [x] Destaques e notas ancoradas
+- [x] Painel referências (NWT, matérias, **lfb**)
+- [x] Assistente IA (OpenAI)
 
-- [ ] Integração Gemini API (chave em `.env`)
-- [ ] Extrair perguntas/campos do HTML da publicação
-- [ ] Pipeline RAG: publicação → Bíblia → (stub WOL)
-- [ ] UI de revisão editável por pergunta
-- [ ] Indicador de fonte usada em cada resposta
+### Fase 3 — Preparar automático ✅ (em teste)
 
-**Critério de pronto:** gerar preparação completa de uma semana e revisar na tela.
+- [x] OpenAI **`gpt-4o`** no preparar automático
+- [x] Joias, grifos, notas por parte, EBC (lfb + 3 perguntas)
+- [x] Limpar preparação
 
-### Fase 3 — Export JW Library
+### Fase 4 — Export JW Library ⏳ **próximo**
 
-- [ ] Mapear perguntas → `LocationId` + `TextTag` (requer engenharia reversa / amostra de backup real)
-- [ ] Gerar `userData.db` mínimo válido
-- [ ] Empacotar `.jwlibrary` (JSZip + manifest + hash)
-- [ ] Testar restore no JW Library Android
-- [ ] Ajustes até campos aparecerem corretamente na apostila/Sentinela
+- [ ] Mapear `InputField` / `UserMark` / notas → schema v14
+- [ ] Gerar `userData.db` + empacotar `.jwlibrary`
+- [ ] **Primeiro teste:** restaurar no JW Library mobile (Android)
 
-**Critério de pronto:** importar backup no celular e ver respostas nos campos nativos.
+### Fase 5 — Dois modos IA + acesso família (pós-MVP)
 
-### Fase 4 — Polimento
+- [ ] Modo **Assistência** (filha → esposa)
+- [ ] Modo **Tribuna** com bloqueio local — **só você**; não distribuir publicamente
 
-- [ ] Busca WOL/jw.org robusta para fallback
-- [ ] Destaques automáticos (`UserMark`) nos trechos-chave
-- [ ] Notas para comentários longos
-- [ ] Build instalador Windows (electron-builder)
-- [ ] Tratamento de erros, loading states, tema claro/escuro
+### Fase 6 — Polimento
+
+- [ ] Modos presidente / dirigente / discurso
+- [ ] Instalador Windows, tema escuro, polish
 
 ---
 
@@ -310,11 +380,10 @@ Versões exatas a fixar no `package.json` na Fase 1.
 
 ## 15. Próxima sessão (checklist)
 
-1. Confirmar que a pasta `C:\Stoll-Pr\jw-prep` está ok.
-2. `npm create` / scaffold Electron + Vite + React.
-3. Implementar download `mwb_T_202604` + `w_T_202604` como teste.
-4. Listar semanas na UI.
-5. Opcional: usuário gera um `.jwlibrary` manual (1 campo preenchido) para calibrar Fase 3.
+1. **Teste manual** da semana 29 jun–5 jul (preparar automático + lfb + notas).
+2. **Implementar export `.jwlibrary`** e testar restore no JW Library mobile.
+3. Calibrar mapeamento com backup manual de referência (se necessário).
+4. **Depois do MVP fechado:** separar Modo Assistência vs Modo Tribuna com bloqueio local (só família).
 
 ---
 
@@ -322,13 +391,17 @@ Versões exatas a fixar no `package.json` na Fase 1.
 
 | Decisão | Escolha |
 |---------|---------|
-| Plataforma MVP | **Computador (Windows)** — Android depois, se necessário |
+| Plataforma MVP | **Computador (Windows)** — Android via JW Library restore |
 | Stack UI | **Electron / Web (React + TS + Vite)** |
-| IA | **Gemini** (fluxo já validado pelo usuário) |
+| IA preparar automático | **OpenAI `gpt-4o`** (assistência chat: `gpt-4o-mini`) |
 | Destino da preparação | **`.jwlibrary`**, não `.jwpub` modificado |
 | Idioma inicial | **Português (T)** |
-| Repositório | **`C:\Stoll-Pr\jw-prep`**, separado do PULSO |
+| Nome do projeto | **JCS Meetings** |
+| Repositório | **`C:\Stoll-Pr\JCS meetings`**, separado do PULSO |
+| Pós-MVP: dois modos IA | **Assistência** (família) vs **Tribuna** (só você; bloqueio local) |
+| Tribuna | **Não** disponibilizar publicamente — só você e família autorizada |
+| Rollout família | Filha → esposa (fases); tribuna permanece restrita |
 
 ---
 
-*Última atualização: 1 de julho de 2026*
+*Última atualização: 2 de julho de 2026*

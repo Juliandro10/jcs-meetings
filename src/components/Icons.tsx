@@ -1,0 +1,122 @@
+import type { SVGProps } from 'react';
+
+type IconProps = SVGProps<SVGSVGElement>;
+
+export function IconMenu(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconHome(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconBible(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M6 4h9a3 3 0 0 1 3 3v14a3 3 0 0 0-3-3H6V4Z" />
+      <path d="M6 18h9a3 3 0 0 1 3 3" />
+    </svg>
+  );
+}
+
+export function IconLibrary(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M5 7h4v12H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z" />
+      <path d="M10 6h4v13h-4V6Z" />
+      <path d="M15 5h4a1 1 0 0 1 1 1v13h-5V5Z" />
+    </svg>
+  );
+}
+
+export function IconMedia(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m10 10 5 3-5 3v-6Z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function IconMeetings(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="9" cy="8" r="2.5" />
+      <circle cx="16" cy="9" r="2" />
+      <path d="M4 19c1.5-3 4-4.5 5-4.5s3.5 1.5 5 4.5" strokeLinecap="round" />
+      <path d="M14 19c.8-2 2.2-3 3-3s2.8 1.2 3.5 3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconDiamond(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M12 3 4 9l8 12 8-12-8-6Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconSearch(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="11" cy="11" r="6" />
+      <path d="m16 16 4 4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconHistory(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M12 8v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 12a9 9 0 1 0 2.5-6.2" strokeLinecap="round" />
+      <path d="M3 4v4h4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconMore(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <circle cx="6" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="18" cy="12" r="1.5" />
+    </svg>
+  );
+}
+
+export function IconCloudDownload(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M7 18h10" strokeLinecap="round" />
+      <path d="M12 14V8" strokeLinecap="round" />
+      <path d="m9.5 10.5 2.5 2.5 2.5-2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7.5 15A4.5 4.5 0 0 1 7 6.8 5.5 5.5 0 0 1 17.2 8 4.5 4.5 0 0 1 16.5 15" />
+    </svg>
+  );
+}
+
+export function IconChevronLeft(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="m14 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconChevronRight(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="m10 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
