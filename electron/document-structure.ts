@@ -197,6 +197,15 @@ export function extractDocumentStructure(html: string): DocumentStructure {
     if (!isMeetingPart(block.text)) continue;
     if (/^\d+\.\s/.test(block.text) && isSectionHeader(block.text)) continue;
 
+    // "(10 min)" na linha seguinte ao título numerado — mesma parte, não criar entrada duplicada.
+    if (/^\(\d+\s*min\)/i.test(block.text.trim()) && lastNumberedPartTitle && parts.length > 0) {
+      const last = parts[parts.length - 1];
+      if (last.title === lastNumberedPartTitle) {
+        last.text = `${last.text} ${block.text}`.trim();
+        continue;
+      }
+    }
+
     const kind = detectKind(block.text, section);
     if (/^\d+\.\s/.test(block.text) && kind === 'joias' && !block.text.includes('?')) continue;
 

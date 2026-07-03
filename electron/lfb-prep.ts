@@ -1,4 +1,5 @@
 import { JW_AI_GROUNDING_RULES, JW_CBS_STUDY_RULES, JW_HIGHLIGHT_RULES } from './ai-prompts';
+import { buildLfbStudyNote, isLfbStudyNoteId } from './lfb-study-notes';
 import {
   extractLfbBlocks,
   formatLfbStoriesPlainText,
@@ -9,7 +10,7 @@ import {
 } from './lfb-reader';
 import { getDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
 import type { AutoPrepField, AutoPrepHighlight, LfbPrepParams, LfbPrepResult } from './types';
-import { fieldKey, saveHighlightsBatch, setFieldValue } from './user-prep-store';
+import { saveHighlightsBatch, saveNotesBatch } from './user-prep-store';
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const AUTO_PREP_MODEL = process.env.OPENAI_AUTO_PREP_MODEL?.trim() || 'gpt-4o';
@@ -161,7 +162,7 @@ export async function runLfbPrep(
   }
 
   const allHighlights: AutoPrepHighlight[] = [];
-  const allFields: AutoPrepField[] = [];
+  const savedNotes: Array<{ noteId: string; body: string }> = [];
   let preparedDocuments = 0;
 
   for (const documentId of documentIds) {
@@ -208,13 +209,20 @@ export async function runLfbPrep(
       allHighlights.push(...prep.highlights);
     }
 
-    for (const field of prep.fields) {
-      await setFieldValue(
-        userDataDir,
-        fieldKey(LFB_PUB, LFB_ISSUE, documentId, field.fieldId),
-        field.value,
-      );
-      allFields.push(field);
+    const studyNotes = prep.fields
+      .filter(
+        (field) =>
+          isLfbStudyNoteId(field.fieldId) &&
+          field.value?.trim(),
+      )
+      .slice(0, 3)
+      .map((field) => buildLfbStudyNote(field.fieldId, field.value.trim(), html));
+
+    if (studyNotes.length > 0) {
+      await saveNotesBatch(userDataDir, LFB_PUB, LFB_ISSUE, documentId, studyNotes);
+      for (const note of studyNotes) {
+        savedNotes.push({ noteId: note.id, body: note.body });
+      }
     }
 
     preparedDocuments += 1;
@@ -227,7 +235,7 @@ export async function runLfbPrep(
   return {
     ok: true,
     highlights: allHighlights,
-    fields: allFields,
+    notes: savedNotes,
     preparedDocuments,
   };
 }

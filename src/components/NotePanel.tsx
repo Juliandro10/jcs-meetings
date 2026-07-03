@@ -6,9 +6,10 @@ type NotePanelProps = {
   onChange: (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => void;
   onClose: () => void;
   onDelete: () => void;
+  embedded?: boolean;
 };
 
-export function NotePanel({ note, onChange, onClose, onDelete }: NotePanelProps) {
+export function NotePanel({ note, onChange, onClose, onDelete, embedded = false }: NotePanelProps) {
   const [tagDraft, setTagDraft] = useState('');
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -27,7 +28,13 @@ export function NotePanel({ note, onChange, onClose, onDelete }: NotePanelProps)
   };
 
   return (
-    <aside className="flex w-full max-w-sm shrink-0 flex-col border-l border-jw-border bg-[#f3f3f3]">
+    <section
+      className={
+        embedded
+          ? 'mb-4 overflow-hidden rounded-lg border border-jw-border bg-white shadow-sm'
+          : 'flex w-full max-w-sm shrink-0 flex-col border-l border-jw-border bg-[#f3f3f3]'
+      }
+    >
       <div className="flex items-start gap-2 border-b border-jw-border px-4 py-3">
         <div className="min-w-0 flex-1">
           <input
@@ -48,13 +55,16 @@ export function NotePanel({ note, onChange, onClose, onDelete }: NotePanelProps)
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+      <div className={`flex flex-col gap-3 p-4 ${embedded ? '' : 'min-h-0 flex-1'}`}>
         <textarea
           ref={bodyRef}
           value={note.body}
           onChange={(event) => onChange({ body: event.target.value })}
           placeholder="Escreva sua nota…"
-          className="min-h-[220px] flex-1 resize-none rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text outline-none focus:border-jw-purple"
+          className={[
+            'resize-none rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text outline-none focus:border-jw-purple',
+            embedded ? 'min-h-[160px]' : 'min-h-[220px] flex-1',
+          ].join(' ')}
         />
 
         <div className="flex flex-wrap gap-2">
@@ -83,11 +93,7 @@ export function NotePanel({ note, onChange, onClose, onDelete }: NotePanelProps)
               placeholder="Etiqueta"
               className="w-24 bg-transparent text-xs text-jw-text outline-none"
             />
-            <button
-              type="button"
-              onClick={addTag}
-              className="text-xs text-jw-purple hover:underline"
-            >
+            <button type="button" onClick={addTag} className="text-xs text-jw-purple hover:underline">
               + Adicionar uma etiqueta
             </button>
           </div>
@@ -95,14 +101,10 @@ export function NotePanel({ note, onChange, onClose, onDelete }: NotePanelProps)
       </div>
 
       <div className="border-t border-jw-border px-4 py-3">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="text-xs text-red-600 hover:underline"
-        >
+        <button type="button" onClick={onDelete} className="text-xs text-red-600 hover:underline">
           Excluir nota
         </button>
       </div>
-    </aside>
+    </section>
   );
 }

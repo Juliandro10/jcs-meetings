@@ -6,6 +6,10 @@ export const LFB_STUDY_QUESTIONS = [
 
 export const LFB_STUDY_FIELD_IDS = ['study-q1', 'study-q2', 'study-q3'] as const;
 
+export function isLfbStudyFieldId(fieldId: string): boolean {
+  return (LFB_STUDY_FIELD_IDS as readonly string[]).includes(fieldId);
+}
+
 export function buildLfbStudyFieldsHtml() {
   const fields = LFB_STUDY_FIELD_IDS.map(
     (fieldId, index) => `

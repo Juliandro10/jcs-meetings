@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { AssistantChat, referencePlainText } from '@/components/AssistantChat';
 import { DownloadProgressBar } from '@/components/DownloadProgressBar';
+import { NotePanel } from '@/components/NotePanel';
+import type { DocumentNote } from '@/lib/note-dom';
 import type { AiChatContext, ResolveLinkResult } from '../../electron/types';
 
 export type SidePanelTab = 'references' | 'assistant';
@@ -18,6 +20,10 @@ type SidePanelProps = {
   onDownloadPublication: () => void;
   onExpandStudyBook?: () => void;
   assistantContext: AiChatContext;
+  note?: DocumentNote | null;
+  onNoteChange?: (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => void;
+  onNoteClose?: () => void;
+  onNoteDelete?: () => void;
 };
 
 export function SidePanel({
@@ -33,6 +39,10 @@ export function SidePanel({
   onDownloadPublication,
   onExpandStudyBook,
   assistantContext,
+  note,
+  onNoteChange,
+  onNoteClose,
+  onNoteDelete,
 }: SidePanelProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isStudyBook = reference?.kind === 'study-book';
@@ -86,6 +96,22 @@ export function SidePanel({
       <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
         {tab === 'references' ? (
           <>
+            {note && onNoteChange && onNoteClose && onNoteDelete ? (
+              <NotePanel
+                embedded
+                note={note}
+                onChange={onNoteChange}
+                onClose={onNoteClose}
+                onDelete={onNoteDelete}
+              />
+            ) : null}
+
+            {note && (referenceLoading || reference?.ok) ? (
+              <div className="mb-3 border-t border-jw-border pt-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-jw-muted">Referência</p>
+              </div>
+            ) : null}
+
             {referenceLoading ? (
               <p className="text-sm text-jw-muted">Carregando referência…</p>
             ) : reference?.ok ? (
@@ -141,11 +167,12 @@ export function SidePanel({
                   dangerouslySetInnerHTML={{ __html: reference.html ?? '' }}
                 />
               </>
-            ) : (
+            ) : !note ? (
               <p className="text-sm text-jw-muted">
-                {reference?.error ?? 'Selecione um link na matéria para abrir versículos ou matérias de pesquisa.'}
+                {reference?.error ??
+                  'Selecione um link na matéria para abrir versículos ou matérias de pesquisa.'}
               </p>
-            )}
+            ) : null}
           </>
         ) : (
           <AssistantChat

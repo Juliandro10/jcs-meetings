@@ -106,7 +106,7 @@ export type LfbPrepParams = {
 export type LfbPrepResult = {
   ok: boolean;
   highlights?: AutoPrepHighlight[];
-  fields?: AutoPrepField[];
+  notes?: Array<{ noteId: string; body: string }>;
   error?: string;
   preparedDocuments?: number;
 };

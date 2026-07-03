@@ -11,118 +11,205 @@ export type DocumentNote = {
   tags: string[];
 };
 
-function locateTextOffsets(block: HTMLElement, text: string, hintStart?: number) {
-  const content = block.textContent ?? '';
-  const normalizedNeedle = text.replace(/\s+/g, ' ').trim();
-  if (!normalizedNeedle) return null;
+const MARKER_CLASS = 'jcs-note-marker';
+const GUTTER_CLASS = 'jcs-note-gutter';
+const COLUMN_CLASS = 'jcs-reading-column';
+const LEGACY_ANCHOR_CLASS = 'jcs-note-anchor';
+const MARKER_STACK_STEP_PX = 14;
 
-  let from = hintStart ?? 0;
-  while (from <= content.length) {
-    const idx = content.indexOf(normalizedNeedle, from);
-    if (idx === -1) break;
-    return { startOffset: idx, endOffset: idx + normalizedNeedle.length };
-  }
-
-  const fuzzy = content.replace(/\s+/g, ' ').trim();
-  const fuzzyIdx = fuzzy.indexOf(normalizedNeedle);
-  if (fuzzyIdx >= 0) {
-    return { startOffset: fuzzyIdx, endOffset: fuzzyIdx + normalizedNeedle.length };
+function findBlock(root: HTMLElement, blockId: string): HTMLElement | null {
+  for (const block of root.querySelectorAll<HTMLElement>('[data-pid], p[id^="p"]')) {
+    if (getBlockId(block) === blockId) return block;
   }
   return null;
 }
 
-function wrapNoteAnchor(
-  block: HTMLElement,
-  startOffset: number,
-  endOffset: number,
-  noteId: string,
-) {
-  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
-  let offset = 0;
-  let startNode: Text | null = null;
-  let startNodeOffset = 0;
-  let endNode: Text | null = null;
-  let endNodeOffset = 0;
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode as Text;
-    const len = node.data.length;
-    if (!startNode && offset + len >= startOffset) {
-      startNode = node;
-      startNodeOffset = startOffset - offset;
-    }
-    if (offset + len >= endOffset) {
-      endNode = node;
-      endNodeOffset = endOffset - offset;
-      break;
-    }
-    offset += len;
-  }
-
-  if (!startNode || !endNode) return false;
-
-  const range = document.createRange();
-  range.setStart(startNode, startNodeOffset);
-  range.setEnd(endNode, endNodeOffset);
-
-  const anchor = document.createElement('span');
-  anchor.className = 'jcs-note-anchor';
-  anchor.dataset.noteId = noteId;
-  anchor.title = 'Abrir nota';
-
-  try {
-    range.surroundContents(anchor);
-  } catch {
-    const extracted = range.extractContents();
-    anchor.appendChild(extracted);
-    range.insertNode(anchor);
-  }
-  return true;
+function getReadingColumn(contentRoot: HTMLElement): HTMLElement {
+  return contentRoot.closest<HTMLElement>(`.${COLUMN_CLASS}`) ?? contentRoot;
 }
 
-export function applyNoteAnchor(root: HTMLElement, note: DocumentNote) {
-  const blocks = root.querySelectorAll<HTMLElement>('[data-pid], p[id^="p"]');
-  let target: HTMLElement | null = null;
-  for (const block of blocks) {
-    if (getBlockId(block) === note.blockId) {
-      target = block;
-      break;
-    }
-  }
-  if (!target) return false;
-
-  if (target.querySelector(`span.jcs-note-anchor[data-note-id="${note.id}"]`)) return true;
-
-  let { startOffset, endOffset } = note;
-  const blockLen = target.textContent?.length ?? 0;
-
-  const tryWrap = (start: number, end: number) => wrapNoteAnchor(target, start, end, note.id);
-
-  if (tryWrap(startOffset, endOffset)) return true;
-
-  if (startOffset >= blockLen || endOffset > blockLen || startOffset === 0) {
-    const located = locateTextOffsets(target, note.anchorText, note.startOffset);
-    if (located) return tryWrap(located.startOffset, located.endOffset);
-  }
-
-  return false;
-}
-
-export function applyAllNoteAnchors(root: HTMLElement, notes: DocumentNote[]) {
-  for (const note of notes) {
-    applyNoteAnchor(root, note);
-  }
-}
-
-export function removeNoteAnchor(root: HTMLElement, noteId: string) {
-  const anchor = root.querySelector<HTMLElement>(`span.jcs-note-anchor[data-note-id="${noteId}"]`);
-  if (!anchor) return;
+function unwrapLegacyAnchor(anchor: HTMLElement) {
   const parent = anchor.parentNode;
   if (!parent) return;
   while (anchor.firstChild) {
     parent.insertBefore(anchor.firstChild, anchor);
   }
   parent.removeChild(anchor);
+}
+
+export function unwrapLegacyNoteAnchors(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>(`span.${LEGACY_ANCHOR_CLASS}`).forEach(unwrapLegacyAnchor);
+}
+
+function ensureGutter(contentRoot: HTMLElement): HTMLElement {
+  const column = getReadingColumn(contentRoot);
+  let gutter = column.querySelector<HTMLElement>(`.${GUTTER_CLASS}`);
+  if (!gutter) {
+    gutter = document.createElement('div');
+    gutter.className = GUTTER_CLASS;
+    gutter.setAttribute('aria-hidden', 'true');
+    column.insertBefore(gutter, contentRoot);
+    column.classList.add('jcs-has-note-gutter');
+  }
+  return gutter;
+}
+
+function removeGutterIfEmpty(contentRoot: HTMLElement) {
+  const column = getReadingColumn(contentRoot);
+  const gutter = column.querySelector(`.${GUTTER_CLASS}`);
+  if (gutter && gutter.childElementCount === 0) {
+    gutter.remove();
+    column.classList.remove('jcs-has-note-gutter');
+  }
+}
+
+function createMarker(note: DocumentNote): HTMLButtonElement {
+  const marker = document.createElement('button');
+  marker.type = 'button';
+  marker.className = MARKER_CLASS;
+  marker.dataset.noteId = note.id;
+  marker.dataset.blockId = note.blockId;
+  marker.title = note.title || 'Abrir nota';
+  marker.setAttribute('aria-label', note.title || 'Abrir nota');
+  return marker;
+}
+
+function blockTopWithinColumn(block: HTMLElement, column: HTMLElement): number {
+  const columnRect = column.getBoundingClientRect();
+  const blockRect = block.getBoundingClientRect();
+  return blockRect.top - columnRect.top + column.scrollTop;
+}
+
+/** Fallback visual dedupe when prep antigo ainda tem entradas repetidas. */
+export function dedupeNotesForMarkers(root: HTMLElement, notes: DocumentNote[]): DocumentNote[] {
+  const byTitle = new Map<string, DocumentNote[]>();
+
+  for (const note of notes) {
+    const key = note.title.trim().toLowerCase();
+    const group = byTitle.get(key) ?? [];
+    group.push(note);
+    byTitle.set(key, group);
+  }
+
+  const deduped: DocumentNote[] = [];
+  for (const group of byTitle.values()) {
+    if (group.length === 1) {
+      deduped.push(group[0]);
+      continue;
+    }
+
+    const onNumberedBlock = group.find((note) => {
+      const block = findBlock(root, note.blockId);
+      const text = block?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+      return /^\d+\.\s/.test(text);
+    });
+
+    if (onNumberedBlock) {
+      deduped.push(onNumberedBlock);
+      continue;
+    }
+
+    deduped.push(
+      group.reduce((best, note) =>
+        (note.body?.length ?? 0) >= (best.body?.length ?? 0) ? note : best,
+      ),
+    );
+  }
+
+  return deduped.sort(
+    (a, b) => a.blockId.localeCompare(b.blockId) || a.startOffset - b.startOffset,
+  );
+}
+
+export function repositionNoteMarkers(contentRoot: HTMLElement) {
+  const column = getReadingColumn(contentRoot);
+  const gutter = column.querySelector<HTMLElement>(`.${GUTTER_CLASS}`);
+  if (!gutter) return;
+
+  const markers = [...gutter.querySelectorAll<HTMLElement>(`.${MARKER_CLASS}`)];
+  if (markers.length === 0) return;
+
+  const byBlock = new Map<string, HTMLElement[]>();
+  for (const marker of markers) {
+    const blockId = marker.dataset.blockId ?? '';
+    const group = byBlock.get(blockId) ?? [];
+    group.push(marker);
+    byBlock.set(blockId, group);
+  }
+
+  for (const [blockId, blockMarkers] of byBlock) {
+    const block = findBlock(contentRoot, blockId);
+    if (!block) continue;
+
+    const top = blockTopWithinColumn(block, column);
+
+    blockMarkers.forEach((marker, index) => {
+      marker.style.top = `${top + index * MARKER_STACK_STEP_PX}px`;
+    });
+  }
+}
+
+export function applyNoteAnchor(contentRoot: HTMLElement, note: DocumentNote) {
+  unwrapLegacyNoteAnchors(contentRoot);
+
+  const block = findBlock(contentRoot, note.blockId);
+  if (!block) return false;
+
+  const gutter = ensureGutter(contentRoot);
+  const existing = gutter.querySelector<HTMLElement>(`.${MARKER_CLASS}[data-note-id="${note.id}"]`);
+  if (existing) {
+    existing.title = note.title || 'Abrir nota';
+    existing.setAttribute('aria-label', note.title || 'Abrir nota');
+    requestAnimationFrame(() => repositionNoteMarkers(contentRoot));
+    return true;
+  }
+
+  gutter.appendChild(createMarker(note));
+  requestAnimationFrame(() => repositionNoteMarkers(contentRoot));
+  return true;
+}
+
+export function applyAllNoteAnchors(contentRoot: HTMLElement, notes: DocumentNote[]) {
+  unwrapLegacyNoteAnchors(contentRoot);
+
+  const column = getReadingColumn(contentRoot);
+  const gutter = column.querySelector<HTMLElement>(`.${GUTTER_CLASS}`);
+  if (gutter) gutter.innerHTML = '';
+
+  const visibleNotes = dedupeNotesForMarkers(contentRoot, notes);
+
+  if (visibleNotes.length === 0) {
+    gutter?.remove();
+    column.classList.remove('jcs-has-note-gutter');
+    return;
+  }
+
+  const rail = ensureGutter(contentRoot);
+  for (const note of visibleNotes) {
+    if (!findBlock(contentRoot, note.blockId)) continue;
+    rail.appendChild(createMarker(note));
+  }
+
+  if (rail.childElementCount === 0) {
+    rail.remove();
+    column.classList.remove('jcs-has-note-gutter');
+    return;
+  }
+
+  requestAnimationFrame(() => repositionNoteMarkers(contentRoot));
+}
+
+export function removeNoteAnchor(contentRoot: HTMLElement, noteId: string) {
+  const column = getReadingColumn(contentRoot);
+  column.querySelector<HTMLElement>(`.${MARKER_CLASS}[data-note-id="${noteId}"]`)?.remove();
+
+  const legacy = contentRoot.querySelector<HTMLElement>(
+    `span.${LEGACY_ANCHOR_CLASS}[data-note-id="${noteId}"]`,
+  );
+  if (legacy) unwrapLegacyAnchor(legacy);
+
+  removeGutterIfEmpty(contentRoot);
+  requestAnimationFrame(() => repositionNoteMarkers(contentRoot));
 }
 
 export function noteFromSelection(root: HTMLElement): Omit<DocumentNote, 'body' | 'tags'> | null {

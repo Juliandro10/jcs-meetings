@@ -3,7 +3,6 @@ import { referencePlainText } from '@/components/AssistantChat';
 import { getDownloadPercent } from '@/components/DownloadProgressBar';
 import { DownloadPublicationModal } from '@/components/DownloadPublicationModal';
 import { HighlightToolbar } from '@/components/HighlightToolbar';
-import { NotePanel } from '@/components/NotePanel';
 import { PublicationReader, type PublicationReaderHandle } from '@/components/PublicationReader';
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
 import { StudyBookReader } from '@/components/StudyBookReader';
@@ -43,7 +42,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
   const studyReaderRef = useRef<PublicationReaderHandle>(null);
   const pendingStudyBookOpenRef = useRef(false);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [panelTab, setPanelTab] = useState<SidePanelTab>('assistant');
+  const [panelTab, setPanelTab] = useState<SidePanelTab>('references');
   const [panelLoading, setPanelLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
@@ -92,30 +91,40 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
     setLfbPrepMessage(null);
   }, [studyBookSession?.currentIndex, activeStory?.documentId]);
 
+  const prepTarget = useMemo(() => {
+    if (studyBookSession && activeStory?.documentId) {
+      return { pub: 'lfb' as const, issue: '', documentId: activeStory.documentId };
+    }
+    return { pub: target.pub, issue: target.issue ?? '', documentId: target.documentId };
+  }, [activeStory?.documentId, studyBookSession, target.documentId, target.issue, target.pub]);
+
   const persistNote = useCallback(
     (note: DocumentNote) => {
-      if (!window.jcs?.saveNote || !target.issue) return;
+      if (!window.jcs?.saveNote) return;
+      if (prepTarget.pub !== 'lfb' && !prepTarget.issue) return;
       if (saveNoteTimerRef.current) clearTimeout(saveNoteTimerRef.current);
       saveNoteTimerRef.current = setTimeout(() => {
         void window.jcs
           ?.saveNote?.({
-            pub: target.pub,
-            issue: target.issue!,
-            documentId: target.documentId,
+            pub: prepTarget.pub,
+            issue: prepTarget.issue,
+            documentId: prepTarget.documentId,
             note,
           })
           .then(setNotes);
       }, 350);
     },
-    [target.documentId, target.issue, target.pub],
+    [prepTarget],
   );
 
   const openNote = useCallback((noteId: string) => {
     setActiveNoteId(noteId);
+    setPanelOpen(true);
+    setPanelTab('references');
   }, []);
 
   const createNoteFromSelection = useCallback(async () => {
-    if (!target.issue) return;
+    if (prepTarget.pub !== 'lfb' && !prepTarget.issue) return;
     const root = document.querySelector<HTMLElement>('.jwpub-content');
     if (!root) return;
 
@@ -130,17 +139,19 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
     applyNoteAnchor(root, note);
 
     const saved = await window.jcs?.saveNote?.({
-      pub: target.pub,
-      issue: target.issue,
-      documentId: target.documentId,
+      pub: prepTarget.pub,
+      issue: prepTarget.issue,
+      documentId: prepTarget.documentId,
       note,
     });
     if (saved) setNotes(saved);
 
     window.getSelection()?.removeAllRanges();
     setToolbar({ open: false, x: 0, y: 0 });
+    setPanelOpen(true);
+    setPanelTab('references');
     setActiveNoteId(note.id);
-  }, [target.documentId, target.issue, target.pub]);
+  }, [prepTarget]);
 
   const updateActiveNote = useCallback(
     (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => {
@@ -158,20 +169,21 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
   );
 
   const deleteActiveNote = useCallback(async () => {
-    if (!activeNoteId || !window.jcs?.removeNote || !target.issue) return;
+    if (!activeNoteId || !window.jcs?.removeNote) return;
+    if (prepTarget.pub !== 'lfb' && !prepTarget.issue) return;
 
     const root = document.querySelector<HTMLElement>('.jwpub-content');
     if (root) removeNoteAnchor(root, activeNoteId);
 
     const saved = await window.jcs.removeNote({
-      pub: target.pub,
-      issue: target.issue,
-      documentId: target.documentId,
+      pub: prepTarget.pub,
+      issue: prepTarget.issue,
+      documentId: prepTarget.documentId,
       noteId: activeNoteId,
     });
     setNotes(saved);
     setActiveNoteId(null);
-  }, [activeNoteId, target.documentId, target.issue, target.pub]);
+  }, [activeNoteId, prepTarget]);
 
   useEffect(() => {
     const syncSelection = () => setSelectedText(getSelectedTextFromReader());
@@ -322,7 +334,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
     studyReaderRef.current?.applyHighlights(highlights);
 
     setLfbPrepMessage(
-      `Lições preparadas: ${result.highlights?.length ?? 0} grifo(s) e ${result.fields?.length ?? 0} resposta(s).`,
+      `Lições preparadas: ${result.highlights?.length ?? 0} grifo(s) e ${result.notes?.length ?? 0} resposta(s).`,
     );
   }, [activeStory?.documentId, studyBookSession, weekLabel]);
 
@@ -489,6 +501,12 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           onDownloadPublication={() => {
             void handleDownloadPublication();
           }}
+          note={activeNote}
+          onNoteChange={updateActiveNote}
+          onNoteClose={() => setActiveNoteId(null)}
+          onNoteDelete={() => {
+            void deleteActiveNote();
+          }}
         />
         <DownloadPublicationModal
           open={downloadModalOpen}
@@ -596,17 +614,6 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           />
         </div>
 
-        {activeNote ? (
-          <NotePanel
-            note={activeNote}
-            onChange={updateActiveNote}
-            onClose={() => setActiveNoteId(null)}
-            onDelete={() => {
-              void deleteActiveNote();
-            }}
-          />
-        ) : null}
-
         <SidePanel
           open={panelOpen}
           tab={panelTab}
@@ -629,6 +636,12 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           }}
           onExpandStudyBook={reference?.kind === 'study-book' ? handleExpandStudyBook : undefined}
           assistantContext={assistantContext}
+          note={activeNote}
+          onNoteChange={updateActiveNote}
+          onNoteClose={() => setActiveNoteId(null)}
+          onNoteDelete={() => {
+            void deleteActiveNote();
+          }}
         />
       </div>
 

@@ -5,8 +5,8 @@ import {
   type DocumentHighlight,
   type HighlightColorId,
 } from '@/lib/highlight-dom';
-import { applyAllNoteAnchors, type DocumentNote } from '@/lib/note-dom';
-import { buildLfbStudyFieldsHtml } from '@/lib/lfb-study-fields';
+import { applyAllNoteAnchors, repositionNoteMarkers, type DocumentNote } from '@/lib/note-dom';
+import { buildLfbStudyFieldsHtml, isLfbStudyFieldId, LFB_STUDY_QUESTIONS } from '@/lib/lfb-study-fields';
 import { setupAutoResizeTextarea } from '@/lib/auto-resize-textarea';
 
 export type PublicationReaderHandle = {
@@ -31,6 +31,7 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
     { pub, documentId, issue, injectStudyFields, onJwpubLinkClick, onSelectionToolbar, onNoteClick },
     ref,
   ) {
+    const columnRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -73,22 +74,87 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         const resolved = result.issue ?? '';
         setResolvedIssue(resolved);
 
-        const saved = await window.jcs.getFieldValues({
-          pub,
-          issue: resolved,
-          documentId,
-        });
+        const legacyFieldValues =
+          pub === 'lfb'
+            ? await window.jcs.getFieldValues({
+                pub,
+                issue: resolved,
+                documentId,
+              })
+            : {};
+
+        const savedFields =
+          pub === 'lfb'
+            ? {}
+            : legacyFieldValues;
+
+        const savedNotes =
+          pub === 'lfb' && window.jcs.getNotes
+            ? await window.jcs.getNotes({ pub, issue: resolved, documentId })
+            : [];
+        const studyNotesById = new Map(
+          savedNotes.filter((note) => isLfbStudyFieldId(note.id)).map((note) => [note.id, note]),
+        );
 
         const fields = root.querySelectorAll<HTMLTextAreaElement>('textarea');
         fields.forEach((textarea, index) => {
           const fieldId = textarea.id || textarea.getAttribute('data-pid') || String(index);
-          const key = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
-          if (saved[key]) textarea.value = saved[key];
+          const isLfbStudyField = pub === 'lfb' && isLfbStudyFieldId(fieldId);
+          const studyNote = isLfbStudyField ? studyNotesById.get(fieldId) : undefined;
+
+          if (isLfbStudyField) {
+            const legacyKey = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
+            const legacyValue = legacyFieldValues[legacyKey];
+            if (studyNote?.body) {
+              textarea.value = studyNote.body;
+            } else if (legacyValue && window.jcs.saveNote) {
+              textarea.value = legacyValue;
+              const questionIndex = ['study-q1', 'study-q2', 'study-q3'].indexOf(fieldId);
+              void window.jcs.saveNote({
+                pub,
+                issue: resolved,
+                documentId,
+                note: {
+                  id: fieldId,
+                  title: LFB_STUDY_QUESTIONS[questionIndex] ?? fieldId,
+                  body: legacyValue,
+                  blockId: '1',
+                  anchorText: '',
+                  startOffset: 0,
+                  endOffset: 0,
+                  tags: ['lfb-study'],
+                },
+              });
+            }
+          } else {
+            const key = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
+            if (savedFields[key]) textarea.value = savedFields[key];
+          }
 
           textarea.classList.add('jcs-editable-field');
           textarea.setAttribute('rows', '1');
           setupAutoResizeTextarea(textarea);
           textarea.addEventListener('input', () => {
+            if (isLfbStudyField && window.jcs.saveNote) {
+              const questionIndex = ['study-q1', 'study-q2', 'study-q3'].indexOf(fieldId);
+              void window.jcs.saveNote({
+                pub,
+                issue: resolved,
+                documentId,
+                note: {
+                  id: fieldId,
+                  title: LFB_STUDY_QUESTIONS[questionIndex] ?? fieldId,
+                  body: textarea.value,
+                  blockId: studyNote?.blockId ?? '1',
+                  anchorText: '',
+                  startOffset: 0,
+                  endOffset: 0,
+                  tags: ['lfb-study'],
+                },
+              });
+              return;
+            }
+
             void window.jcs.setFieldValue({
               pub,
               issue: resolved,
@@ -106,11 +172,14 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         });
         applyAllHighlights(root, highlights as DocumentHighlight[]);
 
-        const notes = await window.jcs.getNotes?.({
-          pub,
-          issue: resolved,
-          documentId,
-        });
+        const notes =
+          pub === 'lfb'
+            ? savedNotes.filter((note) => !isLfbStudyFieldId(note.id))
+            : await window.jcs.getNotes?.({
+                pub,
+                issue: resolved,
+                documentId,
+              });
         if (notes?.length) applyAllNoteAnchors(root, notes);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Erro ao carregar matéria';
@@ -145,18 +214,41 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
 
     useEffect(() => {
       const root = containerRef.current;
-      if (!root) return;
+      if (!root || loading || error) return;
+
+      const syncMarkers = () => repositionNoteMarkers(root);
+      syncMarkers();
+
+      window.addEventListener('resize', syncMarkers);
+      const scrollParent = root.closest('.overflow-auto');
+      scrollParent?.addEventListener('scroll', syncMarkers, { passive: true });
+
+      const resizeObserver = new ResizeObserver(syncMarkers);
+      resizeObserver.observe(root);
+
+      return () => {
+        window.removeEventListener('resize', syncMarkers);
+        scrollParent?.removeEventListener('scroll', syncMarkers);
+        resizeObserver.disconnect();
+      };
+    }, [loading, error, pub, documentId, issue]);
+
+    useEffect(() => {
+      const column = columnRef.current;
+      const root = containerRef.current;
+      if (!column || !root || loading || error) return;
 
       const handleClick = (event: MouseEvent) => {
-        const noteAnchor = (event.target as HTMLElement | null)?.closest('.jcs-note-anchor');
-        if (noteAnchor instanceof HTMLElement && noteAnchor.dataset.noteId) {
+        const noteMarker = (event.target as HTMLElement | null)?.closest('.jcs-note-marker');
+        if (noteMarker instanceof HTMLElement && noteMarker.dataset.noteId) {
           event.preventDefault();
-          noteClickHandlerRef.current?.(noteAnchor.dataset.noteId);
+          event.stopPropagation();
+          noteClickHandlerRef.current?.(noteMarker.dataset.noteId);
           return;
         }
 
         const anchor = (event.target as HTMLElement | null)?.closest('a');
-        if (!anchor) return;
+        if (!anchor || !root.contains(anchor)) return;
         const href = anchor.getAttribute('href');
         if (!href?.startsWith('jwpub://')) return;
         event.preventDefault();
@@ -178,10 +270,10 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         });
       };
 
-      root.addEventListener('click', handleClick);
+      column.addEventListener('click', handleClick);
       root.addEventListener('mouseup', handleMouseUp);
       return () => {
-        root.removeEventListener('click', handleClick);
+        column.removeEventListener('click', handleClick);
         root.removeEventListener('mouseup', handleMouseUp);
       };
     }, [loading, error]);
@@ -201,14 +293,13 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
             Carregando matéria…
           </div>
         ) : null}
-        <div
-          ref={containerRef}
-          className={[
-            'jwpub-content mx-auto max-w-3xl px-2 py-4',
-            loading ? 'hidden' : '',
-          ].join(' ')}
-          data-jcs-issue={resolvedIssue}
-        />
+        <div ref={columnRef} className="jcs-reading-column relative mx-auto w-full max-w-3xl px-2 py-4">
+          <div
+            ref={containerRef}
+            className={['jwpub-content', loading ? 'hidden' : ''].join(' ')}
+            data-jcs-issue={resolvedIssue}
+          />
+        </div>
       </div>
     );
   },

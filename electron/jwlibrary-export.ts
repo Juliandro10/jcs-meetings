@@ -5,6 +5,13 @@ import { createRequire } from 'node:module';
 import JSZip from 'jszip';
 import initSqlJs, { type Database } from 'sql.js';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
+import {
+  buildLfbStudyNote,
+  isLfbStudyNoteId,
+  isLfbStudyPrepNote,
+  lfbStudyNoteIdForQuestion,
+  lfbStudyQuestionForNoteId,
+} from './lfb-study-notes';
 import { openJwpubBundle } from './jwpub-bundle';
 import { getDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
 import {
@@ -441,6 +448,7 @@ async function buildDatabaseContents(cacheDir: string, prep: UserPrepData) {
   }
 
   function noteTitleForExport(note: PrepNote, structure: ReturnType<typeof extractDocumentStructure>) {
+    if (isLfbStudyPrepNote(note)) return note.title;
     return resolveNoteTitle(structure, note.blockId) ?? note.title;
   }
 
@@ -607,6 +615,17 @@ async function buildDatabaseContents(cacheDir: string, prep: UserPrepData) {
     const documentHtml = await getCachedDocumentHtml(group.pub, group.issue, group.documentId);
     const structure = await getCachedDocumentStructure(group.pub, group.issue, group.documentId);
 
+    if (group.pub === 'lfb') {
+      const legacyStudyFields = group.fields.filter((field) => isLfbStudyNoteId(field.textTag));
+      if (legacyStudyFields.length > 0) {
+        group.fields = group.fields.filter((field) => !isLfbStudyNoteId(field.textTag));
+        for (const field of legacyStudyFields) {
+          if (group.notes.some((note) => note.id === field.textTag)) continue;
+          group.notes.push(buildLfbStudyNote(field.textTag, field.value, documentHtml));
+        }
+      }
+    }
+
     for (const field of group.fields) {
       if (locationSet.track) {
         inputFields.push({
@@ -638,16 +657,17 @@ async function buildDatabaseContents(cacheDir: string, prep: UserPrepData) {
       const exportTitle = noteTitleForExport(note, structure);
 
       if (locationSet.track) {
+        // JW Library (MWB): uma nota por Location de Track, sem duplicata no Document.
         addNote(locationSet.track, note, blockIdentifier, null, noteGuid, exportTitle);
+      } else {
+        const anchorMarkId = addNoteAnchorMark(
+          locationSet.document,
+          blockIdentifier,
+          tokens,
+          randomUUID(),
+        );
+        addNote(locationSet.document, note, blockIdentifier, anchorMarkId, noteGuid, exportTitle);
       }
-
-      const anchorMarkId = addNoteAnchorMark(
-        locationSet.document,
-        blockIdentifier,
-        tokens,
-        randomUUID(),
-      );
-      addNote(locationSet.document, note, blockIdentifier, anchorMarkId, randomUUID(), exportTitle);
     }
   }
 
@@ -909,6 +929,7 @@ export async function importJwlibrary(
         location.Track,
       );
       if (!localDocId) continue;
+      if (prepPub === 'lfb' && isLfbStudyNoteId(field.TextTag)) continue;
       const key = `${prepPub}_${issue}_d${localDocId}_f${field.TextTag}`;
       prep.fields[key] = { value: field.Value, updatedAt: new Date().toISOString() };
       fields++;
@@ -965,23 +986,29 @@ export async function importJwlibrary(
       );
       if (!localDocId) continue;
 
-      const dedupeKey = `${prepPub}_${issue}_d${localDocId}_b${note.BlockIdentifier}`;
+      const blockKey = `${prepPub}_${issue}_d${localDocId}_b${note.BlockIdentifier}`;
+      const titleKey = `${prepPub}_${issue}_d${localDocId}_t${(note.Title ?? '').trim().toLowerCase()}`;
       const fromTrack = location.Track != null;
-      if (importedNoteKeys.has(dedupeKey) && !fromTrack) continue;
+      if (importedNoteKeys.has(blockKey) && !fromTrack) continue;
+      if (importedNoteKeys.has(titleKey)) continue;
 
-      const key = `${prepPub}_${issue}_d${localDocId}_n${note.Guid}`;
+      const studyNoteId =
+        prepPub === 'lfb' ? lfbStudyNoteIdForQuestion(note.Title ?? '') : null;
+      const noteId = studyNoteId ?? note.Guid;
+      const key = `${prepPub}_${issue}_d${localDocId}_n${noteId}`;
       prep.notes[key] = {
-        id: note.Guid,
-        title: note.Title ?? '',
+        id: noteId,
+        title: studyNoteId ? (lfbStudyQuestionForNoteId(studyNoteId) ?? note.Title ?? '') : (note.Title ?? ''),
         body: note.Content ?? '',
         blockId: String(note.BlockIdentifier),
         anchorText: '',
         startOffset: 0,
         endOffset: 0,
-        tags: [],
+        tags: studyNoteId ? ['lfb-study'] : [],
         updatedAt: note.LastModified,
       };
-      importedNoteKeys.add(dedupeKey);
+      importedNoteKeys.add(blockKey);
+      importedNoteKeys.add(titleKey);
       notes++;
     }
 

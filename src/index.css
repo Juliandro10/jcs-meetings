@@ -152,16 +152,40 @@ body {
   background-color: rgba(255, 204, 128, 0.9);
 }
 
-.jwpub-content .jcs-note-anchor {
-  text-decoration: underline dotted #7c4dff;
-  text-underline-offset: 2px;
-  cursor: pointer;
-  background-color: rgba(124, 77, 255, 0.08);
-  border-radius: 2px;
+.jcs-reading-column.jcs-has-note-gutter {
+  padding-left: 1.125rem;
 }
 
-.jwpub-content .jcs-note-anchor:hover {
-  background-color: rgba(124, 77, 255, 0.16);
+.jcs-reading-column .jcs-note-gutter {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0.875rem;
+  pointer-events: none;
+}
+
+.jcs-reading-column .jcs-note-marker {
+  position: absolute;
+  left: 0;
+  z-index: 2;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #b8b8b8;
+  border-radius: 1px;
+  background: #ececec;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.jcs-reading-column .jcs-note-marker:hover,
+.jcs-reading-column .jcs-note-marker:focus-visible {
+  background: #ddd6fe;
+  border-color: #7c4dff;
+  outline: none;
 }
 
 .jcs-lfb-story {

@@ -1,4 +1,5 @@
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
+import type { DocumentNote } from '@/lib/note-dom';
 import type { AiChatContext, ResolveLinkResult } from '../../electron/types';
 
 type StudyBookReaderProps = {
@@ -24,6 +25,10 @@ type StudyBookReaderProps = {
   onPanelTabChange: (tab: SidePanelTab) => void;
   onLinkClick: (href: string, label: string) => void;
   onDownloadPublication: () => void;
+  note?: DocumentNote | null;
+  onNoteChange?: (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => void;
+  onNoteClose?: () => void;
+  onNoteDelete?: () => void;
 };
 
 export function StudyBookReader({
@@ -49,6 +54,10 @@ export function StudyBookReader({
   onPanelTabChange,
   onLinkClick,
   onDownloadPublication,
+  note,
+  onNoteChange,
+  onNoteClose,
+  onNoteDelete,
 }: StudyBookReaderProps) {
   return (
     <div className="flex h-full flex-col bg-jw-bg">
@@ -104,6 +113,10 @@ export function StudyBookReader({
           onLinkClick={onLinkClick}
           onDownloadPublication={onDownloadPublication}
           assistantContext={assistantContext}
+          note={note}
+          onNoteChange={onNoteChange}
+          onNoteClose={onNoteClose}
+          onNoteDelete={onNoteDelete}
         />
       </div>
     </div>

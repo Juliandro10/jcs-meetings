@@ -221,6 +221,35 @@ export async function saveNotesBatch(
   return getNotes(userDataDir, pub, issue, documentId);
 }
 
+export async function replaceTaggedNotes(
+  userDataDir: string,
+  pub: string,
+  issue: string,
+  documentId: number,
+  tag: string,
+  notes: Omit<PrepNote, 'updatedAt'>[],
+): Promise<PrepNote[]> {
+  const data = await loadPrepData(userDataDir);
+  const prefix = notePrefix(pub, issue, documentId);
+  for (const key of Object.keys(data.notes)) {
+    if (key.startsWith(prefix) && data.notes[key].tags?.includes(tag)) {
+      delete data.notes[key];
+    }
+  }
+
+  const now = new Date().toISOString();
+  for (const note of notes) {
+    data.notes[noteKey(pub, issue, documentId, note.id)] = {
+      ...note,
+      tags: note.tags?.length ? note.tags : [tag],
+      updatedAt: now,
+    };
+  }
+
+  await savePrepData(userDataDir, data);
+  return getNotes(userDataDir, pub, issue, documentId);
+}
+
 export async function removeNote(
   userDataDir: string,
   pub: string,

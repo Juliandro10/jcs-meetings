@@ -30,6 +30,7 @@ import {
   syncDownloadRegistryFromCache,
 } from './download-registry';
 import { exportJwlibrary, importJwlibrary } from './jwlibrary-export';
+import { dedupeNotesByTitle, pruneDuplicateDocumentNotes } from './note-dedupe';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
 import { resolveJwpubLink } from './jw-link-resolver';
 import { readJwpubMedia } from './jwpub-bundle';
@@ -57,6 +58,7 @@ import {
   removeNote,
   saveHighlight,
   saveNote,
+  replaceTaggedNotes,
   setFieldValue,
 } from './user-prep-store';
 import type {
@@ -267,8 +269,23 @@ function registerIpc() {
 
   ipcMain.handle(
     'jcs:get-notes',
-    async (_event, params: { pub: string; issue: string; documentId: number }) =>
-      getNotes(getUserDataDir(), params.pub, params.issue, params.documentId),
+    async (_event, params: { pub: string; issue: string; documentId: number }) => {
+      const filePath = await resolveCachedPubPath(getCacheDir(), params.pub, params.issue);
+      if (!filePath) {
+        const notes = await getNotes(getUserDataDir(), params.pub, params.issue, params.documentId);
+        return dedupeNotesByTitle(notes);
+      }
+
+      const html = await getDocumentHtml(filePath, params.documentId);
+      const structure = extractDocumentStructure(html);
+      return pruneDuplicateDocumentNotes(
+        getUserDataDir(),
+        params.pub,
+        params.issue,
+        params.documentId,
+        structure,
+      );
+    },
   );
 
   ipcMain.handle(

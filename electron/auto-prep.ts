@@ -4,10 +4,11 @@ import { buildAiSystemPrompt, JW_AI_GROUNDING_RULES, JW_HIGHLIGHT_RULES, JW_JOIA
 import { enrichAiContext } from './ai-context';
 import { getDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
 import type { AutoPrepNote, AutoPrepParams, AutoPrepResult } from './types';
+import { dedupeNotesForDocument } from './note-dedupe';
 import {
   fieldKey,
+  replaceTaggedNotes,
   saveHighlightsBatch,
-  saveNotesBatch,
   setFieldValue,
 } from './user-prep-store';
 
@@ -417,9 +418,14 @@ export async function runAutoPrep(
 
     let notes = normalizeNotesAgainstStructure(parsed.notes ?? [], structure);
     notes = notes.filter((note) => note.body?.trim());
+    notes = dedupeNotesForDocument(notes, structure);
 
     if (notes.length < structure.parts.length) {
       notes = await requestMissingNotes(apiKey, structure, documentExcerpt, notes);
+      notes = dedupeNotesForDocument(
+        notes.filter((note) => note.body?.trim()),
+        structure,
+      );
     }
 
     if (highlights.length > 0) {
@@ -440,11 +446,12 @@ export async function runAutoPrep(
     }
 
     if (notes.length > 0) {
-      await saveNotesBatch(
+      await replaceTaggedNotes(
         userDataDir,
         params.pub,
         params.issue,
         params.documentId,
+        'auto-prep',
         notes.map((note) => ({
           id: crypto.randomUUID(),
           title: note.title,
