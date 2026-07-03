@@ -149,3 +149,57 @@ export function IconBookOpen(props: IconProps) {
     </svg>
   );
 }
+
+export function IconPreaching(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M4 10v8a1 1 0 0 0 1 1h2" />
+      <path d="M20 9v9a1 1 0 0 1-1 1h-2" />
+      <rect x="7" y="5" width="10" height="12" rx="2" />
+      <path d="M12 5V3" strokeLinecap="round" />
+      <path d="M9 3h6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconElder(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M12 3 4 7v6c0 4.5 3.4 7.8 8 9 4.6-1.2 8-4.5 8-9V7l-8-4Z" strokeLinejoin="round" />
+      <path d="M9.5 12.5 11 14l3.5-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Lista com checkmarks — orientações de congregação (JW Library). */
+export function IconGuidelineList(props: IconProps) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" {...props}>
+      <rect x="5" y="4" width="22" height="24" rx="2" />
+      <path d="M10 10h3M17 10h5M10 16h3M17 16h5M10 22h3M17 22h5" strokeLinecap="round" />
+      <path d="M8 10l1 1 2-2M8 16l1 1 2-2M8 22l1 1 2-2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Documento com púlpito — esboços de congregação (JW Library). */
+export function IconOutlinePodium(props: IconProps) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" {...props}>
+      <rect x="5" y="4" width="18" height="22" rx="1.5" />
+      <path d="M9 9h10M9 13h10M9 17h6" strokeLinecap="round" />
+      <path d="M26 22v6" strokeLinecap="round" />
+      <path d="M22 28h8" strokeLinecap="round" />
+      <circle cx="26" cy="20" r="2" />
+    </svg>
+  );
+}
+
+export function IconOutlineDocument(props: IconProps) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" {...props}>
+      <rect x="7" y="4" width="18" height="24" rx="1.5" />
+      <path d="M11 10h10M11 14h10M11 18h10M11 22h6" strokeLinecap="round" />
+    </svg>
+  );
+}

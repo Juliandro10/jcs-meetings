@@ -28,13 +28,35 @@ export type PrepNote = {
   updatedAt: string;
 };
 
+export type PreparedElderOutline = {
+  id: string;
+  name: string;
+  pub: string;
+  documentId: number;
+  sourceTitle: string;
+  sourcePubLabel: string;
+  value: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type UserPrepData = {
   fields: Record<string, PrepField>;
   highlights: Record<string, PrepHighlight>;
   notes: Record<string, PrepNote>;
+  publicTalkNotes?: Record<string, PrepField>;
+  elderOutlineNotes?: Record<string, PrepField>;
+  preparedElderOutlines?: Record<string, PreparedElderOutline>;
 };
 
-const EMPTY: UserPrepData = { fields: {}, highlights: {}, notes: {} };
+const EMPTY: UserPrepData = {
+  fields: {},
+  highlights: {},
+  notes: {},
+  publicTalkNotes: {},
+  elderOutlineNotes: {},
+  preparedElderOutlines: {},
+};
 
 function prepFilePath(userDataDir: string) {
   return path.join(userDataDir, 'prep-data.json');
@@ -48,6 +70,9 @@ export async function loadPrepData(userDataDir: string): Promise<UserPrepData> {
       fields: parsed.fields ?? {},
       highlights: parsed.highlights ?? {},
       notes: parsed.notes ?? {},
+      publicTalkNotes: parsed.publicTalkNotes ?? {},
+      elderOutlineNotes: parsed.elderOutlineNotes ?? {},
+      preparedElderOutlines: parsed.preparedElderOutlines ?? {},
     };
   } catch {
     return { ...EMPTY };
@@ -261,6 +286,137 @@ export async function removeNote(
   delete data.notes[noteKey(pub, issue, documentId, noteId)];
   await savePrepData(userDataDir, data);
   return getNotes(userDataDir, pub, issue, documentId);
+}
+
+export function publicTalkNoteKey(weekId: string) {
+  return weekId;
+}
+
+export function elderOutlineNoteKey(pub: string, documentId: number) {
+  return `${pub.toLowerCase()}_d${documentId}`;
+}
+
+export async function getElderOutlineNote(
+  userDataDir: string,
+  pub: string,
+  documentId: number,
+): Promise<string> {
+  const data = await loadPrepData(userDataDir);
+  return data.elderOutlineNotes?.[elderOutlineNoteKey(pub, documentId)]?.value ?? '';
+}
+
+export async function setElderOutlineNote(
+  userDataDir: string,
+  pub: string,
+  documentId: number,
+  value: string,
+): Promise<void> {
+  const data = await loadPrepData(userDataDir);
+  if (!data.elderOutlineNotes) data.elderOutlineNotes = {};
+  data.elderOutlineNotes[elderOutlineNoteKey(pub, documentId)] = {
+    value,
+    updatedAt: new Date().toISOString(),
+  };
+  await savePrepData(userDataDir, data);
+}
+
+function newPreparedOutlineId() {
+  return `peo_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export async function listPreparedElderOutlines(userDataDir: string): Promise<PreparedElderOutline[]> {
+  const data = await loadPrepData(userDataDir);
+  return Object.values(data.preparedElderOutlines ?? {}).sort(
+    (a, b) => b.updatedAt.localeCompare(a.updatedAt),
+  );
+}
+
+export async function getPreparedElderOutline(
+  userDataDir: string,
+  id: string,
+): Promise<PreparedElderOutline | null> {
+  const data = await loadPrepData(userDataDir);
+  return data.preparedElderOutlines?.[id] ?? null;
+}
+
+export async function findPreparedElderOutlineByName(
+  userDataDir: string,
+  pub: string,
+  documentId: number,
+  name: string,
+): Promise<PreparedElderOutline | null> {
+  const data = await loadPrepData(userDataDir);
+  const normalized = name.trim().toLowerCase();
+  const match = Object.values(data.preparedElderOutlines ?? {}).find(
+    (entry) =>
+      entry.pub.toLowerCase() === pub.toLowerCase() &&
+      entry.documentId === documentId &&
+      entry.name.trim().toLowerCase() === normalized,
+  );
+  return match ?? null;
+}
+
+export async function savePreparedElderOutline(
+  userDataDir: string,
+  params: {
+    id?: string;
+    name: string;
+    pub: string;
+    documentId: number;
+    sourceTitle: string;
+    sourcePubLabel: string;
+    value: string;
+  },
+): Promise<PreparedElderOutline> {
+  const data = await loadPrepData(userDataDir);
+  if (!data.preparedElderOutlines) data.preparedElderOutlines = {};
+
+  const now = new Date().toISOString();
+  const id = params.id ?? newPreparedOutlineId();
+  const existing = data.preparedElderOutlines[id];
+
+  const entry: PreparedElderOutline = {
+    id,
+    name: params.name.trim(),
+    pub: params.pub.toLowerCase(),
+    documentId: params.documentId,
+    sourceTitle: params.sourceTitle,
+    sourcePubLabel: params.sourcePubLabel,
+    value: params.value,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  data.preparedElderOutlines[id] = entry;
+  await savePrepData(userDataDir, data);
+  return entry;
+}
+
+export async function deletePreparedElderOutline(userDataDir: string, id: string): Promise<boolean> {
+  const data = await loadPrepData(userDataDir);
+  if (!data.preparedElderOutlines?.[id]) return false;
+  delete data.preparedElderOutlines[id];
+  await savePrepData(userDataDir, data);
+  return true;
+}
+
+export async function getPublicTalkNote(
+  userDataDir: string,
+  weekId: string,
+): Promise<string> {
+  const data = await loadPrepData(userDataDir);
+  return data.publicTalkNotes?.[weekId]?.value ?? '';
+}
+
+export async function setPublicTalkNote(
+  userDataDir: string,
+  weekId: string,
+  value: string,
+): Promise<void> {
+  const data = await loadPrepData(userDataDir);
+  if (!data.publicTalkNotes) data.publicTalkNotes = {};
+  data.publicTalkNotes[weekId] = { value, updatedAt: new Date().toISOString() };
+  await savePrepData(userDataDir, data);
 }
 
 export async function clearDocumentPrep(

@@ -4,12 +4,16 @@ export type AppSection =
   | 'library'
   | 'media'
   | 'meetings'
-  | 'personal-study';
+  | 'preaching'
+  | 'personal-study'
+  | 'elder';
 
 export type SectionMeta = {
   id: AppSection;
   title: string;
   enabled: boolean;
+  /** Só visível com permissão Elder (login). */
+  requiresElder?: boolean;
 };
 
 export const SECTIONS: SectionMeta[] = [
@@ -18,7 +22,9 @@ export const SECTIONS: SectionMeta[] = [
   { id: 'library', title: 'Biblioteca', enabled: true },
   { id: 'media', title: 'Mídia', enabled: false },
   { id: 'meetings', title: 'Reuniões', enabled: true },
+  { id: 'preaching', title: 'Pregação', enabled: true },
   { id: 'personal-study', title: 'Estudo Pessoal', enabled: true },
+  { id: 'elder', title: 'Elder', enabled: true, requiresElder: true },
 ];
 
 export type WeekItem = {

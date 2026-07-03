@@ -60,6 +60,99 @@ export function extractLfbBlocks(html: string) {
   return blocks;
 }
 
+export type LfbSabeQuestion = {
+  blockId: string;
+  questionIndex: number;
+  text: string;
+  noteId: string;
+};
+
+export type LfbStoryStructure = {
+  blocks: Array<{ blockId: string; text: string }>;
+  sabeResponderBlockId?: string;
+  sabeResponderQuestions: LfbSabeQuestion[];
+  bodyBlockIds: string[];
+};
+
+/** Separa várias perguntas no mesmo bloco (ex.: "Quem era X? Por que Y?"). */
+export function splitSabeResponderQuestions(blockText: string): string[] {
+  const text = blockText.replace(/^sabe responder\??\s*/i, '').trim();
+  if (!text) return [];
+
+  const matches = [...text.matchAll(/[^?]+\?/gu)].map((match) => match[0].trim());
+  if (matches.length > 0) return matches.filter((question) => question.length >= 8);
+  return text.includes('?') ? [text] : [];
+}
+
+export function buildLfbSabeNoteId(blockId: string, questionIndex: number) {
+  return `sabe-${blockId}-${questionIndex}`;
+}
+
+function pushSabeQuestionsFromBlock(
+  target: LfbSabeQuestion[],
+  blockId: string,
+  blockText: string,
+) {
+  const questions = splitSabeResponderQuestions(blockText);
+  const texts = questions.length > 0 ? questions : blockText.includes('?') ? [blockText.trim()] : [];
+
+  texts.forEach((text, questionIndex) => {
+    target.push({
+      blockId,
+      questionIndex,
+      text,
+      noteId: buildLfbSabeNoteId(blockId, questionIndex),
+    });
+  });
+}
+
+/** Blocos úteis para grifos e contexto da IA (corpo da história + "Sabe responder?"). */
+export function extractLfbStoryStructure(html: string): LfbStoryStructure {
+  const blocks = extractLfbBlocks(html);
+  let sabeResponderBlockId: string | undefined;
+  let afterSabe = false;
+  const sabeResponderQuestions: LfbSabeQuestion[] = [];
+
+  for (const block of blocks) {
+    if (/sabe responder/i.test(block.text)) {
+      sabeResponderBlockId = block.blockId;
+      afterSabe = true;
+      pushSabeQuestionsFromBlock(sabeResponderQuestions, block.blockId, block.text);
+      continue;
+    }
+
+    if (afterSabe) {
+      if (block.text.includes('?') && block.text.length < 350) {
+        pushSabeQuestionsFromBlock(sabeResponderQuestions, block.blockId, block.text);
+        continue;
+      }
+      if (
+        sabeResponderQuestions.length > 0 &&
+        (/^[A-Za-zÁ-ú]{2,4}\.\s*\d/.test(block.text) || block.text.length < 20)
+      ) {
+        break;
+      }
+    }
+  }
+
+  const skipIds = new Set([
+    ...sabeResponderQuestions.map((item) => item.blockId),
+    ...(sabeResponderBlockId ? [sabeResponderBlockId] : []),
+  ]);
+
+  const bodyBlockIds = blocks
+    .filter((block) => {
+      if (skipIds.has(block.blockId)) return false;
+      if (/^HISTÓRIA\s+\d+/i.test(block.text)) return false;
+      if (block.text.length < 36) return false;
+      if (/^Sabe responder/i.test(block.text)) return false;
+      return true;
+    })
+    .map((block) => block.blockId);
+
+  return { blocks, sabeResponderBlockId, sabeResponderQuestions, bodyBlockIds };
+}
+
 async function resolveLfbJwpubPath(cacheDir: string, lang = 'T') {
   const filePath = path.join(cacheDir, `lfb_${lang}_.jwpub`);
   if (await isPubCached(cacheDir, 'lfb', '', lang)) return filePath;

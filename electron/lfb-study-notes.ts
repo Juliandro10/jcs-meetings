@@ -11,6 +11,14 @@ export function isLfbStudyNoteId(id: string): boolean {
   return (LFB_STUDY_FIELD_IDS as readonly string[]).includes(id);
 }
 
+export function isLfbSabeNoteId(id: string): boolean {
+  return id.startsWith('sabe-');
+}
+
+export function isLfbSabePrepNote(note: Pick<PrepNote, 'id' | 'tags'>): boolean {
+  return note.tags.includes('lfb-sabe') || isLfbSabeNoteId(note.id);
+}
+
 export function lfbStudyQuestionForNoteId(noteId: string): string | null {
   const index = LFB_STUDY_FIELD_IDS.indexOf(noteId as (typeof LFB_STUDY_FIELD_IDS)[number]);
   return index >= 0 ? LFB_STUDY_QUESTIONS[index] : null;
@@ -44,6 +52,24 @@ export function buildLfbStudyNote(
     startOffset: 0,
     endOffset: 0,
     tags: ['lfb-study'],
+  };
+}
+
+export function buildLfbSabeNote(
+  noteId: string,
+  question: string,
+  body: string,
+  blockId: string,
+): Omit<PrepNote, 'updatedAt'> {
+  return {
+    id: noteId,
+    title: question,
+    body,
+    blockId,
+    anchorText: question.slice(0, Math.min(120, question.length)),
+    startOffset: 0,
+    endOffset: 0,
+    tags: ['lfb-sabe', 'auto-prep'],
   };
 }
 

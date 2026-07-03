@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { PlaylistPanel } from '@/components/PlaylistPanel';
 
-export function PersonalStudyPage() {
+type PersonalStudyPageProps = {
+  elderLocked?: boolean;
+  onRequestElderUnlock?: () => void;
+};
+
+export function PersonalStudyPage({ elderLocked, onRequestElderUnlock }: PersonalStudyPageProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState<'export' | 'import' | null>(null);
   const [playlistsOpen, setPlaylistsOpen] = useState(true);
@@ -25,6 +30,10 @@ export function PersonalStudyPage() {
           ? `Backup salvo: ${stats.inputFields} campos, ${stats.userMarks} grifos, ${stats.notes} notas.`
           : 'Backup exportado com sucesso.',
       );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro inesperado ao exportar.';
+      setStatus(message);
+      window.alert(message);
     } finally {
       setBusy(null);
     }
@@ -33,6 +42,13 @@ export function PersonalStudyPage() {
   async function handleImport() {
     if (!window.jcs?.importJwlibrary) {
       alert('Importação disponível apenas no app Electron.');
+      return;
+    }
+    if (
+      !window.confirm(
+        'Importar um backup .jwlibrary vai mesclar campos, grifos e notas no JCS.\n\nAs publicações da semana precisam estar baixadas aqui. Continuar?',
+      )
+    ) {
       return;
     }
     setBusy('import');
@@ -44,11 +60,15 @@ export function PersonalStudyPage() {
         return;
       }
       const stats = result.stats;
-      setStatus(
-        stats
-          ? `Importado: ${stats.fields} campos, ${stats.highlights} grifos, ${stats.notes} notas.`
-          : 'Backup importado com sucesso.',
-      );
+      const message = stats
+        ? `Importado: ${stats.fields} campos, ${stats.highlights} grifos, ${stats.notes} notas. Abra a matéria correspondente para conferir.`
+        : 'Backup importado com sucesso.';
+      setStatus(message);
+      window.alert(message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro inesperado ao importar.';
+      setStatus(message);
+      window.alert(message);
     } finally {
       setBusy(null);
     }
@@ -80,7 +100,17 @@ export function PersonalStudyPage() {
           Exportar ou importar arquivo `.jwlibrary` com campos, grifos e notas da preparação.
         </p>
         {status ? (
-          <p className="mt-3 rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text">
+          <p
+            className={[
+              'mt-3 rounded-lg border px-3 py-2 text-sm',
+              status.includes('Não') ||
+              status.includes('Erro') ||
+              status.includes('cancelada') ||
+              status.includes('Nenhum')
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+            ].join(' ')}
+          >
             {status}
           </p>
         ) : null}
@@ -93,6 +123,22 @@ export function PersonalStudyPage() {
           </GhostButton>
         </div>
       </div>
+
+      {elderLocked && onRequestElderUnlock ? (
+        <div className="mt-6 rounded-xl border border-jw-purple/20 bg-jw-purple-light/30 p-4">
+          <h3 className="text-sm font-semibold text-jw-purple-dark">Área Elder</h3>
+          <p className="mt-1 text-sm text-jw-muted">
+            Orientações confidenciais e esboços de ancião. Requer PIN local.
+          </p>
+          <button
+            type="button"
+            onClick={onRequestElderUnlock}
+            className="mt-3 rounded-lg bg-jw-purple px-3 py-2 text-sm font-semibold text-white hover:bg-jw-purple-dark"
+          >
+            Desbloquear com PIN
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   buildLfbStudyNote,
   isLfbStudyNoteId,
   isLfbStudyPrepNote,
+  isLfbSabePrepNote,
   lfbStudyNoteIdForQuestion,
   lfbStudyQuestionForNoteId,
 } from './lfb-study-notes';
@@ -173,6 +174,35 @@ function extractParagraphPlainText(html: string, blockId: string) {
   );
   const match = re.exec(html);
   return match ? stripHtml(match[1]) : '';
+}
+
+function jwTokensToCharOffsets(fullText: string, startToken: number, endToken: number) {
+  const tokens = tokenizeJwText(fullText);
+  if (tokens.length === 0) {
+    return { startOffset: 0, endOffset: 0, text: '' };
+  }
+
+  const safeStart = Math.min(Math.max(startToken, 0), tokens.length - 1);
+  const safeEnd = Math.min(Math.max(endToken, safeStart), tokens.length - 1);
+
+  let cursor = 0;
+  let startOffset = 0;
+  let endOffset = fullText.length;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tokenStart = fullText.indexOf(tokens[i], cursor);
+    if (tokenStart < 0) continue;
+    const tokenEnd = tokenStart + tokens[i].length;
+    if (i === safeStart) startOffset = tokenStart;
+    if (i === safeEnd) {
+      endOffset = tokenEnd;
+      break;
+    }
+    cursor = tokenEnd;
+  }
+
+  const text = fullText.slice(startOffset, endOffset).replace(/\s+/g, ' ').trim();
+  return { startOffset, endOffset, text };
 }
 
 function highlightToTokenRange(html: string, highlight: PrepHighlight) {
@@ -448,7 +478,7 @@ async function buildDatabaseContents(cacheDir: string, prep: UserPrepData) {
   }
 
   function noteTitleForExport(note: PrepNote, structure: ReturnType<typeof extractDocumentStructure>) {
-    if (isLfbStudyPrepNote(note)) return note.title;
+    if (isLfbStudyPrepNote(note) || isLfbSabePrepNote(note)) return note.title;
     return resolveNoteTitle(structure, note.blockId) ?? note.title;
   }
 
@@ -911,14 +941,37 @@ export async function importJwlibrary(
       if (!blockRangeByMark.has(range.UserMarkId)) blockRangeByMark.set(range.UserMarkId, range);
     }
 
-    const prep: UserPrepData = { fields: {}, highlights: {}, notes: {} };
+    const prep: UserPrepData = await loadPrepData(userDataDir);
+    const merged: UserPrepData = {
+      fields: { ...prep.fields },
+      highlights: { ...prep.highlights },
+      notes: { ...prep.notes },
+      publicTalkNotes: prep.publicTalkNotes ? { ...prep.publicTalkNotes } : {},
+    };
     let fields = 0;
     let highlights = 0;
     let notes = 0;
+    let skipped = 0;
+
+    const importHtmlCache = new Map<string, string>();
+    async function getImportDocumentHtml(pub: string, issue: string, documentId: number) {
+      const key = documentGroupKey(pub, issue, documentId);
+      if (importHtmlCache.has(key)) return importHtmlCache.get(key)!;
+      const filePath = await resolveCachedPubPath(cacheDir, pub, issue);
+      if (!filePath) return '';
+      const html = await getDocumentHtml(filePath, documentId);
+      importHtmlCache.set(key, html);
+      return html;
+    }
+
+    const importedHighlightKeys = new Set<string>();
 
     for (const field of inputFields) {
       const location = locationById.get(field.LocationId);
-      if (!location?.KeySymbol) continue;
+      if (!location?.KeySymbol) {
+        skipped++;
+        continue;
+      }
       const issue = issueStringFromTag(location.IssueTagNumber);
       const prepPub = prepPubFromKeySymbol(location.KeySymbol);
       const localDocId = await findLocalDocumentId(
@@ -928,10 +981,13 @@ export async function importJwlibrary(
         location.DocumentId,
         location.Track,
       );
-      if (!localDocId) continue;
+      if (!localDocId) {
+        skipped++;
+        continue;
+      }
       if (prepPub === 'lfb' && isLfbStudyNoteId(field.TextTag)) continue;
       const key = `${prepPub}_${issue}_d${localDocId}_f${field.TextTag}`;
-      prep.fields[key] = { value: field.Value, updatedAt: new Date().toISOString() };
+      merged.fields[key] = { value: field.Value, updatedAt: new Date().toISOString() };
       fields++;
     }
 
@@ -939,7 +995,10 @@ export async function importJwlibrary(
       if (mark.ColorIndex === 0) continue;
       const location = locationById.get(mark.LocationId);
       const range = blockRangeByMark.get(mark.UserMarkId);
-      if (!location?.KeySymbol || !range) continue;
+      if (!location?.KeySymbol || !range) {
+        skipped++;
+        continue;
+      }
       const issue = issueStringFromTag(location.IssueTagNumber);
       const prepPub = prepPubFromKeySymbol(location.KeySymbol);
       const localDocId = await findLocalDocumentId(
@@ -949,15 +1008,31 @@ export async function importJwlibrary(
         location.DocumentId,
         location.Track,
       );
-      if (!localDocId) continue;
+      if (!localDocId) {
+        skipped++;
+        continue;
+      }
+
+      const dedupeKey = `${localDocId}_${range.Identifier}_${range.StartToken}_${range.EndToken}_${mark.ColorIndex}`;
+      if (importedHighlightKeys.has(dedupeKey)) continue;
+      importedHighlightKeys.add(dedupeKey);
+
+      const documentHtml = await getImportDocumentHtml(prepPub, issue, localDocId);
+      const paragraph = extractParagraphPlainText(documentHtml, String(range.Identifier));
+      const { startOffset, endOffset, text } = jwTokensToCharOffsets(
+        paragraph,
+        range.StartToken ?? 0,
+        range.EndToken ?? 0,
+      );
+
       const key = `${prepPub}_${issue}_d${localDocId}_h${mark.UserMarkGuid}`;
-      prep.highlights[key] = {
+      merged.highlights[key] = {
         id: mark.UserMarkGuid,
         color: COLOR_BY_INDEX[mark.ColorIndex] ?? 'yellow',
-        text: '',
+        text,
         blockId: String(range.Identifier),
-        startOffset: range.StartToken ?? 0,
-        endOffset: range.EndToken ?? 0,
+        startOffset,
+        endOffset,
         updatedAt: new Date().toISOString(),
       };
       highlights++;
@@ -984,7 +1059,10 @@ export async function importJwlibrary(
         location.DocumentId,
         location.Track,
       );
-      if (!localDocId) continue;
+      if (!localDocId) {
+        skipped++;
+        continue;
+      }
 
       const blockKey = `${prepPub}_${issue}_d${localDocId}_b${note.BlockIdentifier}`;
       const titleKey = `${prepPub}_${issue}_d${localDocId}_t${(note.Title ?? '').trim().toLowerCase()}`;
@@ -996,7 +1074,7 @@ export async function importJwlibrary(
         prepPub === 'lfb' ? lfbStudyNoteIdForQuestion(note.Title ?? '') : null;
       const noteId = studyNoteId ?? note.Guid;
       const key = `${prepPub}_${issue}_d${localDocId}_n${noteId}`;
-      prep.notes[key] = {
+      merged.notes[key] = {
         id: noteId,
         title: studyNoteId ? (lfbStudyQuestionForNoteId(studyNoteId) ?? note.Title ?? '') : (note.Title ?? ''),
         body: note.Content ?? '',
@@ -1012,7 +1090,17 @@ export async function importJwlibrary(
       notes++;
     }
 
-    await savePrepData(userDataDir, prep);
+    if (fields === 0 && highlights === 0 && notes === 0) {
+      return {
+        ok: false,
+        error:
+          skipped > 0
+            ? 'Nenhum dado importado. Baixe no JCS as publicações (mwb/w) da mesma semana do backup antes de importar.'
+            : 'O arquivo não contém campos, grifos ou notas para importar.',
+      };
+    }
+
+    await savePrepData(userDataDir, merged);
     return { ok: true, stats: { fields, highlights, notes } };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro ao importar .jwlibrary';

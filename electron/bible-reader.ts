@@ -1,5 +1,9 @@
-import path from 'node:path';
-import { downloadJwpub, isPubCached } from './jw-download';
+import { isPubCached } from './jw-download';
+import {
+  type BibleEdition,
+  BIBLE_EDITION_LABELS,
+  ensureBiblePath,
+} from './bible-edition';
 import { decryptContent } from './jwpub-crypto';
 import { openJwpubBundle, rewriteJwpubMediaUrls } from './jwpub-bundle';
 
@@ -62,13 +66,23 @@ export type BibleDocumentResult = {
 
 const JW_PUB_VIEW_ID = 2;
 
-const SECTION_ROOT: Record<BibleSectionTab, number | null> = {
-  introduction: 198,
-  books: null,
-  index: 293,
-  'appendix-a': 298,
-  'appendix-b': 317,
-  'appendix-c': null,
+const SECTION_ROOT: Record<BibleEdition, Record<BibleSectionTab, number | null>> = {
+  nwt: {
+    introduction: 198,
+    books: null,
+    index: 293,
+    'appendix-a': 298,
+    'appendix-b': 317,
+    'appendix-c': null,
+  },
+  nwtsty: {
+    introduction: 952,
+    books: null,
+    index: 1047,
+    'appendix-a': 1050,
+    'appendix-b': 1069,
+    'appendix-c': 1092,
+  },
 };
 
 export const BIBLE_SECTION_LABELS: Record<BibleSectionTab, string> = {
@@ -104,16 +118,8 @@ type Mp3ApiFile = {
 
 let audioBooksCache: { lang: string; books: Set<number>; tracks: BibleAudioTrack[] } | null = null;
 
-async function ensureNwtPath(cacheDir: string, lang = 'T') {
-  const cached = await isPubCached(cacheDir, 'nwt', '', lang);
-  if (cached) return path.join(cacheDir, `nwt_${lang}_.jwpub`);
-
-  const result = await downloadJwpub({ pub: 'nwt', issue: '', lang, cacheDir });
-  if (!result.ok || !result.filePath) {
-    throw new Error(result.error ?? 'Não foi possível baixar a Bíblia (nwt).');
-  }
-  return result.filePath;
-}
+export type { BibleEdition };
+export { BIBLE_EDITION_LABELS, ensureBiblePath };
 
 function stripHtml(value: string) {
   return value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -246,9 +252,9 @@ async function loadAudioCatalog(lang = 'T') {
   return audioBooksCache;
 }
 
-export async function listNwtLanguages(): Promise<NwtLanguageOption[]> {
+export async function listNwtLanguages(edition: BibleEdition = 'nwt'): Promise<NwtLanguageOption[]> {
   const apiUrl = new URL(API_BASE);
-  apiUrl.searchParams.set('pub', 'nwt');
+  apiUrl.searchParams.set('pub', edition);
   apiUrl.searchParams.set('issue', '');
   apiUrl.searchParams.set('fileformat', 'JWPUB');
   apiUrl.searchParams.set('langwritten', 'E');
@@ -280,9 +286,13 @@ export async function listNwtLanguages(): Promise<NwtLanguageOption[]> {
   }));
 }
 
-export async function listBibleBooks(cacheDir: string, lang = 'T'): Promise<BibleBookInfo[]> {
-  const nwtPath = await ensureNwtPath(cacheDir, lang);
-  const bundle = await openJwpubBundle(nwtPath);
+export async function listBibleBooks(
+  cacheDir: string,
+  lang = 'T',
+  edition: BibleEdition = 'nwt',
+): Promise<BibleBookInfo[]> {
+  const biblePath = await ensureBiblePath(cacheDir, edition, lang);
+  const bundle = await openJwpubBundle(biblePath);
   const audio = await loadAudioCatalog(lang);
 
   const rows =
@@ -311,10 +321,11 @@ export async function getBibleChapter(
   bookNumber: number,
   chapterNumber: number,
   lang = 'T',
+  edition: BibleEdition = 'nwt',
 ): Promise<BibleChapterResult> {
   try {
-    const nwtPath = await ensureNwtPath(cacheDir, lang);
-    const bundle = await openJwpubBundle(nwtPath);
+    const biblePath = await ensureBiblePath(cacheDir, edition, lang);
+    const bundle = await openJwpubBundle(biblePath);
 
     const bookTitle = bundle.db.exec(
       `SELECT BookDisplayTitle FROM BibleBook WHERE BibleBookId = ${bookNumber} LIMIT 1`,
@@ -329,7 +340,7 @@ export async function getBibleChapter(
     }
 
     const html = decryptContent(bundle.keyIv, encrypted as Uint8Array);
-    const rewritten = rewriteJwpubMediaUrls(html, 'nwt', '', lang);
+    const rewritten = rewriteJwpubMediaUrls(html, edition, '', lang);
 
     return {
       ok: true,
@@ -369,12 +380,13 @@ export function clearBibleAudioCache() {
 export async function markNwtLanguagesDownloaded(
   cacheDir: string,
   langs: NwtLanguageOption[],
+  edition: BibleEdition = 'nwt',
 ): Promise<NwtLanguageOption[]> {
   const out: NwtLanguageOption[] = [];
   for (const item of langs) {
     out.push({
       ...item,
-      downloaded: await isPubCached(cacheDir, 'nwt', '', item.lang),
+      downloaded: await isPubCached(cacheDir, edition, '', item.lang),
     });
   }
   return out;
@@ -427,12 +439,13 @@ export async function listBibleSectionItems(
   cacheDir: string,
   section: BibleSectionTab,
   lang = 'T',
+  edition: BibleEdition = 'nwt',
 ): Promise<BibleNavItem[]> {
-  const rootId = SECTION_ROOT[section];
+  const rootId = SECTION_ROOT[edition][section];
   if (rootId == null) return [];
 
-  const nwtPath = await ensureNwtPath(cacheDir, lang);
-  const bundle = await openJwpubBundle(nwtPath);
+  const biblePath = await ensureBiblePath(cacheDir, edition, lang);
+  const bundle = await openJwpubBundle(biblePath);
   return collectSectionNavItems(bundle.db, rootId, 0);
 }
 
@@ -440,10 +453,11 @@ export async function getBibleDocument(
   cacheDir: string,
   documentId: number,
   lang = 'T',
+  edition: BibleEdition = 'nwt',
 ): Promise<BibleDocumentResult> {
   try {
-    const nwtPath = await ensureNwtPath(cacheDir, lang);
-    const bundle = await openJwpubBundle(nwtPath);
+    const biblePath = await ensureBiblePath(cacheDir, edition, lang);
+    const bundle = await openJwpubBundle(biblePath);
 
     const titleRow = bundle.db.exec(
       `SELECT Title FROM Document WHERE DocumentId = ${documentId} LIMIT 1`,
@@ -458,7 +472,7 @@ export async function getBibleDocument(
     }
 
     const html = decryptContent(bundle.keyIv, encrypted as Uint8Array);
-    const rewritten = rewriteJwpubMediaUrls(html, 'nwt', '', lang);
+    const rewritten = rewriteJwpubMediaUrls(html, edition, '', lang);
 
     return {
       ok: true,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DownloadProgressBar, getDownloadPercent } from '@/components/DownloadProgressBar';
+import type { BibleEdition } from '@/lib/bible-edition';
 
 export type NwtLanguageOption = {
   lang: string;
@@ -12,6 +13,8 @@ type BibleLanguageModalProps = {
   open: boolean;
   languages: NwtLanguageOption[];
   activeLang: string;
+  edition?: BibleEdition;
+  editionLabel?: string;
   loading: boolean;
   downloadingLang: string | null;
   downloadProgressMap?: Record<string, number>;
@@ -24,6 +27,8 @@ export function BibleLanguageModal({
   open,
   languages,
   activeLang,
+  edition = 'nwt',
+  editionLabel,
   loading,
   downloadingLang,
   downloadProgressMap = {},
@@ -59,6 +64,9 @@ export function BibleLanguageModal({
         <div className="border-b border-jw-border px-5 py-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-medium text-jw-text">Idiomas da Bíblia</h2>
+            {editionLabel ? (
+              <p className="mt-1 text-xs text-jw-muted">{editionLabel}</p>
+            ) : null}
             <button
               type="button"
               onClick={onClose}
@@ -86,7 +94,11 @@ export function BibleLanguageModal({
               {filtered.map((lang) => {
                 const isActive = lang.lang === activeLang;
                 const isDownloading = downloadingLang === lang.lang;
-                const downloadPercent = getDownloadPercent(downloadProgressMap, `nwt_${lang.lang}`, isDownloading);
+                const downloadPercent = getDownloadPercent(
+                  downloadProgressMap,
+                  `${edition}_${lang.lang}`,
+                  isDownloading,
+                );
                 return (
                   <li key={lang.lang} className="border-b border-jw-border last:border-b-0">
                     <div className="flex items-center gap-3 px-5 py-3">

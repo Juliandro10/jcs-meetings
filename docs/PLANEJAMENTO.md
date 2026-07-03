@@ -29,49 +29,55 @@
 - `electron/auto-prep.ts`, `lfb-reader.ts`, `jw-link-resolver.ts`, `user-prep-store.ts`
 - `src/pages/ReaderPage.tsx`, `PublicationReader.tsx`, `NotePanel.tsx`, `SidePanel.tsx`
 
-### Ainda não feito (bloqueia MVP “fechado”)
+### Ainda não feito — foco atual (export `.jwlibrary` em pausa)
 
-- [ ] **Export/import `.jwlibrary`** (primeiro teste previsto após próxima rodada de testes manuais)
-- [ ] Modos presidente / dirigente / discurso
-- [ ] Resumo da semana (atalho dedicado)
-- [ ] `userData.db` schema v14 (hoje: `prep-data.json` intermediário)
+**Meio de semana (prep automática)**
+- [ ] Ajustar prompts: aprendizado pessoal por parte (tesouros, estudante, vida cristã, EBC) — tirar tom de tribuna (`JW_TRIBUNE_NOTE_RULES`)
+- [ ] Nota/bloco final **“Pontos altos para colocar em prática”** por semana
+
+**Sentinela (prep automática)**
+- [ ] Grifar resposta de cada pergunta no parágrafo correspondente
+- [ ] Campo editável: resposta **com suas palavras** + **resposta adicional** (destaque, aplicação ou texto citado)
+- [ ] Perguntas de revisão: respostas com **nº do(s) parágrafo(s)**
+- [ ] **Sem** resumo no início nem no final do artigo
+
+**Discurso público (UI)**
+- [ ] Seção **Discurso público** na `MeetingsPage` (entre VM e Sentinela)
+- [ ] Atalho **Anotações** → editor de texto por semana (persistência local)
+- [ ] Export **.doc** e **.pdf** (só JCS; não entra no `.jwlibrary`)
+
+### Depois (fora do foco imediato)
+
+- [ ] Export/import `.jwlibrary` + restore JW Library mobile
+- [ ] Modos presidente / dirigente / discurso → **JCS-ELDER**
+- [ ] `userData.db` schema v14 (hoje: `prep-data.json`)
 - [ ] Instalador Windows, tema escuro, polish geral
 
 ---
 
 ## Próximos passos (ordem acordada)
 
-### 1. Próximo teste manual (agora)
+### 1. Foco atual — prep + discurso público (jul 2026)
 
-Validar na semana **29 jun–5 jul 2026** (Jeremias 11–12):
+*Export `.jwlibrary` **pausado**.*
 
-1. Limpar preparação → Preparar automático → revisar joias, notas, EBC.
-2. Clicar **lfb histórias 98–99** e confirmar histórias no painel.
-3. Editar campos e notas; confirmar auto-resize dos textareas.
+1. **Prompts meio de semana** — aprendizado pessoal + nota “Pontos altos para prática”.
+2. **Prompts Sentinela** — grifos, respostas parafraseadas (principal + adicional), revisão c/ parágrafo; sem resumo início/fim.
+3. **UI Discurso público** — seção na tela Reuniões, editor Anotações, export doc/pdf.
 
-### 2. Primeiro salvamento para JW Library (logo após teste OK)
+Testar na semana **29 jun–5 jul 2026** após cada bloco.
 
-- Implementar **export `.jwlibrary`** (`userData.db` v14 + manifest + hash).
-- Testar **restauração no JW Library mobile** (Android): campos, grifos e notas na apostila.
-- Opcional: usuário envia backup manual (1 campo preenchido) para calibrar mapeamento `InputField` / `UserMark`.
+### 2. Depois — export JW Library (quando retomar)
 
-### 3. Após MVP funcional fechado — separar dois modos de IA
+- Export/import `.jwlibrary`; restore no mobile.
 
-| Modo | Público | Conteúdo |
-|------|---------|----------|
-| **Assistência** | Filha (depois esposa) | Joias, campos, notas **curtas**, EBC com 3 perguntas — preparação do dia a dia |
-| **Tribuna** | **Somente você** (família restrita) | Roteiros longos de condução, notas detalhadas por parte, ferramentas de condutor |
+### 3. JCS-ELDER (pós-comum)
 
-**Regras de acesso (não distribuir publicamente):**
+- Modos tribuna, pubs ancião, atas — ver [JCS-ELDER.md](./JCS-ELDER.md).
 
-- Modo Tribuna **desligado por padrão**; desbloqueio local (PIN ou allowlist de usuário Windows).
-- Modo Assistência disponível para família autorizada na máquina — **não** expor ferramentas de tribuna em build compartilhado.
-- Rollout: **você** → **filha** → **esposa** (fases separadas).
+### 4. Polish P2
 
-### 4. Depois
-
-- Modos presidente / dirigente / discurso (P1).
-- Bíblia completa no painel; Início, busca, instalador (P2).
+- Bíblia completa, Início, busca, instalador, tema escuro.
 
 ---
 

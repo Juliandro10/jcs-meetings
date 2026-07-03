@@ -19,13 +19,83 @@
 | Preparar automático | OpenAI **gpt-4o**: grifos, campos, joias (3× cap:vers + aplicação), notas por parte, EBC (3 perguntas por história lfb) |
 | Limpar preparação | Remove grifos, notas e campos da matéria aberta |
 | Persistência | `prep-data.json` local (intermediário até `userData.db` v14) |
+| **Pregação** | Kit de Ensino (vídeos + brochuras) + seção **Ame as Pessoas — Faça Discípulos** (`lmd`) |
+| Import/export `.jwlibrary` | Export/import com grifos; import corrige tokens JW Library |
 
 ### Próximos passos (ordem acordada)
 
-1. **Próximo teste manual** — semana 29 jun–5 jul 2026: limpar → preparar automático → lfb → notas → campos.
-2. **Primeiro salvamento na nuvem (JW Library)** — logo após teste OK: implementar export **`.jwlibrary`** e restaurar no **JW Library mobile (Android)** (campos, grifos, notas).
-3. **Após MVP funcional fechado** — separar **Modo Assistência** (filha → esposa) vs **Modo Tribuna** (só você; bloqueio local; não distribuir publicamente).
-4. Depois: modos presidente / dirigente / discurso, resumo da semana, instalador, tema escuro.
+1. **Fechar a parte comum** — ver § “Foco atual” abaixo (prep meio de semana + Sentinela + discurso público na UI). **Export/import `.jwlibrary` fica em pausa** até isso estar redondo.
+2. **Depois: JCS-ELDER** — área com senha, pubs ancião, presidir/discursos, editor de atas etc. Backlog: **[JCS-ELDER.md](./JCS-ELDER.md)**.
+3. Export/import `.jwlibrary`, instalador, tema escuro, polish premium contínuo.
+
+### Foco atual (jul 2026 — decisões recentes)
+
+*Import/export `.jwlibrary` **fora do foco por enquanto**.*
+
+| # | Entrega | Onde |
+|---|---------|------|
+| 1 | **Prep automática — meio de semana:** notas com foco **aprendizado pessoal** (não tribuna); nota final **“Pontos altos para prática”** | `ai-prompts.ts`, `auto-prep.ts` |
+| 2 | **Prep automática — Sentinela:** grifar respostas nos parágrafos; campos com resposta parafraseada (**principal + adicional**); revisão com **nº do parágrafo**; **sem** resumo início/fim | idem |
+| 3 | **UI Reuniões — Discurso público:** seção entre Vida e Ministério e Sentinela; atalho **Anotações** → editor por semana | `MeetingsPage`, store local |
+| 4 | **Export doc/pdf** das anotações do discurso (só JCS) | editor + Electron |
+| 5 | **Aba Pregação:** Kit de Ensino + brochura `lmd` (verdades, textos, introduções) | `PreachingPage`, `preaching.ts` |
+
+Detalhes por parte: § “Preparação automática — meio de semana” e § “Preparação automática — fim de semana”.
+
+### Parte comum (fase atual — o app como está, até “fechar”)
+
+Tudo que **não** exige senha nem publicações restritas a ancião:
+
+- Reuniões, leitor, prep manual e automático, lfb, painel Referências + notas, Bíblia, estudo pessoal/playlists.
+- Biblioteca: **somente publicações normais** (equivalente ao catálogo público / uso geral no JW Library).
+- Links e pesquisa em material **jw.org aberto ao público**.
+- Export/import `.jwlibrary` para continuar no mobile oficial.
+
+*Modo Assistência (família) vs ferramentas de tribuna migram para **JCS-ELDER** (bloqueio + pubs ancião), não para a parte comum.*
+
+### Preparação automática — reunião de **meio de semana** (parte comum)
+
+Foco: **aprendizado pessoal** na preparação (não roteiro de tribuna — isso fica para **JCS-ELDER**). Manter o que já existe; **ajustar o tom e o conteúdo** das notas/resumos gerados.
+
+| Parte da reunião | O que a prep deve enfatizar |
+|------------------|----------------------------|
+| **Tesouros da Palavra de Deus** | O que a matéria quer nos ensinar; **o que eu pessoalmente** posso aprender daquele discurso de tesouros. |
+| **Faça seu melhor no ministério** | Lição da parte de estudante / demonstração; aplicação pessoal no ministério. |
+| **Nossa vida cristã** | O que cada parte da seção ensina; o que posso aplicar na vida cristã. |
+| **Estudo bíblico de congregação (EBC)** | Breve resumo do que será considerado no estudo; **o que posso tirar de proveito**; respostas às 3 perguntas no **livro lfb** (como hoje). |
+| **Joias espirituais** | Manter **3 opções** de comentário (versículo da leitura + ensino + aplicação) — já previsto em `JW_JOIAS_RULES`. |
+| **Campos editáveis (tt\*)** | Manter respostas às perguntas da apostila onde houver campo — como está. |
+
+**Ao final da reunião (meio de semana):** nota ou bloco **“Pontos altos para colocar em prática”** — síntese do que aprendemos naquela reunião e o que levar para a vida (ministério, família, congregação). Gerado na prep automática ou editável manualmente; persistir com a semana.
+
+### Preparação automática — reunião de **fim de semana** (parte comum)
+
+Padrão **distinto** do meio de semana. Dois blocos: **discurso público** (a definir) e **estudo de A Sentinela** (abaixo).
+
+#### Estudo de A Sentinela
+
+**Sem** resumo do assunto no começo nem no final — a matéria já traz esses resumos.
+
+| Ação | Detalhe |
+|------|---------|
+| **Grifar no parágrafo** | Resposta de cada pergunta no **parágrafo correspondente** (highlight no texto). |
+| **Quadro editável (resposta)** | Escrever a resposta **com suas palavras** (não copiar o parágrafo literalmente). |
+| **Resposta principal** | Ponto-chave da pergunta. |
+| **Resposta adicional** | Sempre **mais uma**: outro destaque do parágrafo, **aplicação** do parágrafo, ou algo de um **texto adicional** citado naquele parágrafo. |
+| **Perguntas de revisão** | Respostas também, **citando o(s) número(s) do(s) parágrafo(s)** de onde saiu cada resposta. |
+
+**Discurso público (UI + dados):**
+
+| Item | Detalhe |
+|------|---------|
+| **Onde** | Seção **Discurso público** na tela Reuniões, entre Vida e Ministério e Sentinela |
+| **Atalho** | **Anotações** → editor de texto |
+| **Conteúdo** | Livre, por conta da pessoa (sem prep automática obrigatória no MVP) |
+| **Persistência** | Por semana, local (`prep-data.json` / futuro `userData.db`) |
+| **Export** | **.doc** e **.pdf** a partir do editor |
+| **JW Library** | **Não** — não entra no `.jwlibrary` nem aparece no app oficial |
+
+**Prep automática Sentinela:** ver tabela acima (grifar + respostas parafraseadas + revisão).
 
 ---
 
@@ -68,7 +138,7 @@ O usuário deve sentir que está no JW Library: mesma organização por semanas,
 
 | Área | Comportamento |
 |------|---------------|
-| **Sidebar esquerda** | Ícones: Início, Bíblia, Biblioteca, Mídia, **Reuniões**, Estudo pessoal |
+| **Sidebar esquerda** | Ícones: Início, Bíblia, Biblioteca, Mídia, **Reuniões**, **Pregação**, Estudo pessoal |
 | **Header** | Título da seção + idioma + ícones (busca, download, histórico, sync, menu) |
 | **Conteúdo** | Área principal branca/cinza claro |
 | **Splash** | Logo roxo + loading (estilo JW Library) |
@@ -81,6 +151,7 @@ O usuário deve sentir que está no JW Library: mesma organização por semanas,
 | **Bíblia** | Fase 2 — NWT, grid de livros, painel de estudo |
 | **Biblioteca** | Download/atualização `mwb`, `w`, `nwt`; aba Baixados |
 | **Reuniões** | **Núcleo** — ver 4.3 |
+| **Pregação** | Kit de Ensino (vídeos + brochuras) + brochura **Ame as Pessoas — Faça Discípulos** (`lmd`: verdades, textos, introduções). No **JCS-ELDER**, mesma seção + ideias para reunião de saída de campo — ver [JCS-ELDER.md](./JCS-ELDER.md). |
 | **Estudo pessoal** | Notas, etiquetas, backup `.jwlibrary` |
 | **Ferramentas IA** | Integradas na tela Reuniões e no leitor (não app separado) |
 
@@ -91,22 +162,24 @@ O usuário deve sentir que está no JW Library: mesma organização por semanas,
 ```
         ‹    29 de junho–5 de julho · Esta semana    ›
 
-  VIDA E MINISTÉRIO
+  VIDA E MINISTÉRIO                    (meio de semana — apostila)
   [thumb] 29 de junho–5 de julho                    ⋯
+
+  DISCURSO PÚBLICO                     (fim de semana — só JCS, não está na apostila)
+  [ícone] Anotações                                 ⋯
+          → editor de texto; exportar .doc / .pdf; persistência local por semana
 
   ESTUDO DE A SENTINELA
   [thumb] 29 DE JUNHO–5 DE JULHO DE 2026
           Marido e esposa, continuem fortalecendo...  ⋯
 
   OUTRAS PUBLICAÇÕES USADAS NAS REUNIÕES
-  [capa] Apostila da Reunião Vida e Ministério       ☁ ⋯
-  [capa] A Sentinela — Edição de Estudo              ☁ ⋯
-  [capa] Cante de Coração para Jeová                 ⋯
   ...
 ```
 
-- Setas **‹ ›** trocam a semana (passado/futuro).
+- **Meio de semana** = Vida e Ministério (apostila `mwb`). **Fim de semana** = Discurso público + Sentinela (`w`) — nada do fim de semana vem da apostila.
 - Toque em Vida e Ministério ou Sentinela → **leitor de publicação**.
+- **Discurso público → Anotações** → editor livre (título fixo; conteúdo manual). **Não** exporta para JW Library; opcional export **.doc / .pdf** no JCS.
 - Ícone **nuvem** → publicação não baixada (link para download jw.org).
 - **Ações JCS** (Preparar IA, Resumo, modos presidente/dirigente): menu ou barra secundária, sem quebrar o layout.
 
@@ -302,9 +375,11 @@ Reuniões → semana → Ferramentas IA → escolher modo
 | 2 | Listar semanas e exibir matéria como JW Library | ✅ |
 | 3 | Preparar manualmente: campos, destaques e notas locais | ✅ |
 | 4 | **Preparar automaticamente** semana com revisão/aplicar | ✅ (em teste) |
-| 5 | **Resumo da semana** via OpenAI | ⏳ pendente |
-| 6 | Pelo menos **um modo especial** (presidente/dirigente/discurso) | ⏳ pendente |
-| 7 | Exportar `.jwlibrary` importável no JW Library mobile | ⏳ **próximo após teste manual** |
+| 5 | **Resumo / notas por parte** (aprendizado pessoal, meio de semana) + **pontos para prática** ao final | ⏳ **foco atual** |
+| 6 | Modos presidente / dirigente / discurso (tribuna) | → **JCS-ELDER** |
+| 7 | Exportar `.jwlibrary` importável no JW Library mobile | ⏸ **pausado** |
+| 8 | **Discurso público:** seção Reuniões + editor Anotações + export doc/pdf | ⏳ **foco atual** |
+| 9 | **Sentinela:** prep grifar + respostas parafraseadas + revisão | ⏳ **foco atual** |
 
 ---
 
@@ -315,10 +390,12 @@ Reuniões → semana → Ferramentas IA → escolher modo
 | **1** | Electron + UI JW-like + download pubs + semanas | P0 | ✅ |
 | **2** | Leitor + campos + destaques + notas + painel estudo + lfb | P0 | ✅ |
 | **3** | OpenAI: preparar automático + revisão/aplicar | P0 | ✅ (teste) |
-| **4** | Export/import `.jwlibrary` + restore JW Library mobile | P0 | ⏳ **próximo** |
-| **5** | Modos Assistência vs Tribuna (bloqueio local) | P1 | pós-MVP |
-| **6** | Modos presidente, dirigente, discurso + resumo | P1 | pendente |
-| **7** | Início, busca, Bíblia completa, instalador, tema escuro | P2 | pendente |
+| **4** | Export/import `.jwlibrary` + restore JW Library mobile | P0 | ⏸ **pausado** |
+| **5** | Prep meio de semana (aprendizado + pontos prática) | P0 | ⏳ **foco atual** |
+| **5b** | Prep Sentinela (grifar + respostas + revisão) | P0 | ⏳ **foco atual** |
+| **5c** | UI Discurso público + editor Anotações + doc/pdf | P0 | ⏳ **foco atual** |
+| **7** | **JCS-ELDER** (senha, pubs ancião, tribuna, atas) | P1 | pós-comum |
+| **8** | Início, busca, Bíblia completa, instalador, tema escuro | P2 | pendente |
 
 ---
 
@@ -328,13 +405,16 @@ Reuniões → semana → Ferramentas IA → escolher modo
 |------|---------|
 | Nome | **JCS Meetings** |
 | Experiência base | **Paridade JW Library** na preparação manual |
-| Diferencial | **IA + modos presidente/dirigente/discurso** |
-| IA (MVP) | **OpenAI** (resumo + preparação automática + modos) |
+| Diferencial (comum) | **IA com foco em aprendizado pessoal** + paridade JW Library |
+| Diferencial (ELDER) | Tribuna, pubs ancião, atas — ver [JCS-ELDER.md](./JCS-ELDER.md) |
+| IA (MVP) | **OpenAI** (preparação automática + assistente; resumo = aprendizado pessoal) |
 | Publicações | **Download/atualização automática** via jw.org |
 | Organização | **Por semanas**, igual JW Library |
 | Dados | **`prep-data.json`** hoje → **`userData.db` v14** + export **`.jwlibrary`** |
 | Plataforma | **Windows / Electron** primeiro |
-| Pós-MVP | **Modo Assistência** (família) vs **Modo Tribuna** (só você, bloqueio local) |
+| Pós-comum | **[JCS-ELDER](./JCS-ELDER.md)** — senha, pubs ancião, presidir, discursos, editor de atas |
+| Meio de semana | Notas = **o que aprendo** por parte + **pontos para prática** no final |
+| Fim de semana | **Discurso:** editor Anotações (doc/pdf, só JCS); **Sentinela:** grifar + respostas + revisão |
 
 ---
 

@@ -80,14 +80,29 @@ body {
 .jwpub-content a {
   color: #5c3d6e;
   text-decoration: underline;
-  cursor: pointer;
 }
 
-.jwpub-content img {
+.jcs-bible-ref {
+  color: #5c3d6e;
+  text-decoration: underline;
+  cursor: pointer;
+  user-select: none;
+}
+
+.jcs-bible-ref:hover {
+  color: #4a315c;
+}
+
+.jwpub-content:not(.jwpub-has-styles) img {
   max-width: 100%;
   height: auto;
   border-radius: 4px;
   margin: 0.75rem 0;
+}
+
+.jwpub-content.jwpub-has-styles img {
+  height: auto;
+  max-width: 100%;
 }
 
 .jwpub-content .inlineSVG,
@@ -118,8 +133,33 @@ body {
   margin-right: 0.25rem;
 }
 
+.study-panel-content .bible-study-note {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border-left: 3px solid #5c3d6e;
+  background: #f3f0f7;
+  border-radius: 0 4px 4px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.study-panel-content .bible-study-note .se,
+.study-panel-content .bible-study-note .s5 {
+  margin: 0.35rem 0;
+}
+
+.study-panel-content .bible-study-note strong {
+  color: #4a3058;
+}
+
 .study-panel-content p {
   margin: 0.65rem 0;
+}
+
+.jwpub-content a.b {
+  color: #4a6fa5;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .jwpub-content mark[class^='jcs-hl-'] {
@@ -257,4 +297,31 @@ body {
 .prose-bible img {
   max-width: 100%;
   height: auto;
+}
+
+.jcs-rich-editor p {
+  margin: 0 0 0.75rem;
+}
+
+.jcs-rich-editor p:last-child {
+  margin-bottom: 0;
+}
+
+.jcs-rich-editor strong,
+.jcs-rich-editor b {
+  font-weight: 700;
+}
+
+.jcs-rich-editor em,
+.jcs-rich-editor i {
+  font-style: italic;
+}
+
+.jcs-rich-editor u {
+  text-decoration: underline;
+}
+
+.jcs-rich-editor mark {
+  border-radius: 2px;
+  padding: 0 1px;
 }

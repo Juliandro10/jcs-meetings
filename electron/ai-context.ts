@@ -18,13 +18,18 @@ export async function enrichAiContext(
   const cachedPublications = await listCachedJwpubs(cacheDir);
 
   let documentText = context.documentText;
+  const issueRequired = context.sourcePub === 'mwb' || context.sourcePub === 'w';
   if (
     !documentText &&
     context.sourcePub &&
-    context.sourceIssue &&
-    context.sourceDocumentId != null
+    context.sourceDocumentId != null &&
+    (!issueRequired || context.sourceIssue)
   ) {
-    const filePath = await resolveCachedPubPath(cacheDir, context.sourcePub, context.sourceIssue);
+    const filePath = await resolveCachedPubPath(
+      cacheDir,
+      context.sourcePub,
+      context.sourceIssue ?? '',
+    );
     if (filePath) {
       try {
         const html = await getDocumentHtml(filePath, context.sourceDocumentId);

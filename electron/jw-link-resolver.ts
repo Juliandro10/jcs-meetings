@@ -1,13 +1,14 @@
-import path from 'node:path';
 import { fetchBibleVerseOnline, fetchPublicationExtractOnline } from './jw-online-search';
 import { isLfbStudyLink, resolveLfbStudyLink } from './lfb-reader';
 import type { Database } from 'sql.js';
-import { downloadJwpub, isPubCached } from './jw-download';
+import { BIBLE_EDITION_LABELS, ensureBiblePath, type BibleEdition } from './bible-edition';
+import { getStudyNotesHtmlForVerse } from './bible-study-notes';
+import { isPubCached } from './jw-download';
 import { decryptContent } from './jwpub-crypto';
-import { openJwpubBundle, rewriteJwpubMediaUrls } from './jwpub-bundle';
+import { openJwpubBundle } from './jwpub-bundle';
+import { prepareJwpubDocument } from './jwpub-publication-css';
 import { resolveCachedPubPath } from './jwpub-reader';
 import type { ResolveLinkParams, ResolveLinkResult } from './types';
-
 type BibleRange = {
   bookStart: number;
   chapterStart: number;
@@ -98,31 +99,20 @@ function verseInRange(range: BibleRange, book: number, chapter: number, verse: n
   return current >= start && current <= end;
 }
 
-async function ensureNwt(cacheDir: string, lang = 'T') {
-  const cached = await isPubCached(cacheDir, 'nwt', '', lang);
-  if (cached) {
-    return path.join(cacheDir, `nwt_${lang}_.jwpub`);
-  }
-
-  const result = await downloadJwpub({ pub: 'nwt', issue: '', lang, cacheDir });
-  if (!result.ok || !result.filePath) {
-    throw new Error(result.error ?? 'Não foi possível baixar a Bíblia (nwt).');
-  }
-  return result.filePath;
-}
-
 async function resolveBibleLink(
   cacheDir: string,
   href: string,
   linkLabel?: string,
+  edition: BibleEdition = 'nwt',
+  lang = 'T',
 ): Promise<ResolveLinkResult> {
   const range = parseBibleHref(href);
   if (!range) {
     return { ok: false, error: 'Referência bíblica inválida.' };
   }
 
-  const nwtPath = await ensureNwt(cacheDir);
-  const bundle = await openJwpubBundle(nwtPath);
+  const biblePath = await ensureBiblePath(cacheDir, edition, lang);
+  const bundle = await openJwpubBundle(biblePath);
 
   const bookRow = bundle.db.exec(
     `SELECT BookDisplayTitle FROM BibleBook WHERE BibleBookId = ${range.bookStart} LIMIT 1`,
@@ -158,7 +148,14 @@ async function resolveBibleLink(
         if (!verseInRange(range, book, chapterNumber, verseNumber)) continue;
         const verseHtml = extractVerseHtml(chapterHtml, book, chapterNumber, verseNumber);
         if (!verseHtml) continue;
-        parts.push(`<p class="bible-verse"><sup>${verseNumber}</sup> ${verseHtml}</p>`);
+        let block = `<p class="bible-verse"><sup>${verseNumber}</sup> ${verseHtml}</p>`;
+        if (edition === 'nwtsty') {
+          const studyNotes = getStudyNotesHtmlForVerse(bundle, book, chapterNumber, verseNumber);
+          if (studyNotes) {
+            block += `\n<div class="bible-study-note">${studyNotes}</div>`;
+          }
+        }
+        parts.push(block);
       }
     }
   }
@@ -181,13 +178,13 @@ async function resolveBibleLink(
     ok: true,
     kind: 'bible',
     title,
-    subtitle: 'Tradução do Novo Mundo',
+    subtitle: BIBLE_EDITION_LABELS[edition],
     html: parts.join('\n'),
     download: {
-      pub: 'nwt',
+      pub: edition,
       issue: '',
-      label: 'Tradução do Novo Mundo',
-      downloaded: true,
+      label: BIBLE_EDITION_LABELS[edition],
+      downloaded: await isPubCached(cacheDir, edition, '', lang),
     },
   };
 }
@@ -230,12 +227,8 @@ async function resolvePublicationLink(
   }
 
   const captionHtml = String(row[0] ?? '');
-  const html = rewriteJwpubMediaUrls(
-    decryptContent(bundle.keyIv, row[1] as Uint8Array),
-    params.sourcePub,
-    params.sourceIssue,
-    'T',
-  );
+  const rawHtml = decryptContent(bundle.keyIv, row[1] as Uint8Array);
+  const prepared = await prepareJwpubDocument(bundle, rawHtml);
 
   const download = parsePublicationDownload(captionHtml);
   let downloaded = false;
@@ -249,7 +242,8 @@ async function resolvePublicationLink(
     kind: 'publication',
     title: stripHtml(captionHtml) || 'Referência',
     subtitle: 'Matéria de pesquisa',
-    html,
+    html: prepared.html,
+    publicationCss: prepared.publicationCss,
     download,
   };
 }
@@ -262,7 +256,13 @@ export async function resolveJwpubLink(
 
   try {
     if (href.startsWith('jwpub://b/')) {
-      return await resolveBibleLink(cacheDir, href, params.linkLabel);
+      return await resolveBibleLink(
+        cacheDir,
+        href,
+        params.linkLabel,
+        params.bibleEdition ?? 'nwt',
+        params.lang ?? 'T',
+      );
     }
 
     if (href.startsWith('jwpub://p/')) {

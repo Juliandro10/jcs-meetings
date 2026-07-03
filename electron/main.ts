@@ -11,6 +11,23 @@ import { runAiChat } from './ai-assistant';
 import { prepareAiChatParams } from './ai-context';
 import { loadEnvFile } from './env';
 import {
+  importElderOutlineJwpubFiles,
+  listInstalledElderOutlines,
+} from './elder-outline-catalog';
+import {
+  importElderGuidelineJwpubFiles,
+  isElderGuidelinePubSymbol,
+  listInstalledElderGuidelines,
+} from './elder-guideline-catalog';
+import {
+  assertElderUnlocked,
+  getElderAuthStatus,
+  isElderRestrictedPub,
+  lockElderSession,
+  setupElderPin,
+  unlockElderWithPin,
+} from './elder-auth';
+import {
   bibleTabToSection,
   getBibleChapter,
   getBibleDocument,
@@ -21,7 +38,14 @@ import {
   listNwtLanguages,
   markNwtLanguagesDownloaded,
 } from './bible-reader';
+import { bibleDownloadProgressKey, type BibleEdition } from './bible-edition';
 import { fetchDailyText } from './daily-text';
+import {
+  downloadTeachingKitPublication,
+  isTeachingKitPublicationCached,
+  listPreachingPubDocuments,
+  loadPreachingContent,
+} from './preaching';
 import { downloadJwpub, downloadMeetingPublications } from './jw-download';
 import {
   listRegisteredCacheKeys,
@@ -29,12 +53,14 @@ import {
   registerDownload,
   syncDownloadRegistryFromCache,
 } from './download-registry';
+import { standardizeJwpubCacheDir } from './jwpub-cache-normalize';
+import { exportOutlineDocument, exportPublicTalkNote } from './outline-export';
 import { exportJwlibrary, importJwlibrary } from './jwlibrary-export';
 import { dedupeNotesByTitle, pruneDuplicateDocumentNotes } from './note-dedupe';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
 import { resolveJwpubLink } from './jw-link-resolver';
 import { readJwpubMedia } from './jwpub-bundle';
-import { getDocumentHtml, loadMeetingWeeks, resolveCachedPubPath } from './jwpub-reader';
+import { getDocumentHtml, getPreparedDocumentHtml, listDocuments, loadMeetingWeeks, resolveCachedPubPath, clearPubPathIndexCache } from './jwpub-reader';
 import {
   addPlaylistItem,
   createPlaylist,
@@ -51,6 +77,9 @@ import {
   clearDocumentPrep,
   fieldKey,
   getFieldValues,
+  getPublicTalkNote,
+  getElderOutlineNote,
+  getPreparedElderOutline,
   getHighlights,
   getNotes,
   loadPrepData,
@@ -60,6 +89,12 @@ import {
   saveNote,
   replaceTaggedNotes,
   setFieldValue,
+  setPublicTalkNote,
+  setElderOutlineNote,
+  listPreparedElderOutlines,
+  savePreparedElderOutline,
+  findPreparedElderOutlineByName,
+  deletePreparedElderOutline,
 } from './user-prep-store';
 import type {
   AiChatParams,
@@ -186,24 +221,150 @@ function registerIpc() {
   });
 
   ipcMain.handle('jw:get-document-html', async (_event, params: GetDocumentHtmlParams) => {
+    if (isElderRestrictedPub(params.pub)) {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+    }
     try {
       const filePath = await resolveCachedPubPath(getCacheDir(), params.pub, params.issue);
       if (!filePath) {
         const label =
           params.pub === 'lfb'
             ? 'Livro lfb não baixado. Baixe a publicação primeiro.'
-            : 'Publicação não baixada. Vá em Biblioteca e atualize.';
+            : isElderGuidelinePubSymbol(params.pub)
+              ? 'Orientação não encontrada. Importe o .jwpub em Elder → Orientações.'
+              : params.pub.startsWith('s-') || params.pub.startsWith('ca-')
+                ? 'Esboço não encontrado. Copie o .jwpub para a pasta publications do JCS.'
+                : 'Publicação não baixada. Vá em Biblioteca e atualize.';
         return { ok: false, error: label };
       }
       const issue =
         params.issue ??
-        (params.pub === 'lfb' ? '' : path.basename(filePath).match(/_(\d{6})\.jwpub$/)?.[1]);
-      const html = await getDocumentHtml(filePath, params.documentId);
-      return { ok: true, html, issue: issue ?? '' };
+        (params.pub === 'lfb' ||
+        params.pub.startsWith('s-') ||
+        isElderGuidelinePubSymbol(params.pub) ||
+        params.pub.startsWith('ca-')
+          ? ''
+          : path.basename(filePath).match(/_(\d{6})\.jwpub$/)?.[1]);
+      const prepared = await getPreparedDocumentHtml(filePath, params.documentId);
+      return { ok: true, html: prepared.html, publicationCss: prepared.publicationCss, issue: issue ?? '' };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao abrir documento';
       return { ok: false, error: message };
     }
+  });
+
+  ipcMain.handle('jcs:elder-auth-status', async () => getElderAuthStatus(getUserDataDir()));
+
+  ipcMain.handle('jcs:elder-setup-pin', async (_event, params: { pin: string }) =>
+    setupElderPin(getUserDataDir(), params.pin),
+  );
+
+  ipcMain.handle('jcs:elder-unlock', async (_event, params: { pin: string }) =>
+    unlockElderWithPin(getUserDataDir(), params.pin),
+  );
+
+  ipcMain.handle('jcs:elder-lock', async () => {
+    lockElderSession();
+    return { ok: true };
+  });
+
+  ipcMain.handle('jcs:list-elder-outline-documents', async (_event, params: { pub: string }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    try {
+      const filePath = await resolveCachedPubPath(getCacheDir(), params.pub, '');
+      if (!filePath) {
+        return { ok: false, error: 'Esboço não encontrado na pasta publications.' };
+      }
+      const documents = await listDocuments(filePath);
+      return { ok: true, documents };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao listar esboços';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle('jcs:elder-outline-availability', async (_event, params: { pubs: string[] }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const result: Record<string, boolean> = {};
+    for (const pub of params.pubs) {
+      result[pub] = Boolean(await resolveCachedPubPath(getCacheDir(), pub, ''));
+    }
+    return result;
+  });
+
+  ipcMain.handle('jcs:list-installed-elder-outlines', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    try {
+      const items = await listInstalledElderOutlines(getCacheDir());
+      return { ok: true, items };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao listar esboços instalados';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle('jcs:import-elder-outline-jwpub', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const picked = await dialog.showOpenDialog({
+      title: 'Adicionar esboços',
+      filters: [{ name: 'Publicação JW (.jwpub)', extensions: ['jwpub'] }],
+      properties: ['openFile', 'multiSelections'],
+    });
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { ok: false, error: 'Importação cancelada.' };
+    }
+    const result = await importElderOutlineJwpubFiles(getCacheDir(), picked.filePaths);
+    if (result.imported.length > 0) {
+      clearPubPathIndexCache();
+      await syncDownloadRegistryFromCache(getUserDataRoot(), getCacheDir());
+    }
+    return result;
+  });
+
+  ipcMain.handle('jcs:elder-guideline-availability', async (_event, params: { pubs: string[] }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const result: Record<string, boolean> = {};
+    for (const pub of params.pubs) {
+      result[pub] = Boolean(await resolveCachedPubPath(getCacheDir(), pub, ''));
+    }
+    return result;
+  });
+
+  ipcMain.handle('jcs:list-installed-elder-guidelines', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    try {
+      const items = await listInstalledElderGuidelines(getCacheDir());
+      return { ok: true, items };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao listar orientações instaladas';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle('jcs:import-elder-guideline-jwpub', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const picked = await dialog.showOpenDialog({
+      title: 'Adicionar orientações',
+      filters: [{ name: 'Publicação JW (.jwpub)', extensions: ['jwpub'] }],
+      properties: ['openFile', 'multiSelections'],
+    });
+    if (picked.canceled || picked.filePaths.length === 0) {
+      return { ok: false, error: 'Importação cancelada.' };
+    }
+    const result = await importElderGuidelineJwpubFiles(getCacheDir(), picked.filePaths);
+    if (result.imported.length > 0) {
+      clearPubPathIndexCache();
+      await syncDownloadRegistryFromCache(getUserDataRoot(), getCacheDir());
+    }
+    return result;
   });
 
   ipcMain.handle('jw:get-field-values', async (_event, params: { pub: string; issue: string; documentId: number }) => {
@@ -319,6 +480,176 @@ function registerIpc() {
       clearDocumentPrep(getUserDataDir(), params.pub, params.issue, params.documentId),
   );
 
+  ipcMain.handle('jcs:get-public-talk-note', async (_event, weekId: string) => ({
+    ok: true,
+    value: await getPublicTalkNote(getUserDataDir(), weekId),
+  }));
+
+  ipcMain.handle(
+    'jcs:set-public-talk-note',
+    async (_event, params: { weekId: string; value: string }) => {
+      await setPublicTalkNote(getUserDataDir(), params.weekId, params.value);
+      return { ok: true };
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:get-elder-outline-note',
+    async (_event, params: { pub: string; documentId: number }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      return {
+        ok: true,
+        value: await getElderOutlineNote(getUserDataDir(), params.pub, params.documentId),
+      };
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:set-elder-outline-note',
+    async (_event, params: { pub: string; documentId: number; value: string }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      await setElderOutlineNote(getUserDataDir(), params.pub, params.documentId, params.value);
+      return { ok: true };
+    },
+  );
+
+  ipcMain.handle('jcs:list-prepared-elder-outlines', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return {
+      ok: true,
+      items: await listPreparedElderOutlines(getUserDataDir()),
+    };
+  });
+
+  ipcMain.handle('jcs:get-prepared-elder-outline', async (_event, id: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const item = await getPreparedElderOutline(getUserDataDir(), id);
+    return item ? { ok: true, item } : { ok: false, error: 'Esboço preparado não encontrado.' };
+  });
+
+  ipcMain.handle(
+    'jcs:save-prepared-elder-outline',
+    async (
+      _event,
+      params: {
+        id?: string;
+        name: string;
+        pub: string;
+        documentId: number;
+        sourceTitle: string;
+        sourcePubLabel: string;
+        value: string;
+      },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      const trimmedName = params.name.trim();
+      if (!trimmedName) {
+        return { ok: false, error: 'Informe um nome para o esboço preparado.' };
+      }
+      const item = await savePreparedElderOutline(getUserDataDir(), { ...params, name: trimmedName });
+      return { ok: true, item };
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:find-prepared-elder-outline-by-name',
+    async (_event, params: { pub: string; documentId: number; name: string }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      return {
+        ok: true,
+        item: await findPreparedElderOutlineByName(
+          getUserDataDir(),
+          params.pub,
+          params.documentId,
+          params.name,
+        ),
+      };
+    },
+  );
+
+  ipcMain.handle('jcs:delete-prepared-elder-outline', async (_event, id: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const ok = await deletePreparedElderOutline(getUserDataDir(), id);
+    return { ok, error: ok ? undefined : 'Esboço preparado não encontrado.' };
+  });
+
+  ipcMain.handle(
+    'jcs:export-public-talk-note',
+    async (
+      _event,
+      params: { weekId: string; weekLabel: string; format: 'doc' | 'pdf'; value: string },
+    ) => {
+      const ext = params.format === 'pdf' ? 'pdf' : 'doc';
+      const defaultName = `Discurso publico ${params.weekLabel.replace(/[^\d\sa-zA-Z–-]/g, '').trim()}.${ext}`;
+      const result = await dialog.showSaveDialog({
+        title: 'Exportar anotações do discurso público',
+        defaultPath: defaultName,
+        filters: [
+          params.format === 'pdf'
+            ? { name: 'PDF', extensions: ['pdf'] }
+            : { name: 'Documento Word', extensions: ['doc'] },
+        ],
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'Exportação cancelada.' };
+      }
+      return exportPublicTalkNote(
+        result.filePath,
+        params.format,
+        'Anotações do discurso público',
+        params.weekLabel,
+        params.value,
+      );
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:export-elder-outline-note',
+    async (
+      _event,
+      params: {
+        title: string;
+        pubLabel: string;
+        format: 'doc' | 'pdf';
+        value: string;
+        preserveFormatting?: boolean;
+      },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      const ext = params.format === 'pdf' ? 'pdf' : 'doc';
+      const safeTitle = params.title.replace(/[^\d\sa-zA-ZÀ-ÿ–-]/g, '').trim().slice(0, 80);
+      const defaultName = `Esboço ${safeTitle || params.pubLabel}.${ext}`;
+      const result = await dialog.showSaveDialog({
+        title: params.preserveFormatting ? 'Exportar esboço (com formatação)' : 'Exportar esboço de trabalho',
+        defaultPath: defaultName,
+        filters: [
+          params.format === 'pdf'
+            ? { name: 'PDF', extensions: ['pdf'] }
+            : { name: 'Documento Word', extensions: ['doc'] },
+        ],
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'Exportação cancelada.' };
+      }
+      return exportOutlineDocument(
+        result.filePath,
+        params.format,
+        params.title,
+        params.pubLabel,
+        params.value,
+        params.preserveFormatting ?? false,
+      );
+    },
+  );
+
   ipcMain.handle('jcs:export-jwlibrary', async () => {
     const defaultName = `JCSMeetingsBackup_${new Date().toISOString().slice(0, 10)}.jwlibrary`;
     const result = await dialog.showSaveDialog({
@@ -344,34 +675,51 @@ function registerIpc() {
     return importJwlibrary(getCacheDir(), getUserDataDir(), result.filePaths[0]);
   });
 
-  ipcMain.handle('jcs:list-bible-books', async (_event, params?: { lang?: string }) =>
-    listBibleBooks(getCacheDir(), params?.lang ?? 'T'),
+  ipcMain.handle(
+    'jcs:list-bible-books',
+    async (_event, params?: { lang?: string; edition?: BibleEdition }) =>
+      listBibleBooks(getCacheDir(), params?.lang ?? 'T', params?.edition ?? 'nwt'),
   );
 
   ipcMain.handle(
     'jcs:get-bible-chapter',
-    async (_event, params: { bookNumber: number; chapterNumber: number; lang?: string }) =>
-      getBibleChapter(getCacheDir(), params.bookNumber, params.chapterNumber, params.lang ?? 'T'),
+    async (
+      _event,
+      params: { bookNumber: number; chapterNumber: number; lang?: string; edition?: BibleEdition },
+    ) =>
+      getBibleChapter(
+        getCacheDir(),
+        params.bookNumber,
+        params.chapterNumber,
+        params.lang ?? 'T',
+        params.edition ?? 'nwt',
+      ),
   );
 
-  ipcMain.handle('jcs:list-nwt-languages', async () => {
-    const langs = await listNwtLanguages();
-    return markNwtLanguagesDownloaded(getCacheDir(), langs);
+  ipcMain.handle('jcs:list-nwt-languages', async (_event, params?: { edition?: BibleEdition }) => {
+    const edition = params?.edition ?? 'nwt';
+    const langs = await listNwtLanguages(edition);
+    return markNwtLanguagesDownloaded(getCacheDir(), langs, edition);
   });
 
-  ipcMain.handle('jcs:download-nwt', async (event, params?: { lang?: string }) => {
+  ipcMain.handle('jcs:download-nwt', async (event, params?: { lang?: string; edition?: BibleEdition }) => {
     const lang = params?.lang ?? 'T';
+    const edition = params?.edition ?? 'nwt';
     const result = await downloadJwpub({
-      pub: 'nwt',
+      pub: edition,
       issue: '',
       lang,
       cacheDir: getCacheDir(),
       onProgress: (p) =>
-        sendDownloadProgress(event, { key: `nwt_${lang}`, percent: p.percent, phase: p.phase }),
+        sendDownloadProgress(event, {
+          key: bibleDownloadProgressKey(edition, lang),
+          percent: p.percent,
+          phase: p.phase,
+        }),
     });
     if (result.ok && result.fileName) {
       await registerDownload(getUserDataRoot(), getCacheDir(), {
-        pub: 'nwt',
+        pub: edition,
         issue: '',
         lang,
         fileName: result.fileName,
@@ -394,17 +742,17 @@ function registerIpc() {
 
   ipcMain.handle(
     'jcs:list-bible-section',
-    async (_event, params: { tab: string; lang?: string }) => {
+    async (_event, params: { tab: string; lang?: string; edition?: BibleEdition }) => {
       const section = bibleTabToSection(params.tab);
       if (!section || section === 'books') return [];
-      return listBibleSectionItems(getCacheDir(), section, params.lang ?? 'T');
+      return listBibleSectionItems(getCacheDir(), section, params.lang ?? 'T', params.edition ?? 'nwt');
     },
   );
 
   ipcMain.handle(
     'jcs:get-bible-document',
-    async (_event, params: { documentId: number; lang?: string }) =>
-      getBibleDocument(getCacheDir(), params.documentId, params.lang ?? 'T'),
+    async (_event, params: { documentId: number; lang?: string; edition?: BibleEdition }) =>
+      getBibleDocument(getCacheDir(), params.documentId, params.lang ?? 'T', params.edition ?? 'nwt'),
   );
 
   ipcMain.handle('jcs:list-playlists', async () => listPlaylists(getUserDataDir()));
@@ -496,6 +844,43 @@ function registerIpc() {
   ipcMain.handle('jcs:get-daily-text', async (_event, params?: { lang?: string }) =>
     fetchDailyText(params?.lang ?? 'T'),
   );
+
+  ipcMain.handle('jcs:load-preaching', async () => loadPreachingContent(getCacheDir()));
+
+  ipcMain.handle(
+    'jcs:download-preaching-pub',
+    async (event, params: { pub: string; issue?: string; lang?: string }) => {
+      const lang = params.lang ?? 'T';
+      const issue = params.issue ?? '';
+      const result = await downloadTeachingKitPublication(getCacheDir(), params.pub, issue, lang);
+      if (result.ok && result.fileName) {
+        await registerDownload(getUserDataRoot(), getCacheDir(), {
+          pub: params.pub,
+          issue,
+          lang,
+          fileName: result.fileName,
+        });
+        sendDownloadProgress(event, {
+          key: `${params.pub}_${issue}`,
+          percent: 100,
+          phase: 'done',
+        });
+      }
+      return result;
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:is-preaching-pub-cached',
+    async (_event, params: { pub: string; issue?: string; lang?: string }) =>
+      isTeachingKitPublicationCached(getCacheDir(), params.pub, params.issue ?? '', params.lang ?? 'T'),
+  );
+
+  ipcMain.handle(
+    'jcs:list-preaching-pub-documents',
+    async (_event, params: { pub: string; issue?: string; lang?: string }) =>
+      listPreachingPubDocuments(getCacheDir(), params.pub, params.issue ?? '', params.lang ?? 'T'),
+  );
 }
 
 function registerMediaProtocol() {
@@ -507,7 +892,10 @@ function registerMediaProtocol() {
       const lang = parts[0] ?? 'T';
       const issue = parts[1] === '_' ? '' : (parts[1] ?? '');
       const fileName = decodeURIComponent(parts.slice(2).join('/'));
-      const jwpubPath = path.join(getCacheDir(), `${pub}_${lang}_${issue}.jwpub`);
+      const jwpubPath = await resolveCachedPubPath(getCacheDir(), pub, issue);
+      if (!jwpubPath) {
+        return new Response('Publicação não encontrada', { status: 404 });
+      }
       const media = await readJwpubMedia(jwpubPath, fileName);
       if (!media) {
         return new Response('Arquivo não encontrado', { status: 404 });
@@ -583,6 +971,7 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   await migrateLegacyJwpubCache(getCacheDir(), getUserDataRoot(), app.getPath('appData'));
+  await standardizeJwpubCacheDir(getCacheDir());
   await syncDownloadRegistryFromCache(getUserDataRoot(), getCacheDir());
   registerMediaProtocol();
   registerIpc();

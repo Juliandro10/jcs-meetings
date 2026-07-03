@@ -17,6 +17,7 @@ type MeetingsPageProps = {
   weekIndex: number;
   onWeekIndexChange: (index: number) => void;
   onOpenReader: (target: ReaderOpenTarget) => void;
+  onOpenPublicTalkNotes: (week: MeetingWeek) => void;
   onDownloadMeetingPubs: () => Promise<void>;
   onDownloadPub: (pub: 'mwb' | 'w', issue: string) => Promise<void>;
   loadingWeeks: boolean;
@@ -32,6 +33,7 @@ export function MeetingsPage({
   weekIndex,
   onWeekIndexChange,
   onOpenReader,
+  onOpenPublicTalkNotes,
   onDownloadMeetingPubs,
   onDownloadPub,
   loadingWeeks,
@@ -126,6 +128,15 @@ export function MeetingsPage({
             onDownload={() => week.mwbIssue && void onDownloadPub('mwb', week.mwbIssue)}
           />
         )}
+      </MeetingSection>
+
+      <MeetingSection title="Discurso público">
+        <MeetingRow
+          thumbnailLabel="DP"
+          primary={week.label}
+          secondary="Anotações"
+          onOpen={() => onOpenPublicTalkNotes(week)}
+        />
       </MeetingSection>
 
       <MeetingSection title="Estudo de A Sentinela">

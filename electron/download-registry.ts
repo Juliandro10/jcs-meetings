@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { canonicalPubSymbol, meetingPubCachePrefix } from './jwpub-pub-symbol';
+import { getPubSymbolFromJwpubFile, resolveCachedPubPath } from './jwpub-reader';
 
 export type DownloadRecord = {
   pub: string;
@@ -22,11 +24,15 @@ export function pubCacheKey(pub: string, lang: string, issue: string) {
 }
 
 function parseJwpubFileName(fileName: string): Omit<DownloadRecord, 'downloadedAt'> | null {
-  const base = fileName.replace(/\.jwpub$/, '');
-  const match = base.match(/^(.+)_([A-Za-z]{1,3})_(.*)$/);
-  if (!match) return null;
-  const [, pub, lang, issue] = match;
-  return { pub: pub!, lang: lang!, issue: issue!, fileName };
+  const withIssue = fileName.replace(/\.jwpub$/i, '').match(/^(.+?)_([A-Za-z]{1,3})_(.*)$/i);
+  if (withIssue) {
+    return { pub: withIssue[1]!.toLowerCase(), lang: withIssue[2]!, issue: withIssue[3] ?? '', fileName };
+  }
+  const short = fileName.replace(/\.jwpub$/i, '').match(/^(.+?)_([A-Za-z]{1,3})$/i);
+  if (short) {
+    return { pub: short[1]!.toLowerCase(), lang: short[2]!, issue: '', fileName };
+  }
+  return null;
 }
 
 export async function isJwpubFileCached(
@@ -35,12 +41,7 @@ export async function isJwpubFileCached(
   issue: string,
   lang = 'T',
 ): Promise<boolean> {
-  try {
-    const stat = await fs.stat(path.join(cacheDir, `${pub}_${lang}_${issue}.jwpub`));
-    return stat.size > 0;
-  } catch {
-    return false;
-  }
+  return Boolean(await resolveCachedPubPath(cacheDir, pub, issue || undefined));
 }
 
 export async function loadDownloadRegistry(userDataRoot: string): Promise<DownloadRecord[]> {
@@ -153,9 +154,16 @@ export async function syncDownloadRegistryFromCache(userDataRoot: string, cacheD
       continue;
     }
 
-    const key = pubCacheKey(parsed.pub, parsed.lang, parsed.issue);
+    const symbol = await getPubSymbolFromJwpubFile(path.join(cacheDir, fileName));
+    const pub =
+      meetingPubCachePrefix(symbol ?? parsed.pub) ??
+      (symbol ? canonicalPubSymbol(symbol) : canonicalPubSymbol(parsed.pub));
+    const key = pubCacheKey(pub, parsed.lang, parsed.issue);
     next.push({
-      ...parsed,
+      pub,
+      lang: parsed.lang,
+      issue: parsed.issue,
+      fileName: parsed.fileName,
       downloadedAt: previousByKey.get(key)?.downloadedAt ?? new Date().toISOString(),
     });
   }
@@ -184,7 +192,10 @@ export async function listRegisteredCacheKeys(userDataRoot: string, cacheDir: st
       if (!parsed) continue;
       try {
         const stat = await fs.stat(path.join(cacheDir, fileName));
-        if (stat.size > 0) keys.add(pubCacheKey(parsed.pub, parsed.lang, parsed.issue));
+        if (stat.size > 0) {
+          const meeting = meetingPubCachePrefix(parsed.pub);
+          keys.add(pubCacheKey(meeting ?? parsed.pub, parsed.lang, parsed.issue));
+        }
       } catch {
         // ignore
       }

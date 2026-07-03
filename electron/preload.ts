@@ -22,11 +22,25 @@ import type {
   JwLibraryImportResult,
   LfbPrepParams,
   LfbPrepResult,
-  LoadMeetingWeeksResult,
+  ListElderOutlineDocumentsResult,
   MeetingWeek,
   NwtLanguageOption,
   Playlist,
   PlaylistItem,
+  PreachingContent,
+  ListPreachingPubDocumentsResult,
+  PublicTalkExportResult,
+  PublicTalkNoteResult,
+  ElderOutlineNoteResult,
+  ListPreparedElderOutlinesResult,
+  PreparedElderOutline,
+  SavePreparedElderOutlineResult,
+  ImportElderOutlineJwpubResult,
+  ImportElderGuidelineJwpubResult,
+  ListInstalledElderOutlinesResult,
+  ListInstalledElderGuidelinesResult,
+  ElderAuthStatusResult,
+  ElderPinResult,
   ResolveLinkParams,
   ResolveLinkResult,
   SetFieldValueParams,
@@ -35,6 +49,12 @@ import type {
 
 contextBridge.exposeInMainWorld('jcs', {
   platform: process.platform,
+  getElderAuthStatus: (): Promise<ElderAuthStatusResult> => ipcRenderer.invoke('jcs:elder-auth-status'),
+  setupElderPin: (params: { pin: string }): Promise<ElderPinResult> =>
+    ipcRenderer.invoke('jcs:elder-setup-pin', params),
+  unlockElder: (params: { pin: string }): Promise<ElderPinResult> =>
+    ipcRenderer.invoke('jcs:elder-unlock', params),
+  lockElderSession: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('jcs:elder-lock'),
   downloadPub: (params: DownloadPubParams): Promise<DownloadPubResult> =>
     ipcRenderer.invoke('jw:download-pub', params),
   downloadMeetingPubs: (): Promise<{ mwb: DownloadPubResult[]; w: DownloadPubResult[]; errors: string[] }> =>
@@ -44,6 +64,20 @@ contextBridge.exposeInMainWorld('jcs', {
   loadMeetingWeeks: (): Promise<LoadMeetingWeeksResult> => ipcRenderer.invoke('jw:load-meeting-weeks'),
   getDocumentHtml: (params: GetDocumentHtmlParams): Promise<GetDocumentHtmlResult> =>
     ipcRenderer.invoke('jw:get-document-html', params),
+  listElderOutlineDocuments: (params: { pub: string }): Promise<ListElderOutlineDocumentsResult> =>
+    ipcRenderer.invoke('jcs:list-elder-outline-documents', params),
+  getElderOutlineAvailability: (params: { pubs: string[] }): Promise<Record<string, boolean>> =>
+    ipcRenderer.invoke('jcs:elder-outline-availability', params),
+  listInstalledElderOutlines: (): Promise<ListInstalledElderOutlinesResult> =>
+    ipcRenderer.invoke('jcs:list-installed-elder-outlines'),
+  importElderOutlineJwpub: (): Promise<ImportElderOutlineJwpubResult> =>
+    ipcRenderer.invoke('jcs:import-elder-outline-jwpub'),
+  getElderGuidelineAvailability: (params: { pubs: string[] }): Promise<Record<string, boolean>> =>
+    ipcRenderer.invoke('jcs:elder-guideline-availability', params),
+  listInstalledElderGuidelines: (): Promise<ListInstalledElderGuidelinesResult> =>
+    ipcRenderer.invoke('jcs:list-installed-elder-guidelines'),
+  importElderGuidelineJwpub: (): Promise<ImportElderGuidelineJwpubResult> =>
+    ipcRenderer.invoke('jcs:import-elder-guideline-jwpub'),
   getFieldValues: (params: { pub: string; issue: string; documentId: number }): Promise<Record<string, string>> =>
     ipcRenderer.invoke('jw:get-field-values', params),
   setFieldValue: (params: SetFieldValueParams): Promise<{ ok: boolean }> =>
@@ -78,17 +112,69 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:remove-note', params),
   clearDocumentPrep: (params: { pub: string; issue: string; documentId: number }) =>
     ipcRenderer.invoke('jcs:clear-document-prep', params),
+  getPublicTalkNote: (weekId: string): Promise<PublicTalkNoteResult> =>
+    ipcRenderer.invoke('jcs:get-public-talk-note', weekId),
+  setPublicTalkNote: (params: { weekId: string; value: string }): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('jcs:set-public-talk-note', params),
+  exportPublicTalkNote: (params: {
+    weekId: string;
+    weekLabel: string;
+    format: 'doc' | 'pdf';
+    value: string;
+  }): Promise<PublicTalkExportResult> =>
+    ipcRenderer.invoke('jcs:export-public-talk-note', params),
+  getElderOutlineNote: (params: {
+    pub: string;
+    documentId: number;
+  }): Promise<ElderOutlineNoteResult> => ipcRenderer.invoke('jcs:get-elder-outline-note', params),
+  setElderOutlineNote: (params: {
+    pub: string;
+    documentId: number;
+    value: string;
+  }): Promise<{ ok: boolean }> => ipcRenderer.invoke('jcs:set-elder-outline-note', params),
+  exportElderOutlineNote: (params: {
+    title: string;
+    pubLabel: string;
+    format: 'doc' | 'pdf';
+    value: string;
+    preserveFormatting?: boolean;
+  }): Promise<PublicTalkExportResult> =>
+    ipcRenderer.invoke('jcs:export-elder-outline-note', params),
+  listPreparedElderOutlines: (): Promise<ListPreparedElderOutlinesResult> =>
+    ipcRenderer.invoke('jcs:list-prepared-elder-outlines'),
+  getPreparedElderOutline: (id: string): Promise<SavePreparedElderOutlineResult> =>
+    ipcRenderer.invoke('jcs:get-prepared-elder-outline', id),
+  savePreparedElderOutline: (params: {
+    id?: string;
+    name: string;
+    pub: string;
+    documentId: number;
+    sourceTitle: string;
+    sourcePubLabel: string;
+    value: string;
+  }): Promise<SavePreparedElderOutlineResult> =>
+    ipcRenderer.invoke('jcs:save-prepared-elder-outline', params),
+  findPreparedElderOutlineByName: (params: {
+    pub: string;
+    documentId: number;
+    name: string;
+  }): Promise<{ ok: boolean; item?: PreparedElderOutline | null }> =>
+    ipcRenderer.invoke('jcs:find-prepared-elder-outline-by-name', params),
+  deletePreparedElderOutline: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:delete-prepared-elder-outline', id),
   exportJwlibrary: (): Promise<JwLibraryExportResult> => ipcRenderer.invoke('jcs:export-jwlibrary'),
   importJwlibrary: (): Promise<JwLibraryImportResult> => ipcRenderer.invoke('jcs:import-jwlibrary'),
-  listBibleBooks: (params?: { lang?: string }): Promise<BibleBookInfo[]> =>
+  listBibleBooks: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }): Promise<BibleBookInfo[]> =>
     ipcRenderer.invoke('jcs:list-bible-books', params),
   getBibleChapter: (params: {
     bookNumber: number;
     chapterNumber: number;
     lang?: string;
+    edition?: 'nwt' | 'nwtsty';
   }): Promise<BibleChapterResult> => ipcRenderer.invoke('jcs:get-bible-chapter', params),
-  listNwtLanguages: (): Promise<NwtLanguageOption[]> => ipcRenderer.invoke('jcs:list-nwt-languages'),
-  downloadNwt: (params?: { lang?: string }): Promise<DownloadPubResult> =>
+  listNwtLanguages: (params?: { edition?: 'nwt' | 'nwtsty' }): Promise<NwtLanguageOption[]> =>
+    ipcRenderer.invoke('jcs:list-nwt-languages', params),
+  downloadNwt: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }): Promise<DownloadPubResult> =>
     ipcRenderer.invoke('jcs:download-nwt', params),
   listBookAudio: (params: { bookNumber: number; lang?: string }): Promise<BibleAudioTrack[]> =>
     ipcRenderer.invoke('jcs:list-book-audio', params),
@@ -97,10 +183,13 @@ contextBridge.exposeInMainWorld('jcs', {
     chapterNumber: number;
     lang?: string;
   }): Promise<BibleAudioTrack | null> => ipcRenderer.invoke('jcs:get-chapter-audio', params),
-  listBibleSection: (params: { tab: string; lang?: string }): Promise<BibleNavItem[]> =>
+  listBibleSection: (params: { tab: string; lang?: string; edition?: 'nwt' | 'nwtsty' }): Promise<BibleNavItem[]> =>
     ipcRenderer.invoke('jcs:list-bible-section', params),
-  getBibleDocument: (params: { documentId: number; lang?: string }): Promise<BibleDocumentResult> =>
-    ipcRenderer.invoke('jcs:get-bible-document', params),
+  getBibleDocument: (params: {
+    documentId: number;
+    lang?: string;
+    edition?: 'nwt' | 'nwtsty';
+  }): Promise<BibleDocumentResult> => ipcRenderer.invoke('jcs:get-bible-document', params),
   listPlaylists: (): Promise<Playlist[]> => ipcRenderer.invoke('jcs:list-playlists'),
   createPlaylist: (label: string): Promise<Playlist[]> => ipcRenderer.invoke('jcs:create-playlist', label),
   renamePlaylist: (params: { playlistId: string; label: string }): Promise<Playlist[]> =>
@@ -125,6 +214,23 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:get-song-audio', params),
   getDailyText: (params?: { lang?: string }): Promise<DailyTextResult> =>
     ipcRenderer.invoke('jcs:get-daily-text', params),
+  loadPreaching: (): Promise<PreachingContent> => ipcRenderer.invoke('jcs:load-preaching'),
+  downloadPreachingPub: (params: {
+    pub: string;
+    issue?: string;
+    lang?: string;
+  }): Promise<DownloadPubResult> => ipcRenderer.invoke('jcs:download-preaching-pub', params),
+  isPreachingPubCached: (params: {
+    pub: string;
+    issue?: string;
+    lang?: string;
+  }): Promise<boolean> => ipcRenderer.invoke('jcs:is-preaching-pub-cached', params),
+  listPreachingPubDocuments: (params: {
+    pub: string;
+    issue?: string;
+    lang?: string;
+  }): Promise<ListPreachingPubDocumentsResult> =>
+    ipcRenderer.invoke('jcs:list-preaching-pub-documents', params),
   onDownloadProgress: (callback: (progress: DownloadProgressEvent) => void) => {
     const listener = (_event: unknown, progress: DownloadProgressEvent) => callback(progress);
     ipcRenderer.on('jcs:download-progress', listener);
@@ -136,12 +242,23 @@ declare global {
   interface Window {
     jcs: {
       platform: string;
+      getElderAuthStatus: () => Promise<ElderAuthStatusResult>;
+      setupElderPin: (params: { pin: string }) => Promise<ElderPinResult>;
+      unlockElder: (params: { pin: string }) => Promise<ElderPinResult>;
+      lockElderSession: () => Promise<{ ok: boolean }>;
       downloadPub: (params: DownloadPubParams) => Promise<DownloadPubResult>;
       downloadMeetingPubs: () => Promise<{ mwb: DownloadPubResult[]; w: DownloadPubResult[]; errors: string[] }>;
       listCached: () => Promise<string[]>;
       getCacheDir: () => Promise<string>;
       loadMeetingWeeks: () => Promise<LoadMeetingWeeksResult>;
       getDocumentHtml: (params: GetDocumentHtmlParams) => Promise<GetDocumentHtmlResult>;
+      listElderOutlineDocuments: (params: { pub: string }) => Promise<ListElderOutlineDocumentsResult>;
+      getElderOutlineAvailability: (params: { pubs: string[] }) => Promise<Record<string, boolean>>;
+      listInstalledElderOutlines: () => Promise<ListInstalledElderOutlinesResult>;
+      importElderOutlineJwpub: () => Promise<ImportElderOutlineJwpubResult>;
+      getElderGuidelineAvailability: (params: { pubs: string[] }) => Promise<Record<string, boolean>>;
+      listInstalledElderGuidelines: () => Promise<ListInstalledElderGuidelinesResult>;
+      importElderGuidelineJwpub: () => Promise<ImportElderGuidelineJwpubResult>;
       getFieldValues: (params: { pub: string; issue: string; documentId: number }) => Promise<Record<string, string>>;
       setFieldValue: (params: SetFieldValueParams) => Promise<{ ok: boolean }>;
       resolveLink: (params: ResolveLinkParams) => Promise<ResolveLinkResult>;
@@ -180,24 +297,70 @@ declare global {
         issue: string;
         documentId: number;
       }) => Promise<{ fields: number; highlights: number; notes: number }>;
+      getPublicTalkNote: (weekId: string) => Promise<PublicTalkNoteResult>;
+      setPublicTalkNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;
+      exportPublicTalkNote: (params: {
+        weekId: string;
+        weekLabel: string;
+        format: 'doc' | 'pdf';
+        value: string;
+      }) => Promise<PublicTalkExportResult>;
+      getElderOutlineNote: (params: {
+        pub: string;
+        documentId: number;
+      }) => Promise<ElderOutlineNoteResult>;
+      setElderOutlineNote: (params: {
+        pub: string;
+        documentId: number;
+        value: string;
+      }) => Promise<{ ok: boolean }>;
+      exportElderOutlineNote: (params: {
+        title: string;
+        pubLabel: string;
+        format: 'doc' | 'pdf';
+        value: string;
+        preserveFormatting?: boolean;
+      }) => Promise<PublicTalkExportResult>;
+      listPreparedElderOutlines: () => Promise<ListPreparedElderOutlinesResult>;
+      getPreparedElderOutline: (id: string) => Promise<SavePreparedElderOutlineResult>;
+      savePreparedElderOutline: (params: {
+        id?: string;
+        name: string;
+        pub: string;
+        documentId: number;
+        sourceTitle: string;
+        sourcePubLabel: string;
+        value: string;
+      }) => Promise<SavePreparedElderOutlineResult>;
+      findPreparedElderOutlineByName: (params: {
+        pub: string;
+        documentId: number;
+        name: string;
+      }) => Promise<{ ok: boolean; item?: PreparedElderOutline | null }>;
+      deletePreparedElderOutline: (id: string) => Promise<{ ok: boolean; error?: string }>;
       exportJwlibrary: () => Promise<JwLibraryExportResult>;
       importJwlibrary: () => Promise<JwLibraryImportResult>;
-      listBibleBooks: (params?: { lang?: string }) => Promise<BibleBookInfo[]>;
+      listBibleBooks: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }) => Promise<BibleBookInfo[]>;
       getBibleChapter: (params: {
         bookNumber: number;
         chapterNumber: number;
         lang?: string;
+        edition?: 'nwt' | 'nwtsty';
       }) => Promise<BibleChapterResult>;
-      listNwtLanguages: () => Promise<NwtLanguageOption[]>;
-      downloadNwt: (params?: { lang?: string }) => Promise<DownloadPubResult>;
+      listNwtLanguages: (params?: { edition?: 'nwt' | 'nwtsty' }) => Promise<NwtLanguageOption[]>;
+      downloadNwt: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }) => Promise<DownloadPubResult>;
       listBookAudio: (params: { bookNumber: number; lang?: string }) => Promise<BibleAudioTrack[]>;
       getChapterAudio: (params: {
         bookNumber: number;
         chapterNumber: number;
         lang?: string;
       }) => Promise<BibleAudioTrack | null>;
-      listBibleSection: (params: { tab: string; lang?: string }) => Promise<BibleNavItem[]>;
-      getBibleDocument: (params: { documentId: number; lang?: string }) => Promise<BibleDocumentResult>;
+      listBibleSection: (params: { tab: string; lang?: string; edition?: 'nwt' | 'nwtsty' }) => Promise<BibleNavItem[]>;
+      getBibleDocument: (params: {
+        documentId: number;
+        lang?: string;
+        edition?: 'nwt' | 'nwtsty';
+      }) => Promise<BibleDocumentResult>;
       listPlaylists: () => Promise<Playlist[]>;
       createPlaylist: (label: string) => Promise<Playlist[]>;
       renamePlaylist: (params: { playlistId: string; label: string }) => Promise<Playlist[]>;
@@ -217,6 +380,22 @@ declare global {
       listSongs: (params?: { lang?: string }) => Promise<SongAudioTrack[]>;
       getSongAudio: (params: { songNumber: number; lang?: string }) => Promise<SongAudioTrack | null>;
       getDailyText: (params?: { lang?: string }) => Promise<DailyTextResult>;
+      loadPreaching: () => Promise<PreachingContent>;
+      downloadPreachingPub: (params: {
+        pub: string;
+        issue?: string;
+        lang?: string;
+      }) => Promise<DownloadPubResult>;
+      isPreachingPubCached: (params: {
+        pub: string;
+        issue?: string;
+        lang?: string;
+      }) => Promise<boolean>;
+      listPreachingPubDocuments: (params: {
+        pub: string;
+        issue?: string;
+        lang?: string;
+      }) => Promise<ListPreachingPubDocumentsResult>;
       onDownloadProgress: (callback: (progress: DownloadProgressEvent) => void) => () => void;
     };
   }

@@ -4,6 +4,7 @@ import { getDownloadPercent } from '@/components/DownloadProgressBar';
 import { DownloadPublicationModal } from '@/components/DownloadPublicationModal';
 import { HighlightToolbar } from '@/components/HighlightToolbar';
 import { PublicationReader, type PublicationReaderHandle } from '@/components/PublicationReader';
+import { readBibleEdition } from '@/lib/bible-edition';
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
 import { StudyBookReader } from '@/components/StudyBookReader';
 import type { ReaderOpenTarget } from '@/pages/MeetingsPage';
@@ -13,6 +14,7 @@ import {
   type HighlightColorId,
 } from '@/lib/highlight-dom';
 import { applyNoteAnchor, noteFromSelection, removeNoteAnchor, type DocumentNote } from '@/lib/note-dom';
+import { isLfbStudyFieldId } from '@/lib/lfb-study-fields';
 import type { ResolveLinkResult, StudyBookStoryRef } from '../../electron/types';
 
 type StudyBookSession = {
@@ -161,7 +163,16 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           note.id === activeNoteId ? { ...note, ...patch } : note,
         );
         const updated = next.find((note) => note.id === activeNoteId);
-        if (updated) persistNote(updated);
+        if (updated) {
+          persistNote(updated);
+          if (patch.body !== undefined && isLfbStudyFieldId(activeNoteId)) {
+            const textarea = document.querySelector<HTMLTextAreaElement>(`#${activeNoteId}`);
+            if (textarea && textarea.value !== patch.body) {
+              textarea.value = patch.body;
+              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }
+        }
         return next;
       });
     },
@@ -227,6 +238,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
         linkLabel,
         sourcePub: target.pub,
         sourceIssue: target.issue,
+        bibleEdition: readBibleEdition(),
       });
 
       setReference(result);
@@ -269,7 +281,8 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           stories: refreshed.studyBook.stories.filter((s) => s.documentId > 0),
           currentIndex: 0,
         });
-        setPanelOpen(false);
+        setPanelOpen(true);
+        setPanelTab('references');
       }
     } else if (!result.ok) {
       setReference((current) =>
@@ -291,7 +304,8 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
       stories,
       currentIndex: 0,
     });
-    setPanelOpen(false);
+    setPanelOpen(true);
+    setPanelTab('references');
     setLfbPrepMessage(null);
   }, []);
 
@@ -333,10 +347,36 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
     });
     studyReaderRef.current?.applyHighlights(highlights);
 
+    await loadNotes();
+    setPanelOpen(true);
+    setPanelTab('references');
+
     setLfbPrepMessage(
       `Lições preparadas: ${result.highlights?.length ?? 0} grifo(s) e ${result.notes?.length ?? 0} resposta(s).`,
     );
-  }, [activeStory?.documentId, studyBookSession, weekLabel]);
+  }, [activeStory?.documentId, loadNotes, studyBookSession, weekLabel]);
+
+  const handleLfbClearPrep = useCallback(async () => {
+    if (!window.jcs?.clearDocumentPrep || !studyBookSession || !activeStory?.documentId) return;
+    if (!window.confirm('Limpar grifos, notas e respostas preenchidas desta história?')) return;
+
+    setClearingPrep(true);
+    setLfbPrepMessage(null);
+
+    const removed = await window.jcs.clearDocumentPrep({
+      pub: 'lfb',
+      issue: '',
+      documentId: activeStory.documentId,
+    });
+
+    setNotes([]);
+    setActiveNoteId(null);
+    await studyReaderRef.current?.reloadDocument();
+    setClearingPrep(false);
+    setLfbPrepMessage(
+      `Preparação limpa: ${removed.highlights} grifo(s), ${removed.fields} campo(s) e ${removed.notes} nota(s) removidos.`,
+    );
+  }, [activeStory?.documentId, studyBookSession]);
 
   const applyHighlightColor = useCallback(
     async (color: HighlightColorId) => {
@@ -451,6 +491,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           storyIndex={studyBookSession.currentIndex}
           storyCount={studyBookSession.stories.length}
           prepping={lfbPrepping}
+          clearingPrep={clearingPrep}
           prepMessage={lfbPrepMessage}
           panelOpen={panelOpen}
           panelTab={panelTab}
@@ -464,6 +505,7 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
               pub="lfb"
               documentId={activeStory.documentId}
               issue=""
+              onStudyNotesUpdated={loadNotes}
               onJwpubLinkClick={(href, label) => {
                 void openReference(href, label);
                 setPanelOpen(true);
@@ -493,7 +535,9 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
             );
           }}
           onPrepareLessons={() => void handleLfbPrep()}
+          onClearPrep={() => void handleLfbClearPrep()}
           onPanelClose={() => setPanelOpen(false)}
+          onPanelOpen={() => setPanelOpen(true)}
           onPanelTabChange={setPanelTab}
           onLinkClick={(href, label) => {
             void openReference(href, label);
@@ -507,6 +551,8 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           onNoteDelete={() => {
             void deleteActiveNote();
           }}
+          documentNotes={notes}
+          onDocumentNoteSelect={openNote}
         />
         <DownloadPublicationModal
           open={downloadModalOpen}

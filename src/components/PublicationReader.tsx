@@ -8,6 +8,7 @@ import {
 import { applyAllNoteAnchors, repositionNoteMarkers, type DocumentNote } from '@/lib/note-dom';
 import { buildLfbStudyFieldsHtml, isLfbStudyFieldId, LFB_STUDY_QUESTIONS } from '@/lib/lfb-study-fields';
 import { setupAutoResizeTextarea } from '@/lib/auto-resize-textarea';
+import { applyPublicationCss } from '@/lib/jwpub-publication-styles';
 
 export type PublicationReaderHandle = {
   applyHighlights: (highlights: DocumentHighlight[]) => void;
@@ -17,18 +18,19 @@ export type PublicationReaderHandle = {
 };
 
 type PublicationReaderProps = {
-  pub: 'mwb' | 'w' | 'lfb';
+  pub: string;
   documentId: number;
   issue?: string;
   injectStudyFields?: boolean;
   onJwpubLinkClick?: (href: string, label: string) => void;
   onSelectionToolbar?: (payload: { open: boolean; x: number; y: number }) => void;
   onNoteClick?: (noteId: string) => void;
+  onStudyNotesUpdated?: () => void;
 };
 
 export const PublicationReader = forwardRef<PublicationReaderHandle, PublicationReaderProps>(
   function PublicationReader(
-    { pub, documentId, issue, injectStudyFields, onJwpubLinkClick, onSelectionToolbar, onNoteClick },
+    { pub, documentId, issue, injectStudyFields, onJwpubLinkClick, onSelectionToolbar, onNoteClick, onStudyNotesUpdated },
     ref,
   ) {
     const columnRef = useRef<HTMLDivElement>(null);
@@ -40,9 +42,12 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
     const selectionHandlerRef = useRef(onSelectionToolbar);
     const noteClickHandlerRef = useRef(onNoteClick);
 
+    const noteUpdatedHandlerRef = useRef(onStudyNotesUpdated);
+
     linkHandlerRef.current = onJwpubLinkClick;
     selectionHandlerRef.current = onSelectionToolbar;
     noteClickHandlerRef.current = onNoteClick;
+    noteUpdatedHandlerRef.current = onStudyNotesUpdated;
 
     async function mountDocument() {
       setLoading(true);
@@ -55,7 +60,8 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         }
 
         const result = await window.jcs.getDocumentHtml({ pub, documentId, issue });
-        const issueOk = pub === 'lfb' ? result.issue !== undefined : Boolean(result.issue);
+        const needsIssue = pub === 'mwb' || pub === 'w';
+        const issueOk = !needsIssue ? result.issue !== undefined : Boolean(result.issue);
         if (!result.ok || !result.html || !issueOk) {
           setError(result.error ?? 'Não foi possível carregar a matéria.');
           return;
@@ -68,25 +74,18 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         }
 
         root.innerHTML = result.html;
+        applyPublicationCss(root, result.publicationCss);
         if (pub === 'lfb' && injectStudyFields !== false && !root.querySelector('.jcs-lfb-study-prep')) {
           root.insertAdjacentHTML('beforeend', buildLfbStudyFieldsHtml());
         }
         const resolved = result.issue ?? '';
         setResolvedIssue(resolved);
 
-        const legacyFieldValues =
-          pub === 'lfb'
-            ? await window.jcs.getFieldValues({
-                pub,
-                issue: resolved,
-                documentId,
-              })
-            : {};
-
-        const savedFields =
-          pub === 'lfb'
-            ? {}
-            : legacyFieldValues;
+        const savedFieldValues = await window.jcs.getFieldValues({
+          pub,
+          issue: resolved,
+          documentId,
+        });
 
         const savedNotes =
           pub === 'lfb' && window.jcs.getNotes
@@ -104,7 +103,7 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
 
           if (isLfbStudyField) {
             const legacyKey = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
-            const legacyValue = legacyFieldValues[legacyKey];
+            const legacyValue = savedFieldValues[legacyKey];
             if (studyNote?.body) {
               textarea.value = studyNote.body;
             } else if (legacyValue && window.jcs.saveNote) {
@@ -128,7 +127,7 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
             }
           } else {
             const key = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
-            if (savedFields[key]) textarea.value = savedFields[key];
+            if (savedFieldValues[key]) textarea.value = savedFieldValues[key];
           }
 
           textarea.classList.add('jcs-editable-field');
@@ -151,6 +150,8 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
                   endOffset: 0,
                   tags: ['lfb-study'],
                 },
+              }).then(() => {
+                noteUpdatedHandlerRef.current?.();
               });
               return;
             }

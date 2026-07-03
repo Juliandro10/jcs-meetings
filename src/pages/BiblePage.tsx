@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BibleAudioPlayer, type BibleAudioTrack } from '@/components/BibleAudioPlayer';
 import { BibleLanguageModal, type NwtLanguageOption } from '@/components/BibleLanguageModal';
 import { IconBookOpen, IconChevronLeft, IconGlobe, IconHeadphones } from '@/components/Icons';
+import {
+  BIBLE_EDITION_OPTIONS,
+  isBibleTabDisabled,
+  readBibleEdition,
+  writeBibleEdition,
+  type BibleEdition,
+} from '@/lib/bible-edition';
 
 type BibleBookInfo = {
   bookNumber: number;
@@ -28,7 +35,6 @@ type BibleView =
   | { mode: 'document'; documentId: number; title: string; html: string };
 
 const BIBLE_TABS = ['INTRODUÇÃO', 'LIVROS', 'ÍNDICE', 'APÊNDICE A', 'APÊNDICE B', 'APÊNDICE C'] as const;
-const DISABLED_TABS = new Set<string>(['APÊNDICE C']);
 
 function shortBookTitle(title: string) {
   return title
@@ -38,6 +44,7 @@ function shortBookTitle(title: string) {
 }
 
 export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: Record<string, number> }) {
+  const [edition, setEdition] = useState<BibleEdition>(() => readBibleEdition());
   const [lang, setLang] = useState('T');
   const [langLabel, setLangLabel] = useState('Português (Brasil)');
   const [books, setBooks] = useState<BibleBookInfo[]>([]);
@@ -65,22 +72,22 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
     setLoadingBooks(true);
     setError(null);
     try {
-      const result = await window.jcs.listBibleBooks({ lang: nextLang });
+      const result = await window.jcs.listBibleBooks({ lang: nextLang, edition });
       setBooks(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar livros.');
     } finally {
       setLoadingBooks(false);
     }
-  }, []);
+  }, [edition]);
 
   const reloadSection = useCallback(
     async (tab: (typeof BIBLE_TABS)[number], nextLang: string) => {
-      if (tab === 'LIVROS' || DISABLED_TABS.has(tab) || !window.jcs?.listBibleSection) return;
+      if (tab === 'LIVROS' || isBibleTabDisabled(edition, tab) || !window.jcs?.listBibleSection) return;
       setLoadingSection(true);
       setError(null);
       try {
-        const items = await window.jcs.listBibleSection({ tab, lang: nextLang });
+        const items = await window.jcs.listBibleSection({ tab, lang: nextLang, edition });
         setSectionItems(items);
         setView({ mode: 'section' });
       } catch (err) {
@@ -89,25 +96,25 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
         setLoadingSection(false);
       }
     },
-    [],
+    [edition],
   );
 
   const reloadLanguages = useCallback(async () => {
     if (!window.jcs?.listNwtLanguages) return;
     setLoadingLangs(true);
     try {
-      const result = await window.jcs.listNwtLanguages();
+      const result = await window.jcs.listNwtLanguages({ edition });
       setLanguages(result);
       const active = result.find((item) => item.lang === lang);
       if (active) setLangLabel(active.name);
     } finally {
       setLoadingLangs(false);
     }
-  }, [lang]);
+  }, [edition, lang]);
 
   useEffect(() => {
     void reloadBooks(lang);
-  }, [lang, reloadBooks]);
+  }, [edition, lang, reloadBooks]);
 
   useEffect(() => {
     if (langModalOpen) void reloadLanguages();
@@ -119,13 +126,18 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
       setSectionItems([]);
       return;
     }
-    if (DISABLED_TABS.has(activeTab)) {
+    if (isBibleTabDisabled(edition, activeTab)) {
       setView({ mode: 'section' });
       setSectionItems([]);
       return;
     }
     void reloadSection(activeTab, lang);
-  }, [activeTab, lang, reloadSection]);
+  }, [activeTab, edition, lang, reloadSection]);
+
+  const editionLabel = useMemo(
+    () => BIBLE_EDITION_OPTIONS.find((item) => item.id === edition)?.label ?? edition,
+    [edition],
+  );
 
   const oldTestament = useMemo(() => books.filter((book) => book.bookNumber <= 39), [books]);
   const newTestament = useMemo(() => books.filter((book) => book.bookNumber >= 40), [books]);
@@ -139,6 +151,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
         bookNumber: book.bookNumber,
         chapterNumber,
         lang,
+        edition,
       });
       if (!result.ok || !result.html) {
         setError(result.error ?? 'Não foi possível abrir o capítulo.');
@@ -170,7 +183,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
     setError(null);
     setAudioTrack(null);
     try {
-      const result = await window.jcs.getBibleDocument({ documentId, lang });
+      const result = await window.jcs.getBibleDocument({ documentId, lang, edition });
       if (!result.ok || !result.html) {
         setError(result.error ?? 'Não foi possível abrir o documento.');
         return;
@@ -191,7 +204,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
     setDownloadingLang(nextLang);
     setError(null);
     try {
-      const result = await window.jcs.downloadNwt({ lang: nextLang });
+      const result = await window.jcs.downloadNwt({ lang: nextLang, edition });
       if (!result.ok) {
         setError(result.error ?? 'Não foi possível baixar a Bíblia.');
         return;
@@ -203,6 +216,16 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
       }
     } finally {
       setDownloadingLang(null);
+    }
+  }
+
+  function handleEditionChange(nextEdition: BibleEdition) {
+    writeBibleEdition(nextEdition);
+    setEdition(nextEdition);
+    setView({ mode: 'books' });
+    setAudioTrack(null);
+    if (isBibleTabDisabled(nextEdition, activeTab)) {
+      setActiveTab('LIVROS');
     }
   }
 
@@ -239,7 +262,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
           <div className="flex items-end justify-between gap-4 px-4">
             <nav className="flex flex-wrap" aria-label="Seções da Bíblia">
               {BIBLE_TABS.map((tab) => {
-                const disabled = DISABLED_TABS.has(tab);
+                const disabled = isBibleTabDisabled(edition, tab);
                 const active = activeTab === tab;
                 return (
                   <button
@@ -261,15 +284,34 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
                 );
               })}
             </nav>
-            <button
-              type="button"
-              onClick={() => setLangModalOpen(true)}
-              className="mb-2 inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-jw-muted hover:bg-jw-bg hover:text-jw-text"
-              title="Idioma / versão"
-            >
-              <IconGlobe className="h-3.5 w-3.5" />
-              {langLabel}
-            </button>
+            <div className="mb-2 flex items-center gap-2">
+              <div className="inline-flex rounded-md border border-jw-border bg-jw-bg p-0.5">
+                {BIBLE_EDITION_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => handleEditionChange(option.id)}
+                    className={[
+                      'rounded px-2 py-1 text-[10px] font-semibold tracking-wide transition',
+                      edition === option.id
+                        ? 'bg-white text-jw-purple shadow-sm'
+                        : 'text-jw-muted hover:text-jw-text',
+                    ].join(' ')}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setLangModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-jw-muted hover:bg-jw-bg hover:text-jw-text"
+                title="Idioma / versão"
+              >
+                <IconGlobe className="h-3.5 w-3.5" />
+                {langLabel}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -305,7 +347,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
         {view.mode === 'section' ? (
           loadingSection ? (
             <p className="py-12 text-center text-sm text-jw-muted">Carregando…</p>
-          ) : DISABLED_TABS.has(activeTab) ? (
+          ) : isBibleTabDisabled(edition, activeTab) ? (
             <p className="py-12 text-center text-sm text-jw-muted">
               {activeTab} não está disponível nesta versão da Bíblia.
             </p>
@@ -398,6 +440,8 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
         open={langModalOpen}
         languages={languages}
         activeLang={lang}
+        edition={edition}
+        editionLabel={editionLabel}
         loading={loadingLangs}
         downloadingLang={downloadingLang}
         downloadProgressMap={downloadProgressMap}

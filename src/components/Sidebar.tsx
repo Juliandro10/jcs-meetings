@@ -4,11 +4,13 @@ import { SECTIONS } from '@/lib/types';
 import {
   IconBible,
   IconDiamond,
+  IconElder,
   IconHome,
   IconLibrary,
   IconMedia,
   IconMeetings,
   IconMenu,
+  IconPreaching,
 } from '@/components/Icons';
 
 const ICONS: Record<AppSection, typeof IconHome> = {
@@ -17,18 +19,22 @@ const ICONS: Record<AppSection, typeof IconHome> = {
   library: IconLibrary,
   media: IconMedia,
   meetings: IconMeetings,
+  preaching: IconPreaching,
   'personal-study': IconDiamond,
+  elder: IconElder,
 };
-
-/** Ordem e itens visíveis como no JW Library (só seções habilitadas). */
-const NAV_SECTIONS = SECTIONS.filter((section) => section.enabled);
 
 type SidebarProps = {
   active: AppSection;
   onChange: (section: AppSection) => void;
+  showElder?: boolean;
 };
 
-export function Sidebar({ active, onChange }: SidebarProps) {
+export function Sidebar({ active, onChange, showElder = false }: SidebarProps) {
+  const navSections = SECTIONS.filter(
+    (section) => section.enabled && (!section.requiresElder || showElder),
+  );
+
   return (
     <aside
       className="flex w-14 shrink-0 flex-col items-center border-r border-[#1f1b24] py-2"
@@ -42,7 +48,7 @@ export function Sidebar({ active, onChange }: SidebarProps) {
         <IconMenu className="h-5 w-5" />
       </button>
 
-      {NAV_SECTIONS.map((section) => {
+      {navSections.map((section) => {
         const Icon = ICONS[section.id];
         const isActive = section.id === active;
 

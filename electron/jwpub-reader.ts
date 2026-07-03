@@ -10,7 +10,14 @@ import type { MWBSchedule, WSchedule } from 'meeting-schedules-parser/dist/node/
 import { loadPub } from 'meeting-schedules-parser/dist/node/index.js';
 import type { LoadMeetingWeeksResult } from './types';
 import { decryptContent } from './jwpub-crypto';
-import { clearJwpubBundleCache, openJwpubBundle, rewriteJwpubMediaUrls } from './jwpub-bundle';
+import { clearJwpubBundleCache, openJwpubBundle } from './jwpub-bundle';
+import { clearPublicationCssCache, prepareJwpubDocument } from './jwpub-publication-css';
+import {
+  canonicalPubSymbol,
+  meetingPubCachePrefix,
+  parseJwpubCachePrefix,
+  pubCacheKeyVariants,
+} from './jwpub-pub-symbol';
 
 export type JwpubDocument = {
   documentId: number;
@@ -56,13 +63,21 @@ export async function listDocuments(jwpubPath: string): Promise<JwpubDocument[]>
   }));
 }
 
-export async function getDocumentHtml(jwpubPath: string, documentId: number): Promise<string> {
-  const { bundle } = await openJwpubDb(jwpubPath);
+export async function getPreparedDocumentHtml(
+  jwpubPath: string,
+  documentId: number,
+) {
+  const bundle = await openJwpubBundle(jwpubPath);
   const row = bundle.db.exec(`SELECT Content FROM Document WHERE DocumentId = ${documentId}`)[0]?.values?.[0]?.[0];
   if (!row) throw new Error(`Documento ${documentId} não encontrado`);
 
-  const html = decryptContent(bundle.keyIv, row as Uint8Array);
-  return rewriteJwpubMediaUrls(html, bundle.pub, bundle.issue, bundle.lang);
+  const rawHtml = decryptContent(bundle.keyIv, row as Uint8Array);
+  return prepareJwpubDocument(bundle, rawHtml);
+}
+
+export async function getDocumentHtml(jwpubPath: string, documentId: number): Promise<string> {
+  const prepared = await getPreparedDocumentHtml(jwpubPath, documentId);
+  return prepared.html;
 }
 
 function normalizeTitle(value: string) {
@@ -91,8 +106,9 @@ function isCurrentWeek(dateIso: string) {
 export async function findCachedPubs(cacheDir: string, pub: 'mwb' | 'w'): Promise<string[]> {
   try {
     const files = await fs.readdir(cacheDir);
+    const prefixPattern = pub === 'mwb' ? /^mwb\d*_/i : /^w\d*_/i;
     return files
-      .filter((f) => f.startsWith(`${pub}_T_`) && f.endsWith('.jwpub'))
+      .filter((f) => prefixPattern.test(f) && f.endsWith('.jwpub'))
       .sort()
       .map((f) => path.join(cacheDir, f));
   } catch {
@@ -103,6 +119,73 @@ export async function findCachedPubs(cacheDir: string, pub: 'mwb' | 'w'): Promis
 export async function findCachedPub(cacheDir: string, pub: 'mwb' | 'w'): Promise<string | null> {
   const files = await findCachedPubs(cacheDir, pub);
   return files.at(-1) ?? null;
+}
+
+let pubPathIndexCache: { cacheDir: string; index: Map<string, string> } | null = null;
+
+export function clearPubPathIndexCache() {
+  pubPathIndexCache = null;
+}
+
+async function readPubSymbolFromFile(jwpubPath: string): Promise<string | null> {
+  try {
+    const bundle = await openJwpubBundle(jwpubPath);
+    const sym = bundle.db.exec('SELECT Symbol FROM Publication LIMIT 1')[0]?.values?.[0]?.[0];
+    if (sym) return canonicalPubSymbol(String(sym));
+  } catch {
+    /* ignore */
+  }
+  const prefix = parseJwpubCachePrefix(path.basename(jwpubPath));
+  return prefix ? canonicalPubSymbol(prefix) : null;
+}
+
+export async function getPubSymbolFromJwpubFile(jwpubPath: string): Promise<string | null> {
+  return readPubSymbolFromFile(jwpubPath);
+}
+
+async function buildPubPathIndex(cacheDir: string): Promise<Map<string, string>> {
+  const index = new Map<string, string>();
+  let files: string[] = [];
+  try {
+    files = (await fs.readdir(cacheDir)).filter((name) => name.toLowerCase().endsWith('.jwpub'));
+  } catch {
+    return index;
+  }
+
+  for (const fileName of files) {
+    const filePath = path.join(cacheDir, fileName);
+    const prefix = parseJwpubCachePrefix(fileName);
+    if (prefix) {
+      index.set(prefix, filePath);
+      index.set(canonicalPubSymbol(prefix), filePath);
+    }
+    const symbol = await readPubSymbolFromFile(filePath);
+    if (symbol) index.set(symbol, filePath);
+  }
+
+  return index;
+}
+
+async function resolveFromPubIndex(cacheDir: string, pub: string): Promise<string | null> {
+  if (!pubPathIndexCache || pubPathIndexCache.cacheDir !== cacheDir) {
+    pubPathIndexCache = { cacheDir, index: await buildPubPathIndex(cacheDir) };
+  }
+
+  const key = canonicalPubSymbol(pub);
+  return (
+    pubPathIndexCache.index.get(key) ??
+    pubPathIndexCache.index.get(pub.toLowerCase()) ??
+    null
+  );
+}
+
+async function tryAccess(filePath: string): Promise<string | null> {
+  try {
+    await fs.access(filePath);
+    return filePath;
+  } catch {
+    return null;
+  }
 }
 
 function weekContainsToday(dateIso: string) {
@@ -188,19 +271,21 @@ async function loadIssueSchedules<T extends MWBSchedule[] | WSchedule[]>(
   issue: string,
   lang: string,
 ): Promise<{ schedules: T; downloaded: boolean; filePath?: string }> {
-  const filePath = path.join(cacheDir, `${pub}_${lang}_${issue}.jwpub`);
+  const filePath = await resolveCachedPubPath(cacheDir, pub, issue);
 
-  try {
-    const stat = await fs.stat(filePath);
-    if (stat.size > 0) {
-      return {
-        schedules: (await loadPub(filePath)) as T,
-        downloaded: true,
-        filePath,
-      };
+  if (filePath) {
+    try {
+      const stat = await fs.stat(filePath);
+      if (stat.size > 0) {
+        return {
+          schedules: (await loadPub(filePath)) as T,
+          downloaded: true,
+          filePath,
+        };
+      }
+    } catch {
+      // fall through to online schedule
     }
-  } catch {
-    // fall through to online schedule
   }
 
   return {
@@ -258,8 +343,8 @@ async function buildWByDate(
 
   for (const issue of issueCandidates().w) {
     try {
-      const { schedules, downloaded } = await loadIssueSchedules<WSchedule[]>(cacheDir, 'w', issue, lang);
-      const wPath = downloaded ? path.join(cacheDir, `w_${lang}_${issue}.jwpub`) : undefined;
+      const { schedules, downloaded, filePath } = await loadIssueSchedules<WSchedule[]>(cacheDir, 'w', issue, lang);
+      const wPath = downloaded ? filePath : undefined;
       const info = await fetchPubMediaInfo('w', issue, lang);
 
       if (schedules.length === 0 || !info) {
@@ -345,32 +430,73 @@ export async function resolveCachedPubPath(
   pub: string,
   issue?: string,
 ): Promise<string | null> {
-  if (pub === 'lfb') {
-    const filePath = path.join(cacheDir, 'lfb_T_.jwpub');
-    try {
-      await fs.access(filePath);
-      return filePath;
-    } catch {
-      return null;
-    }
+  const normalized = pub.toLowerCase();
+  const meetingKind = meetingPubCachePrefix(normalized);
+
+  if (normalized === 'lfb') {
+    return tryAccess(path.join(cacheDir, 'lfb_T_.jwpub'));
   }
+
+  const variants = pubCacheKeyVariants(pub);
 
   if (issue) {
-    const filePath = path.join(cacheDir, `${pub}_T_${issue}.jwpub`);
-    try {
-      await fs.access(filePath);
-      return filePath;
-    } catch {
-      return null;
+    for (const pubKey of variants) {
+      const hit = await tryAccess(path.join(cacheDir, `${pubKey}_T_${issue}.jwpub`));
+      if (hit) return hit;
+    }
+
+    if (meetingKind) {
+      const hit = await findMeetingPubByIssue(cacheDir, meetingKind, issue);
+      if (hit) return hit;
     }
   }
 
-  return findCachedPub(cacheDir, pub);
+  for (const pubKey of variants) {
+    const hit = await tryAccess(path.join(cacheDir, `${pubKey}_T_.jwpub`));
+    if (hit) return hit;
+  }
+
+  if (meetingKind === 'mwb' || meetingKind === 'w') {
+    return findCachedPub(cacheDir, meetingKind);
+  }
+
+  if (!issue) {
+    return resolveFromPubIndex(cacheDir, pub);
+  }
+
+  return null;
+}
+
+async function findMeetingPubByIssue(
+  cacheDir: string,
+  pub: 'mwb' | 'w',
+  issue: string,
+  lang = 'T',
+): Promise<string | null> {
+  const prefixPattern = pub === 'mwb' ? /^mwb\d*_/i : /^w\d*_/i;
+  const suffix = `_${lang}_${issue}.jwpub`.toLowerCase();
+
+  let files: string[];
+  try {
+    files = await fs.readdir(cacheDir);
+  } catch {
+    return null;
+  }
+
+  for (const fileName of files) {
+    if (!fileName.toLowerCase().endsWith(suffix)) continue;
+    if (!prefixPattern.test(fileName)) continue;
+    const hit = await tryAccess(path.join(cacheDir, fileName));
+    if (hit) return hit;
+  }
+
+  return null;
 }
 
 export async function loadMeetingWeeks(cacheDir: string, userDataRoot: string): Promise<LoadMeetingWeeksResult> {
   docsCache.clear();
   clearJwpubBundleCache();
+  clearPublicationCssCache();
 
   const errors: string[] = [];
   const mwbCandidates = await loadMwbCandidates(cacheDir, userDataRoot, 'T', errors);

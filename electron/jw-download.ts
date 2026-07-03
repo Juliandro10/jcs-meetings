@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { moveJwpubToStandardCachePath, standardJwpubCacheFileName, standardizeJwpubCacheDir } from './jwpub-cache-normalize';
 import path from 'node:path';
 import { writeJwpubFile } from './jwpub-storage';
 import { loadPub } from 'meeting-schedules-parser/dist/node/index.js';
@@ -10,6 +11,8 @@ export type DownloadPubParams = {
   lang?: string;
   cacheDir: string;
   onProgress?: (progress: DownloadProgress) => void;
+  /** Evita padronizar o cache a cada download (use em lote e chame standardizeJwpubCacheDir depois). */
+  skipStandardize?: boolean;
 };
 
 export type DownloadProgress = {
@@ -111,12 +114,8 @@ export async function loadSchedulesFromIssue(
 }
 
 export async function isPubCached(cacheDir: string, pub: string, issue: string, lang = 'T') {
-  try {
-    await fs.access(path.join(cacheDir, `${pub}_${lang}_${issue}.jwpub`));
-    return true;
-  } catch {
-    return false;
-  }
+  const { resolveCachedPubPath } = await import('./jwpub-reader');
+  return Boolean(await resolveCachedPubPath(cacheDir, pub, issue || undefined));
 }
 
 export function meetingPubLabel(pub: 'mwb' | 'w', formattedDate: string) {
@@ -126,8 +125,9 @@ export function meetingPubLabel(pub: 'mwb' | 'w', formattedDate: string) {
 
 export async function downloadJwpub(params: DownloadPubParams): Promise<DownloadPubResult> {
   const lang = params.lang ?? 'T';
-  const fileName = `${params.pub}_${lang}_${params.issue}.jwpub`;
+  const fileName = standardJwpubCacheFileName(params.pub, lang, params.issue);
   const filePath = path.join(params.cacheDir, fileName);
+  const stagingPath = path.join(params.cacheDir, `_dl_${Date.now()}_${fileName}`);
   const report = (percent: number, phase: DownloadProgress['phase']) => {
     params.onProgress?.({ percent, phase });
   };
@@ -171,12 +171,16 @@ export async function downloadJwpub(params: DownloadPubParams): Promise<Download
     if (!reader) {
       const buffer = Buffer.from(await fileRes.arrayBuffer());
       report(95, 'save');
-      await writeJwpubFile(filePath, buffer);
+      await writeJwpubFile(stagingPath, buffer);
+      await moveJwpubToStandardCachePath(stagingPath, filePath);
       const savedSize = (await fs.stat(filePath)).size;
       if (savedSize <= 0) {
         return { ok: false, error: 'Arquivo salvo vazio no disco.' };
       }
       report(100, 'done');
+      if (!params.skipStandardize) {
+        await standardizeJwpubCacheDir(params.cacheDir);
+      }
       return { ok: true, filePath, fileName };
     }
 
@@ -198,15 +202,20 @@ export async function downloadJwpub(params: DownloadPubParams): Promise<Download
     }
 
     report(96, 'save');
-    await writeJwpubFile(filePath, Buffer.concat(chunks));
+    await writeJwpubFile(stagingPath, Buffer.concat(chunks));
+    await moveJwpubToStandardCachePath(stagingPath, filePath);
     const savedSize = (await fs.stat(filePath)).size;
     if (savedSize <= 0) {
       return { ok: false, error: 'Arquivo salvo vazio no disco.' };
     }
     report(100, 'done');
+    if (!params.skipStandardize) {
+      await standardizeJwpubCacheDir(params.cacheDir);
+    }
 
     return { ok: true, filePath, fileName };
   } catch (err) {
+    await fs.unlink(stagingPath).catch(() => undefined);
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
     return { ok: false, error: message };
   }

@@ -8,16 +8,17 @@ type AppShellProps = {
   section: AppSection;
   onSectionChange: (section: AppSection) => void;
   headerExtra?: ReactNode;
+  showElder?: boolean;
   children: ReactNode;
 };
 
-export function AppShell({ section, onSectionChange, headerExtra, children }: AppShellProps) {
+export function AppShell({ section, onSectionChange, headerExtra, showElder, children }: AppShellProps) {
   const meta = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
   const headerVariant = section === 'home' ? 'light' : 'purple';
 
   return (
     <div className="flex h-full bg-jw-bg">
-      <Sidebar active={section} onChange={onSectionChange} />
+      <Sidebar active={section} onChange={onSectionChange} showElder={showElder} />
       <div className="flex min-w-0 flex-1 flex-col">
         <SectionHeader title={meta.title} variant={headerVariant}>
           {headerExtra}

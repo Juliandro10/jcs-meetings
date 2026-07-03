@@ -31,9 +31,9 @@ async function getSql() {
 }
 
 function parseJwpubFileName(fileName: string) {
-  const match = fileName.match(/^(.+)_([A-Za-z]+)_(\d*)\.jwpub$/);
+  const match = fileName.match(/^(.+)_([A-Za-z]+)_?(\d*)\.jwpub$/i);
   if (!match) throw new Error(`Nome de jwpub inválido: ${fileName}`);
-  return { pub: match[1], lang: match[2], issue: match[3] ?? '' };
+  return { pub: match[1].toLowerCase(), lang: match[2], issue: match[3] ?? '' };
 }
 
 export async function openJwpubBundle(jwpubPath: string): Promise<JwpubBundle> {
@@ -112,4 +112,46 @@ export function rewriteJwpubMediaUrls(html: string, pub: string, issue: string, 
     const encoded = encodeURIComponent(fileName);
     return `jcs-media://${pub}/${lang}/${mediaIssueSegment(issue)}/${encoded}`;
   });
+}
+
+type JwpubManifestImage = {
+  fileName?: string;
+  type?: string;
+  width?: number;
+  height?: number;
+};
+
+export function buildJcsMediaUrl(pub: string, lang: string, issue: string, fileName: string) {
+  return `jcs-media://${pub}/${lang}/${mediaIssueSegment(issue)}/${encodeURIComponent(fileName)}`;
+}
+
+export async function getJwpubThumbnailFileName(jwpubPath: string): Promise<string | null> {
+  const buffer = await fs.readFile(jwpubPath);
+  const outer = await JSZip.loadAsync(buffer);
+  const manifestRaw = await outer.file('manifest.json')?.async('string');
+  if (!manifestRaw) return null;
+
+  const manifest = JSON.parse(manifestRaw) as {
+    publication?: { images?: JwpubManifestImage[] };
+    images?: JwpubManifestImage[];
+  };
+
+  const images = manifest.publication?.images ?? manifest.images ?? [];
+  const thumbnail =
+    images.find((image) => image.fileName?.includes('600x600') && image.type === 't') ??
+    images.find((image) => image.type === 't') ??
+    images.find((image) => image.type === 'c');
+
+  return thumbnail?.fileName ?? null;
+}
+
+export async function getJwpubCoverUrl(
+  jwpubPath: string,
+  pub: string,
+  issue: string,
+  lang: string,
+): Promise<string | null> {
+  const fileName = await getJwpubThumbnailFileName(jwpubPath);
+  if (!fileName) return null;
+  return buildJcsMediaUrl(pub, lang, issue, fileName);
 }

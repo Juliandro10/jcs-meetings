@@ -9,6 +9,7 @@ type StudyBookReaderProps = {
   storyIndex: number;
   storyCount: number;
   prepping: boolean;
+  clearingPrep?: boolean;
   prepMessage: string | null;
   panelOpen: boolean;
   panelTab: SidePanelTab;
@@ -21,7 +22,9 @@ type StudyBookReaderProps = {
   onPrevStory: () => void;
   onNextStory: () => void;
   onPrepareLessons: () => void;
+  onClearPrep?: () => void;
   onPanelClose: () => void;
+  onPanelOpen?: () => void;
   onPanelTabChange: (tab: SidePanelTab) => void;
   onLinkClick: (href: string, label: string) => void;
   onDownloadPublication: () => void;
@@ -29,6 +32,8 @@ type StudyBookReaderProps = {
   onNoteChange?: (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => void;
   onNoteClose?: () => void;
   onNoteDelete?: () => void;
+  documentNotes?: DocumentNote[];
+  onDocumentNoteSelect?: (noteId: string) => void;
 };
 
 export function StudyBookReader({
@@ -38,6 +43,7 @@ export function StudyBookReader({
   storyIndex,
   storyCount,
   prepping,
+  clearingPrep = false,
   prepMessage,
   panelOpen,
   panelTab,
@@ -50,7 +56,9 @@ export function StudyBookReader({
   onPrevStory,
   onNextStory,
   onPrepareLessons,
+  onClearPrep,
   onPanelClose,
+  onPanelOpen,
   onPanelTabChange,
   onLinkClick,
   onDownloadPublication,
@@ -58,6 +66,8 @@ export function StudyBookReader({
   onNoteChange,
   onNoteClose,
   onNoteDelete,
+  documentNotes,
+  onDocumentNoteSelect,
 }: StudyBookReaderProps) {
   return (
     <div className="flex h-full flex-col bg-jw-bg">
@@ -94,9 +104,27 @@ export function StudyBookReader({
               </ToolbarButton>
             </>
           ) : null}
-          <ToolbarButton label="Preparar lições desta história" onClick={onPrepareLessons} disabled={prepping}>
+          <ToolbarButton
+            label="Limpar preparação desta história"
+            onClick={onClearPrep}
+            disabled={prepping || clearingPrep || !onClearPrep}
+          >
+            {clearingPrep ? 'Limpando…' : 'Limpar preparação'}
+          </ToolbarButton>
+          <ToolbarButton label="Preparar lições desta história" onClick={onPrepareLessons} disabled={prepping || clearingPrep}>
             {prepping ? 'Preparando…' : 'Preparar lições'}
           </ToolbarButton>
+          {!panelOpen ? (
+            <ToolbarButton
+              label="Abrir referências e notas"
+              onClick={() => {
+                onPanelTabChange('references');
+                onPanelOpen?.();
+              }}
+            >
+              Referências
+            </ToolbarButton>
+          ) : null}
         </div>
       </div>
 
@@ -117,6 +145,8 @@ export function StudyBookReader({
           onNoteChange={onNoteChange}
           onNoteClose={onNoteClose}
           onNoteDelete={onNoteDelete}
+          documentNotes={documentNotes}
+          onDocumentNoteSelect={onDocumentNoteSelect}
         />
       </div>
     </div>

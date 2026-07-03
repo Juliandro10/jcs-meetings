@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { AssistantChat, referencePlainText } from '@/components/AssistantChat';
 import { DownloadProgressBar } from '@/components/DownloadProgressBar';
+import { LfbStudyNotesList, sortLfbStudyNotes } from '@/components/LfbStudyNotesList';
 import { NotePanel } from '@/components/NotePanel';
+import { applyPublicationCss } from '@/lib/jwpub-publication-styles';
 import type { DocumentNote } from '@/lib/note-dom';
 import type { AiChatContext, ResolveLinkResult } from '../../electron/types';
 
@@ -24,6 +26,11 @@ type SidePanelProps = {
   onNoteChange?: (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => void;
   onNoteClose?: () => void;
   onNoteDelete?: () => void;
+  /** Notas da história lfb — exibidas na aba Referências com o livro aberto. */
+  documentNotes?: DocumentNote[];
+  onDocumentNoteSelect?: (noteId: string) => void;
+  /** Oculta aba Assistente IA (ex.: modo proferimento). */
+  hideAssistant?: boolean;
 };
 
 export function SidePanel({
@@ -43,13 +50,20 @@ export function SidePanel({
   onNoteChange,
   onNoteClose,
   onNoteDelete,
+  documentNotes,
+  onDocumentNoteSelect,
+  hideAssistant = false,
 }: SidePanelProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isStudyBook = reference?.kind === 'study-book';
+  const sortedDocumentNotes = documentNotes?.length ? sortLfbStudyNotes(documentNotes) : [];
+  const showStoryNotes = sortedDocumentNotes.length > 0 && onDocumentNoteSelect;
 
   useEffect(() => {
     const root = contentRef.current;
     if (!root || !reference?.html) return;
+
+    applyPublicationCss(root, reference.publicationCss);
 
     const handleClick = (event: MouseEvent) => {
       const anchor = (event.target as HTMLElement | null)?.closest('a');
@@ -62,7 +76,7 @@ export function SidePanel({
 
     root.addEventListener('click', handleClick);
     return () => root.removeEventListener('click', handleClick);
-  }, [reference?.html, onLinkClick]);
+  }, [reference?.html, reference?.publicationCss, onLinkClick]);
 
   if (!open) return null;
 
@@ -87,15 +101,25 @@ export function SidePanel({
           <PanelTab active={tab === 'references'} onClick={() => onTabChange('references')}>
             Referências
           </PanelTab>
-          <PanelTab active={tab === 'assistant'} onClick={() => onTabChange('assistant')}>
-            Assistente IA
-          </PanelTab>
+          {!hideAssistant ? (
+            <PanelTab active={tab === 'assistant'} onClick={() => onTabChange('assistant')}>
+              Assistente IA
+            </PanelTab>
+          ) : null}
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
         {tab === 'references' ? (
           <>
+            {showStoryNotes ? (
+              <LfbStudyNotesList
+                notes={sortedDocumentNotes}
+                activeNoteId={note?.id}
+                onSelect={onDocumentNoteSelect}
+              />
+            ) : null}
+
             {note && onNoteChange && onNoteClose && onNoteDelete ? (
               <NotePanel
                 embedded
@@ -167,7 +191,7 @@ export function SidePanel({
                   dangerouslySetInnerHTML={{ __html: reference.html ?? '' }}
                 />
               </>
-            ) : !note ? (
+            ) : !note && !showStoryNotes ? (
               <p className="text-sm text-jw-muted">
                 {reference?.error ??
                   'Selecione um link na matéria para abrir versículos ou matérias de pesquisa.'}

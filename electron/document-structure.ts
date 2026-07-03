@@ -22,6 +22,7 @@ export type MeetingPart = {
 export type DocumentField = {
   fieldId: string;
   afterBlockId?: string;
+  questionText?: string;
 };
 
 export type DocumentStructure = {
@@ -180,7 +181,14 @@ export function extractDocumentStructure(html: string): DocumentStructure {
         cursor++;
       } else break;
     }
-    if (fieldId) fields.push({ fieldId, afterBlockId: lastBlockBeforeField });
+    if (fieldId) {
+      const afterBlock = blocks.find((block) => block.blockId === lastBlockBeforeField);
+      fields.push({
+        fieldId,
+        afterBlockId: lastBlockBeforeField,
+        questionText: afterBlock?.text,
+      });
+    }
   }
 
   const fieldByBlock = new Map(fields.map((field) => [field.afterBlockId ?? '', field.fieldId]));
@@ -257,6 +265,89 @@ export function formatJoiasField(options: string[]) {
     .join('\n\n');
 }
 
+/** Blocos de conteúdo pertencentes a cada parte (do título até a próxima parte). */
+export function getPartBlockRanges(
+  parts: MeetingPart[],
+  blocks: Array<{ blockId: string; text: string }>,
+): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (let index = 0; index < parts.length; index += 1) {
+    const startIdx = blocks.findIndex((block) => block.blockId === parts[index].blockId);
+    const endIdx =
+      index + 1 < parts.length
+        ? blocks.findIndex((block) => block.blockId === parts[index + 1].blockId)
+        : blocks.length;
+    if (startIdx >= 0) {
+      map.set(
+        parts[index].blockId,
+        blocks.slice(startIdx, endIdx >= 0 ? endIdx : blocks.length).map((block) => block.blockId),
+      );
+    }
+  }
+  return map;
+}
+
+/** Localiza trecho no bloco, expande até limite de palavra e devolve offsets reais. */
+export function resolveHighlightInBlock(
+  blockText: string,
+  aiText: string,
+): { text: string; startOffset: number; endOffset: number } | null {
+  const content = blockText.replace(/\s+/g, ' ').trim();
+  const needle = aiText.replace(/\s+/g, ' ').trim();
+  if (!needle || !content) return null;
+
+  let idx = content.indexOf(needle);
+  let matchLen = needle.length;
+
+  if (idx === -1) {
+    for (let len = Math.min(needle.length, 48); len >= 12; len -= 1) {
+      const prefix = needle.slice(0, len);
+      const found = content.indexOf(prefix);
+      if (found >= 0) {
+        idx = found;
+        matchLen = prefix.length;
+        break;
+      }
+    }
+    if (idx === -1) return null;
+  }
+
+  let start = idx;
+  let end = idx + matchLen;
+
+  if (end < content.length && /\w/u.test(content[end - 1] ?? '') && /\w/u.test(content[end] ?? '')) {
+    while (end < content.length && /\S/u.test(content[end] ?? '')) end += 1;
+  }
+  if (start > 0 && /\w/u.test(content[start] ?? '') && /\w/u.test(content[start - 1] ?? '')) {
+    while (start > 0 && /\S/u.test(content[start - 1] ?? '')) start -= 1;
+  }
+
+  let text = content.slice(start, end).trim();
+  let words = text.split(/\s+/).filter(Boolean);
+  if (words.length > 18) {
+    text = words.slice(0, 18).join(' ');
+    words = text.split(/\s+/).filter(Boolean);
+    end = start + text.length;
+  }
+
+  if (words.length < 3) return null;
+  return { text, startOffset: start, endOffset: end };
+}
+
+export function buildFieldPromptLines(
+  structure: DocumentStructure,
+  options?: { excludeFieldIds?: string[] },
+): string[] {
+  const excluded = new Set(options?.excludeFieldIds ?? []);
+  return structure.fields
+    .filter((field) => !excluded.has(field.fieldId))
+    .map((field) => {
+      const question = (field.questionText ?? '').replace(/\s+/g, ' ').trim();
+      const label = question.length > 160 ? `${question.slice(0, 157).trim()}…` : question;
+      return `- ${field.fieldId}: "${label || 'campo editável'}"`;
+    });
+}
+
 /** Título canônico da parte da reunião para notas (sem truncar perguntas nem usar só "(10 min)"). */
 export function resolveNoteTitle(structure: DocumentStructure, blockId: string): string | undefined {
   const direct = structure.parts.find((part) => part.blockId === blockId);
@@ -288,4 +379,101 @@ export function findAnchorInBlock(blockText: string, anchorText: string) {
 
   if (normalizedBlock.length <= 120) return normalizedBlock;
   return normalizedBlock.slice(0, 120).trim();
+}
+
+export type WatchtowerQuestion = {
+  questionBlockId: string;
+  questionText: string;
+  fieldId: string;
+  answerBlockIds: string[];
+  isReview: boolean;
+};
+
+export type WatchtowerStudyStructure = {
+  blocks: Array<{ blockId: string; text: string }>;
+  fields: DocumentField[];
+  questions: WatchtowerQuestion[];
+};
+
+function parseParagraphRefs(text: string): string[] {
+  const ids: string[] = [];
+  const patterns = [
+    /(?:§|par\.?|parágrafo|paragrafo)\s*(\d+)(?:\s*[-–]\s*(\d+))?/gi,
+    /\(\s*§\s*(\d+)(?:\s*[-–]\s*(\d+))?\s*\)/gi,
+  ];
+  for (const re of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+      const start = Number(match[1]);
+      const end = match[2] ? Number(match[2]) : start;
+      for (let index = start; index <= end; index += 1) ids.push(String(index));
+    }
+  }
+  return [...new Set(ids)];
+}
+
+function isReviewSectionHeader(text: string) {
+  const lower = text.toLowerCase();
+  return lower.includes('revis') || lower.includes('perguntas para revis');
+}
+
+function findQuestionBlockForField(
+  blocks: Array<{ blockId: string; text: string }>,
+  afterBlockId: string | undefined,
+) {
+  const startIndex = afterBlockId
+    ? Math.max(0, blocks.findIndex((block) => block.blockId === afterBlockId))
+    : blocks.length - 1;
+
+  for (let index = startIndex; index >= 0; index -= 1) {
+    const block = blocks[index];
+    if (block.text.includes('?')) return block;
+    if (/^\d+\.\s/.test(block.text) && block.text.length < 220) return block;
+  }
+
+  const fallback = blocks.find((block) => block.blockId === afterBlockId);
+  return fallback ?? blocks[startIndex] ?? blocks[0];
+}
+
+/** Estrutura do estudo de A Sentinela: perguntas, campos e parágrafos de resposta. */
+export function extractWatchtowerStudyStructure(html: string): WatchtowerStudyStructure {
+  const { blocks, fields } = extractDocumentStructure(html);
+  const questions: WatchtowerQuestion[] = [];
+
+  for (const field of fields) {
+    const questionBlock = findQuestionBlockForField(blocks, field.afterBlockId);
+    const anchorIndex = blocks.findIndex((block) => block.blockId === questionBlock.blockId);
+    let inReview = false;
+    if (anchorIndex >= 0) {
+      for (let index = 0; index < anchorIndex; index += 1) {
+        if (isReviewSectionHeader(blocks[index].text)) inReview = true;
+      }
+    }
+
+    const answerBlockIds = parseParagraphRefs(questionBlock.text);
+
+    questions.push({
+      questionBlockId: questionBlock.blockId,
+      questionText: questionBlock.text,
+      fieldId: field.fieldId,
+      answerBlockIds,
+      isReview: inReview,
+    });
+  }
+
+  return { blocks, fields, questions };
+}
+
+export function blockIdForParagraphNumber(
+  blocks: Array<{ blockId: string; text: string }>,
+  paragraphNumber: string,
+) {
+  const direct = blocks.find((block) => block.blockId === paragraphNumber);
+  if (direct) return direct.blockId;
+
+  const numbered = blocks.find((block) => {
+    const match = block.text.match(/^(\d+)\.\s/);
+    return match?.[1] === paragraphNumber;
+  });
+  return numbered?.blockId;
 }

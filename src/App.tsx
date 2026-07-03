@@ -2,18 +2,34 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AppSection } from '@/lib/types';
 import type { MeetingWeek } from '@/lib/meeting-types';
 import { AppShell } from '@/components/AppShell';
+import { ElderPinGate } from '@/components/ElderPinGate';
+import { SelectiveLoginScreen } from '@/components/SelectiveLoginScreen';
 import { SplashScreen } from '@/components/SplashScreen';
 import { BiblePage } from '@/pages/BiblePage';
+import { ElderSection } from '@/components/ElderSection';
 import { HomePage } from '@/pages/HomePage';
 import { LibraryPage } from '@/pages/LibraryPage';
 import { MeetingsPage, type ReaderOpenTarget } from '@/pages/MeetingsPage';
 import { PersonalStudyPage } from '@/pages/PersonalStudyPage';
+import { PreachingPage } from '@/pages/PreachingPage';
+import { PublicTalkNotesPage } from '@/pages/PublicTalkNotesPage';
 import { ReaderPage } from '@/pages/ReaderPage';
+import {
+  canShowElderTab,
+  clearStoredSessionMode,
+  setStoredSessionMode,
+  type AppSessionMode,
+} from '@/lib/elder-access';
+
+type LoginState = 'pending' | AppSessionMode;
 
 export default function App() {
   const [ready, setReady] = useState(false);
+  const [sessionMode, setSessionMode] = useState<LoginState>('pending');
+  const [elderUnlockOpen, setElderUnlockOpen] = useState(false);
   const [section, setSection] = useState<AppSection>('home');
   const [reader, setReader] = useState<ReaderOpenTarget | null>(null);
+  const [publicTalkWeek, setPublicTalkWeek] = useState<MeetingWeek | null>(null);
   const [weeks, setWeeks] = useState<MeetingWeek[]>([]);
   const [weekIndex, setWeekIndex] = useState(0);
   const [loadingWeeks, setLoadingWeeks] = useState(false);
@@ -23,6 +39,31 @@ export default function App() {
   const [downloadingPubKey, setDownloadingPubKey] = useState<string | null>(null);
   const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, number>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const showElder = canShowElderTab(sessionMode === 'elder' ? 'elder' : 'common');
+
+  const handleLoginChoice = useCallback((mode: AppSessionMode) => {
+    setSessionMode(mode);
+    setStoredSessionMode(mode);
+  }, []);
+
+  const lockElder = useCallback(async () => {
+    await window.jcs?.lockElderSession?.();
+    clearStoredSessionMode();
+    setSessionMode('common');
+    setStoredSessionMode('common');
+    setSection((current) => (current === 'elder' ? 'home' : current));
+  }, []);
+
+  const unlockElderSuccess = useCallback(() => {
+    setSessionMode('elder');
+    setStoredSessionMode('elder');
+    setElderUnlockOpen(false);
+    setSection('elder');
+  }, []);
+
+  useEffect(() => {
+    if (section === 'elder' && !showElder) setSection('home');
+  }, [section, showElder]);
 
   const refreshCache = useCallback(async () => {
     if (!window.jcs?.listCached) return;
@@ -154,6 +195,18 @@ export default function App() {
     return <SplashScreen onDone={() => setReady(true)} />;
   }
 
+  if (sessionMode === 'pending') {
+    return <SelectiveLoginScreen onChoose={handleLoginChoice} />;
+  }
+
+  if (publicTalkWeek) {
+    return (
+      <AppShell section="meetings" onSectionChange={setSection}>
+        <PublicTalkNotesPage week={publicTalkWeek} onBack={() => setPublicTalkWeek(null)} />
+      </AppShell>
+    );
+  }
+
   if (reader) {
     const week = weeks[weekIndex];
     return (
@@ -170,7 +223,8 @@ export default function App() {
   const currentWeek = weeks.find((week) => week.isCurrentWeek) ?? null;
 
   return (
-    <AppShell section={section} onSectionChange={setSection}>
+    <>
+      <AppShell section={section} onSectionChange={setSection} showElder={showElder}>
       {section === 'home' ? (
         <HomePage
           currentWeek={currentWeek}
@@ -192,6 +246,7 @@ export default function App() {
             onDownloadMeetingPubs={downloadMeetingPubs}
             onDownloadPub={downloadPub}
             onOpenReader={setReader}
+            onOpenPublicTalkNotes={setPublicTalkWeek}
             loadingWeeks={loadingWeeks}
             refreshingWeeks={refreshingWeeks}
             downloading={downloading}
@@ -209,10 +264,28 @@ export default function App() {
           onDownloadMeetingPubs={downloadMeetingPubs}
         />
       ) : null}
-      {section === 'personal-study' ? <PersonalStudyPage /> : null}
+      {section === 'personal-study' ? (
+        <PersonalStudyPage
+          elderLocked={!showElder}
+          onRequestElderUnlock={() => setElderUnlockOpen(true)}
+        />
+      ) : null}
+      {section === 'preaching' ? <PreachingPage /> : null}
       {section === 'bible' ? <BiblePage downloadProgressMap={downloadProgressMap} /> : null}
+      {section === 'elder' && showElder ? <ElderSection onLockElder={() => void lockElder()} /> : null}
       {section === 'media' ? <ComingSoon section={section} /> : null}
-    </AppShell>
+      </AppShell>
+
+      {elderUnlockOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+          <ElderPinGate
+            mode="unlock"
+            onBack={() => setElderUnlockOpen(false)}
+            onSuccess={unlockElderSuccess}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }
 

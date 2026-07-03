@@ -42,14 +42,26 @@ export type MeetingWeek = {
 };
 
 export type GetDocumentHtmlParams = {
-  pub: 'mwb' | 'w' | 'lfb';
+  pub: string;
   documentId: number;
   issue?: string;
+};
+
+export type ElderOutlineDocument = {
+  documentId: number;
+  title: string;
+};
+
+export type ListElderOutlineDocumentsResult = {
+  ok: boolean;
+  documents?: ElderOutlineDocument[];
+  error?: string;
 };
 
 export type GetDocumentHtmlResult = {
   ok: boolean;
   html?: string;
+  publicationCss?: string;
   issue?: string;
   error?: string;
 };
@@ -65,8 +77,10 @@ export type SetFieldValueParams = {
 export type ResolveLinkParams = {
   href: string;
   linkLabel?: string;
-  sourcePub: 'mwb' | 'w';
-  sourceIssue: string;
+  sourcePub: string;
+  sourceIssue?: string;
+  bibleEdition?: 'nwt' | 'nwtsty';
+  lang?: string;
 };
 
 export type ResolveLinkDownload = {
@@ -89,6 +103,7 @@ export type ResolveLinkResult = {
   title?: string;
   subtitle?: string;
   html?: string;
+  publicationCss?: string;
   download?: ResolveLinkDownload;
   studyBook?: {
     href: string;
@@ -123,7 +138,7 @@ export type AiChatContext = {
   selectedText?: string;
   referenceTitle?: string;
   referenceText?: string;
-  sourcePub?: 'mwb' | 'w';
+  sourcePub?: string;
   sourceIssue?: string;
   sourceDocumentId?: number;
   cachedPublications?: string[];
@@ -199,6 +214,93 @@ export type AutoPrepResult = {
   highlights?: AutoPrepHighlight[];
   fields?: AutoPrepField[];
   notes?: AutoPrepNote[];
+  error?: string;
+};
+
+export type PublicTalkNoteResult = {
+  ok: boolean;
+  value?: string;
+  error?: string;
+};
+
+export type ElderOutlineNoteResult = {
+  ok: boolean;
+  value?: string;
+  error?: string;
+};
+
+export type PreparedElderOutline = {
+  id: string;
+  name: string;
+  pub: string;
+  documentId: number;
+  sourceTitle: string;
+  sourcePubLabel: string;
+  value: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListPreparedElderOutlinesResult = {
+  ok: boolean;
+  items?: PreparedElderOutline[];
+  error?: string;
+};
+
+export type SavePreparedElderOutlineResult = {
+  ok: boolean;
+  item?: PreparedElderOutline;
+  error?: string;
+};
+
+export type InstalledElderOutline = {
+  pub: string;
+  title: string;
+  label: string;
+  multiDocument: boolean;
+  documentId?: number;
+};
+
+export type ListInstalledElderOutlinesResult = {
+  ok: boolean;
+  items?: InstalledElderOutline[];
+  error?: string;
+};
+
+export type ImportElderOutlineJwpubResult = {
+  ok: boolean;
+  imported?: InstalledElderOutline[];
+  errors?: string[];
+  error?: string;
+};
+
+export type InstalledElderGuideline = InstalledElderOutline;
+
+export type ListInstalledElderGuidelinesResult = {
+  ok: boolean;
+  items?: InstalledElderGuideline[];
+  error?: string;
+};
+
+export type ImportElderGuidelineJwpubResult = {
+  ok: boolean;
+  imported?: InstalledElderGuideline[];
+  errors?: string[];
+  error?: string;
+};
+
+export type ElderAuthStatusResult = {
+  pinConfigured: boolean;
+  unlocked: boolean;
+};
+
+export type ElderPinResult = {
+  ok: boolean;
+  error?: string;
+};
+
+export type PublicTalkExportResult = {
+  ok: boolean;
   error?: string;
 };
 
@@ -302,5 +404,52 @@ export type DailyTextResult = {
   scriptureHtml?: string;
   bodyHtml?: string;
   wolUrl?: string;
+  error?: string;
+};
+
+export type TeachingKitItem = {
+  id: string;
+  kind: 'video' | 'publication';
+  title: string;
+  subtitle?: string;
+  imageUrl?: string;
+  durationLabel?: string;
+  videoUrl?: string;
+  pub?: string;
+  issue?: string;
+  downloaded?: boolean;
+};
+
+export type PreachingTopicPoint = {
+  number: number;
+  html: string;
+  plainText: string;
+};
+
+export type PreachingTopic = {
+  id: string;
+  title: string;
+  imageUrl?: string;
+  points: PreachingTopicPoint[];
+  introduction: string;
+};
+
+export type PreachingContent = {
+  ok: boolean;
+  teachingKit: TeachingKitItem[];
+  introHtml?: string;
+  topics: PreachingTopic[];
+  lmdDownloaded: boolean;
+  error?: string;
+};
+
+export type PreachingPubDocument = {
+  documentId: number;
+  title: string;
+};
+
+export type ListPreachingPubDocumentsResult = {
+  ok: boolean;
+  documents?: PreachingPubDocument[];
   error?: string;
 };
