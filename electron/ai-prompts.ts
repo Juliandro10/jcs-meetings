@@ -123,9 +123,13 @@ export const JW_SENTINEL_PREP_RULES = [
   'NÃO use o array "notes" — deixe vazio ou omita.',
   '',
   '### Grifos (highlights)',
-  '- Para CADA pergunta de estudo, grife no PARÁGRAFO DA RESPOSTA (não na pergunta) o trecho-chave que responde.',
-  '- Máximo 1 grifo por parágrafo; trecho curto (5-18 palavras).',
-  '- Use o blockId do parágrafo citado na pergunta (§).',
+  '- Para CADA pergunta de estudo, grife 2 a 4 trechos no(s) parágrafo(s) da RESPOSTA (não na pergunta).',
+  '- Juntos, os grifos devem permitir um comentário COMPLETO na reunião — não basta uma frase genérica.',
+  '- Cubra, quando o texto tiver: (1) ideia principal, (2) fundamento ou detalhe de apoio, (3) aplicação ou consequência.',
+  '- Cada trecho: 8 a 25 palavras — orações ou frases completas que você leria ao comentar.',
+  '- Pode haver VÁRIOS grifos no MESMO § (parágrafo) se forem trechos diferentes (até 3 por §).',
+  '- Use a MESMA cor em todos os grifos ligados à mesma pergunta.',
+  '- Use o blockId do § citado na pergunta.',
   '',
   '### Campos editáveis (fields)',
   '- Preencha TODOS os campos (perguntas de estudo + revisão).',
@@ -133,6 +137,17 @@ export const JW_SENTINEL_PREP_RULES = [
   '  Resposta principal: [com suas palavras — ponto-chave, NÃO copie o parágrafo literalmente]',
   '  Resposta adicional: [sempre mais uma — outro destaque do parágrafo, aplicação ou texto adicional citado]',
   '- Perguntas de **revisão**: cite no início "Parágrafo(s): X" ou "§ X" de onde veio a resposta.',
+].join('\n');
+
+/** Grifos — estudo de A Sentinela (vários trechos por resposta). */
+export const JW_SENTINEL_HIGHLIGHT_RULES = [
+  '## Grifos na Sentinela (OBRIGATÓRIO)',
+  '- Mínimo 2 grifos por pergunta de estudo (ideal: 2–4), sempre no(s) § da resposta.',
+  '- Trechos distintos e complementares — como roteiro do que você diria ao comentar.',
+  '- 8 a 25 palavras por trecho; frases completas, não fragmentos vagos.',
+  '- Até 3 grifos no mesmo § se forem trechos separados (sem sobrepor o mesmo texto).',
+  '- Mesma cor para todos os grifos de uma pergunta.',
+  '- NÃO grife: enunciado da pergunta, títulos, "(10 min)", referências soltas.',
 ].join('\n');
 
 /** Assistente IA — esboços de discurso (Elder). */

@@ -88,6 +88,13 @@ import {
   renamePlaylist,
 } from './playlist-store';
 import { getSongAudioTrack, listSongAudioTracks } from './song-audio';
+import { searchCachedPublications } from './global-search';
+import {
+  downloadPortugueseDictionary,
+  getDictionaryStatus,
+  lookupPortugueseDictionary,
+} from './portuguese-dictionary';
+import { RESEARCH_PUBLICATIONS } from './research-publications';
 import { resolveSongDigitalLink } from './song-digital-link';
 import { suggestTalkThemeCardFileName, writeTalkThemeCardHtml, writeTalkThemeCardPdf } from './talk-theme-card-export';
 import {
@@ -1138,6 +1145,72 @@ function registerIpc() {
   ipcMain.handle('jcs:get-daily-text', async (_event, params?: { lang?: string }) =>
     fetchDailyText(params?.lang ?? 'T'),
   );
+
+  ipcMain.handle('jcs:global-search', async (_event, params: { query: string; limit?: number }) => {
+    try {
+      const result = await searchCachedPublications(getCacheDir(), params.query, params.limit ?? 48);
+      if (!result.ok) return result;
+      return { ok: true, results: result.results };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro na busca';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle('jcs:list-research-publications', async () => {
+    try {
+      const items = await Promise.all(
+        RESEARCH_PUBLICATIONS.map(async (item) => ({
+          ...item,
+          downloaded: Boolean(await resolveCachedPubPath(getCacheDir(), item.pub, item.issue || undefined)),
+        })),
+      );
+      return { ok: true, items };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao listar obras de pesquisa';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:download-research-publication',
+    async (event, params: { pub: string; issue?: string; lang?: string }) => {
+      const lang = params.lang ?? 'T';
+      const issue = params.issue ?? '';
+      const result = await downloadJwpub({ pub: params.pub, issue, lang, cacheDir: getCacheDir() });
+      if (result.ok && result.fileName) {
+        await registerDownload(getUserDataRoot(), getCacheDir(), {
+          pub: params.pub,
+          issue,
+          lang,
+          fileName: result.fileName,
+        });
+        sendDownloadProgress(event, {
+          key: `${params.pub}_${issue}`,
+          percent: 100,
+          phase: 'done',
+        });
+      }
+      return result;
+    },
+  );
+
+  ipcMain.handle('jcs:get-dictionary-status', async () => getDictionaryStatus(getUserDataRoot()));
+
+  ipcMain.handle('jcs:lookup-dictionary', async (_event, params: { query: string }) =>
+    lookupPortugueseDictionary(getUserDataRoot(), params.query),
+  );
+
+  ipcMain.handle('jcs:download-dictionary', async (event) => {
+    const result = await downloadPortugueseDictionary(getUserDataRoot(), (progress) => {
+      sendDownloadProgress(event, {
+        key: 'dictionary',
+        percent: progress.percent,
+        phase: progress.phase,
+      });
+    });
+    return result;
+  });
 
   ipcMain.handle('jcs:load-preaching', async () => loadPreachingContent(getCacheDir()));
 

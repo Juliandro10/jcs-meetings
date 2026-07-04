@@ -1,15 +1,31 @@
 import { useState } from 'react';
+import { DictionaryPanel } from '@/components/DictionaryPanel';
 import { PlaylistPanel } from '@/components/PlaylistPanel';
+import { ResearchToolsPanel } from '@/components/ResearchToolsPanel';
+import type { TeachingKitReaderTarget } from '@/pages/TeachingKitPublicationReaderPage';
 
 type PersonalStudyPageProps = {
   elderLocked?: boolean;
   onRequestElderUnlock?: () => void;
+  onOpenResearchPublication?: (target: TeachingKitReaderTarget) => void;
+  onOpenDictionary?: (query?: string) => void;
+  dictionaryDownloadPercent?: number;
+  dictionaryDownloading?: boolean;
 };
 
-export function PersonalStudyPage({ elderLocked, onRequestElderUnlock }: PersonalStudyPageProps) {
+export function PersonalStudyPage({
+  elderLocked,
+  onRequestElderUnlock,
+  onOpenResearchPublication,
+  onOpenDictionary,
+  dictionaryDownloadPercent = 0,
+  dictionaryDownloading = false,
+}: PersonalStudyPageProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState<'export' | 'import' | null>(null);
   const [playlistsOpen, setPlaylistsOpen] = useState(true);
+  const [researchOpen, setResearchOpen] = useState(true);
+  const [dictionaryOpen, setDictionaryOpen] = useState(true);
 
   async function handleExport() {
     if (!window.jcs?.exportJwlibrary) {
@@ -82,6 +98,28 @@ export function PersonalStudyPage({ elderLocked, onRequestElderUnlock }: Persona
         <EmptyHint icon="🏷️" text="Crie etiquetas para organizar suas notas" />
         <EmptyHint icon="📝" text="Crie suas notas para estudo pessoal" />
       </div>
+
+      <StudySection
+        title="Pesquisa"
+        open={researchOpen}
+        onToggle={() => setResearchOpen((value) => !value)}
+      />
+      {researchOpen && onOpenResearchPublication ? (
+        <ResearchToolsPanel onOpenPublication={onOpenResearchPublication} />
+      ) : null}
+
+      <StudySection
+        title="Dicionário"
+        open={dictionaryOpen}
+        onToggle={() => setDictionaryOpen((value) => !value)}
+      />
+      {dictionaryOpen ? (
+        <DictionaryPanel
+          downloadPercent={dictionaryDownloadPercent}
+          downloading={dictionaryDownloading}
+          onOpenDictionary={onOpenDictionary}
+        />
+      ) : null}
 
       <StudySection
         title="Playlists"

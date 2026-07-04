@@ -3,6 +3,9 @@ import type { AppSection } from '@/lib/types';
 import type { MeetingWeek } from '@/lib/meeting-types';
 import { AppShell } from '@/components/AppShell';
 import { ElderPinGate } from '@/components/ElderPinGate';
+import { GlobalSearchModal } from '@/components/GlobalSearchModal';
+import { DictionaryModal } from '@/components/DictionaryModal';
+import { SelectionActionsProvider } from '@/context/SelectionActionsContext';
 import { SelectiveLoginScreen } from '@/components/SelectiveLoginScreen';
 import { SplashScreen } from '@/components/SplashScreen';
 import { BiblePage } from '@/pages/BiblePage';
@@ -14,6 +17,10 @@ import { PersonalStudyPage } from '@/pages/PersonalStudyPage';
 import { PreachingPage } from '@/pages/PreachingPage';
 import { PublicTalkNotesPage } from '@/pages/PublicTalkNotesPage';
 import { ReaderPage } from '@/pages/ReaderPage';
+import {
+  TeachingKitPublicationReaderPage,
+  type TeachingKitReaderTarget,
+} from '@/pages/TeachingKitPublicationReaderPage';
 import {
   canShowElderTab,
   clearStoredSessionMode,
@@ -39,7 +46,55 @@ export default function App() {
   const [downloadingPubKey, setDownloadingPubKey] = useState<string | null>(null);
   const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, number>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInitialQuery, setSearchInitialQuery] = useState('');
+  const [dictionaryOpen, setDictionaryOpen] = useState(false);
+  const [dictionaryInitialQuery, setDictionaryInitialQuery] = useState('');
+  const [researchReader, setResearchReader] = useState<TeachingKitReaderTarget | null>(null);
   const showElder = canShowElderTab(sessionMode === 'elder' ? 'elder' : 'common');
+
+  const openSearch = useCallback((query = '') => {
+    setSearchInitialQuery(query);
+    setSearchOpen(true);
+  }, []);
+
+  const openDictionary = useCallback((query = '') => {
+    setDictionaryInitialQuery(query);
+    setDictionaryOpen(true);
+  }, []);
+
+  const handleOpenSearchResult = useCallback((target: TeachingKitReaderTarget) => {
+    setPublicTalkWeek(null);
+    setReader(null);
+    setResearchReader(target);
+    setSearchOpen(false);
+  }, []);
+
+  const dictionaryDownloadPercent = downloadProgressMap.dictionary ?? 0;
+  const dictionaryDownloading = dictionaryDownloadPercent > 0 && dictionaryDownloadPercent < 100;
+
+  const appOverlays = (
+    <>
+      <GlobalSearchModal
+        open={searchOpen}
+        initialQuery={searchInitialQuery}
+        onClose={() => setSearchOpen(false)}
+        onOpenResult={handleOpenSearchResult}
+      />
+      <DictionaryModal
+        open={dictionaryOpen}
+        initialQuery={dictionaryInitialQuery}
+        onClose={() => setDictionaryOpen(false)}
+      />
+    </>
+  );
+
+  const wrapWithSelectionTools = (content: React.ReactNode) => (
+    <SelectionActionsProvider searchSelection={openSearch} dictionaryLookup={openDictionary}>
+      {content}
+      {appOverlays}
+    </SelectionActionsProvider>
+  );
 
   const handleLoginChoice = useCallback((mode: AppSessionMode) => {
     if (mode === 'common') {
@@ -124,6 +179,17 @@ export default function App() {
     void reloadWeeks(false);
   }, [ready, refreshCache, reloadWeeks]);
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        openSearch();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [openSearch, ready]);
+
   const downloadPub = useCallback(
     async (pub: 'mwb' | 'w', issue: string) => {
       if (!window.jcs?.downloadPub) {
@@ -203,31 +269,39 @@ export default function App() {
   }
 
   if (publicTalkWeek) {
-    return (
-      <AppShell section="meetings" onSectionChange={setSection}>
+    return wrapWithSelectionTools(
+      <AppShell section="meetings" onSectionChange={setSection} onSearchClick={() => openSearch()}>
         <PublicTalkNotesPage week={publicTalkWeek} onBack={() => setPublicTalkWeek(null)} />
-      </AppShell>
+      </AppShell>,
+    );
+  }
+
+  if (researchReader) {
+    return wrapWithSelectionTools(
+      <TeachingKitPublicationReaderPage target={researchReader} onBack={() => setResearchReader(null)} />,
     );
   }
 
   if (reader) {
     const week = weeks[weekIndex];
-    return (
+    return wrapWithSelectionTools(
       <ReaderPage
         target={reader}
         weekLabel={week?.label ?? ''}
         bibleReading={week?.bibleReading}
         downloadProgressMap={downloadProgressMap}
         onBack={() => setReader(null)}
-      />
+        onOpenSearch={openSearch}
+        onOpenDictionary={openDictionary}
+      />,
     );
   }
 
   const currentWeek = weeks.find((week) => week.isCurrentWeek) ?? null;
 
-  return (
+  return wrapWithSelectionTools(
     <>
-      <AppShell section={section} onSectionChange={setSection} showElder={showElder}>
+      <AppShell section={section} onSectionChange={setSection} showElder={showElder} onSearchClick={() => openSearch()}>
       {section === 'home' ? (
         <HomePage
           currentWeek={currentWeek}
@@ -271,6 +345,10 @@ export default function App() {
         <PersonalStudyPage
           elderLocked={!showElder}
           onRequestElderUnlock={() => setElderUnlockOpen(true)}
+          onOpenResearchPublication={setResearchReader}
+          onOpenDictionary={openDictionary}
+          dictionaryDownloadPercent={dictionaryDownloadPercent}
+          dictionaryDownloading={dictionaryDownloading}
         />
       ) : null}
       {section === 'preaching' ? <PreachingPage /> : null}
@@ -287,7 +365,7 @@ export default function App() {
           />
         </div>
       ) : null}
-    </>
+    </>,
   );
 }
 

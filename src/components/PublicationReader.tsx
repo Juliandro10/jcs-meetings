@@ -9,6 +9,9 @@ import { applyAllNoteAnchors, repositionNoteMarkers, type DocumentNote } from '@
 import { buildLfbStudyFieldsHtml, isLfbStudyFieldId, LFB_STUDY_QUESTIONS } from '@/lib/lfb-study-fields';
 import { setupAutoResizeTextarea } from '@/lib/auto-resize-textarea';
 import { applyPublicationCss } from '@/lib/jwpub-publication-styles';
+import { SelectionContextMenu } from '@/components/SelectionContextMenu';
+import { useSelectionActions } from '@/context/SelectionActionsContext';
+import { resolveReaderContextText } from '../../shared/selection-text';
 
 export type PublicationReaderHandle = {
   applyHighlights: (highlights: DocumentHighlight[]) => void;
@@ -41,6 +44,10 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
     const linkHandlerRef = useRef(onJwpubLinkClick);
     const selectionHandlerRef = useRef(onSelectionToolbar);
     const noteClickHandlerRef = useRef(onNoteClick);
+    const selectionActions = useSelectionActions();
+    const selectionActionsRef = useRef(selectionActions);
+    selectionActionsRef.current = selectionActions;
+    const [contextMenu, setContextMenu] = useState({ open: false, x: 0, y: 0, text: '' });
 
     const noteUpdatedHandlerRef = useRef(onStudyNotesUpdated);
 
@@ -256,7 +263,9 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         linkHandlerRef.current?.(href, anchor.textContent?.trim() ?? '');
       };
 
-      const handleMouseUp = () => {
+      const handleMouseUp = (event: MouseEvent) => {
+        if (event.button !== 0) return;
+
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed || !root.contains(selection.anchorNode)) {
           selectionHandlerRef.current?.({ open: false, x: 0, y: 0 });
@@ -271,11 +280,33 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         });
       };
 
+      const handleContextMenu = (event: MouseEvent) => {
+        const target = event.target as Node | null;
+        if (!target || !root.contains(target)) return;
+        if (!selectionActionsRef.current) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const text = resolveReaderContextText(root, event);
+        if (!text) return;
+
+        selectionHandlerRef.current?.({ open: false, x: 0, y: 0 });
+        setContextMenu({
+          open: true,
+          x: event.clientX,
+          y: event.clientY,
+          text,
+        });
+      };
+
       column.addEventListener('click', handleClick);
       root.addEventListener('mouseup', handleMouseUp);
+      column.addEventListener('contextmenu', handleContextMenu, true);
       return () => {
         column.removeEventListener('click', handleClick);
         root.removeEventListener('mouseup', handleMouseUp);
+        column.removeEventListener('contextmenu', handleContextMenu, true);
       };
     }, [loading, error]);
 
@@ -301,6 +332,17 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
             data-jcs-issue={resolvedIssue}
           />
         </div>
+        {selectionActions ? (
+          <SelectionContextMenu
+            open={contextMenu.open}
+            x={contextMenu.x}
+            y={contextMenu.y}
+            text={contextMenu.text}
+            onClose={() => setContextMenu({ open: false, x: 0, y: 0, text: '' })}
+            onSearch={(text) => selectionActions.searchSelection(text)}
+            onDictionary={(text) => selectionActions.dictionaryLookup(text)}
+          />
+        ) : null}
       </div>
     );
   },

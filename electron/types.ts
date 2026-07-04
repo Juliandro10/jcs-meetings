@@ -531,3 +531,63 @@ export type ListPreachingPubDocumentsResult = {
   documents?: PreachingPubDocument[];
   error?: string;
 };
+
+export type GlobalSearchHit = {
+  pub: string;
+  issue: string;
+  documentId: number;
+  documentTitle: string;
+  publicationLabel: string;
+  snippet: string;
+};
+
+export type GlobalSearchResult = {
+  ok: boolean;
+  results?: GlobalSearchHit[];
+  error?: string;
+};
+
+export type ResearchPublicationItem = {
+  id: string;
+  pub: string;
+  issue: string;
+  title: string;
+  subtitle: string;
+  primary?: boolean;
+  volume?: 1 | 2;
+  downloaded: boolean;
+};
+
+export type ListResearchPublicationsResult = {
+  ok: boolean;
+  items?: ResearchPublicationItem[];
+  error?: string;
+};
+
+export type DictionarySense = {
+  word: string;
+  pos: string;
+  posLabel: string;
+  definitions: string[];
+  examples: string[];
+};
+
+export type DictionaryLookupResult = {
+  ok: boolean;
+  installed: boolean;
+  query?: string;
+  senses?: DictionarySense[];
+  error?: string;
+};
+
+export type DictionaryStatus = {
+  installed: boolean;
+  entryCount?: number;
+  sourceUrl: string;
+  attribution: string;
+};
+
+export type DictionaryDownloadResult = {
+  ok: boolean;
+  error?: string;
+};

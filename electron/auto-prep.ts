@@ -1,5 +1,6 @@
 import { loadBibleReadingText } from './bible-reading-context';
 import {
+  blockIdForParagraphNumber,
   buildFieldPromptLines,
   extractDocumentStructure,
   extractWatchtowerStudyStructure,
@@ -10,6 +11,7 @@ import {
   resolveNoteTitle,
   type DocumentStructure,
   type MeetingPart,
+  type WatchtowerQuestion,
   type WatchtowerStudyStructure,
 } from './document-structure';
 import {
@@ -20,6 +22,7 @@ import {
   JW_PERSONAL_LEARNING_NOTE_RULES,
   JW_PRACTICE_POINTS_RULES,
   JW_SENTINEL_PREP_RULES,
+  JW_SENTINEL_HIGHLIGHT_RULES,
 } from './ai-prompts';
 import { enrichAiContext } from './ai-context';
 import { getDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
@@ -238,48 +241,582 @@ async function requestJoiasOptions(
   return normalizeJoiasOptions(parsed.joiasOptions);
 }
 
+type WatchtowerResolvedHighlight = {
+  blockId: string;
+  text: string;
+  startOffset: number;
+  endOffset: number;
+  color: string;
+};
+
+function highlightOverlaps(
+  a: Pick<WatchtowerResolvedHighlight, 'blockId' | 'startOffset' | 'endOffset'>,
+  b: Pick<WatchtowerResolvedHighlight, 'blockId' | 'startOffset' | 'endOffset'>,
+) {
+  return a.blockId === b.blockId && !(a.endOffset <= b.startOffset || b.endOffset <= a.startOffset);
+}
+
+function resolveWatchtowerHighlight(
+  highlight: NonNullable<AutoPrepResult['highlights']>[number],
+  wtStructure: WatchtowerStudyStructure,
+  preferredBlockIds?: string[],
+): WatchtowerResolvedHighlight | null {
+  const blockById = new Map(wtStructure.blocks.map((block) => [block.blockId, block.text]));
+  const MIN_WORDS = 3;
+  const MAX_WORDS = 28;
+
+  const tryBlock = (blockId: string) => {
+    const block = blockById.get(blockId);
+    if (!block) return null;
+    const located = resolveHighlightInBlock(block, highlight.text);
+    if (!located) return null;
+    const wordCount = located.text.trim().split(/\s+/).length;
+    if (wordCount > MAX_WORDS || wordCount < MIN_WORDS) return null;
+    return {
+      blockId,
+      text: located.text,
+      startOffset: located.startOffset,
+      endOffset: located.endOffset,
+      color: highlight.color,
+    };
+  };
+
+  const normalizedId = highlight.blockId.replace(/^p/i, '');
+  const directIds = [
+    highlight.blockId,
+    normalizedId,
+    blockIdForParagraphNumber(wtStructure.blocks, normalizedId),
+  ].filter((id): id is string => Boolean(id));
+
+  for (const blockId of [...new Set(directIds)]) {
+    const resolved = tryBlock(blockId);
+    if (resolved) return resolved;
+  }
+
+  const searchIds = preferredBlockIds?.length
+    ? preferredBlockIds
+    : wtStructure.blocks.map((block) => block.blockId);
+  for (const blockId of searchIds) {
+    if (directIds.includes(blockId)) continue;
+    const resolved = tryBlock(blockId);
+    if (resolved) return resolved;
+  }
+
+  return null;
+}
+
+function extractHeuristicHighlightsFromBlock(
+  blockId: string,
+  blockText: string,
+  maxCount: number,
+  existing: WatchtowerResolvedHighlight[],
+): WatchtowerResolvedHighlight[] {
+  if (maxCount <= 0) return [];
+
+  const content = blockText.replace(/\s+/g, ' ').trim();
+  if (content.length < 40) return [];
+
+  const sentenceCandidates = content
+    .split(/(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÀÂÊÔÃÕÇ0-9"«(])/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => {
+      const words = sentence.split(/\s+/).length;
+      return words >= 6 && words <= 28 && sentence.length >= 28;
+    });
+
+  const pickIndexes =
+    sentenceCandidates.length >= maxCount
+      ? [0, Math.floor(sentenceCandidates.length / 2), sentenceCandidates.length - 1].slice(0, maxCount)
+      : sentenceCandidates.map((_, index) => index);
+
+  const results: WatchtowerResolvedHighlight[] = [];
+  for (const index of pickIndexes) {
+    const sentence = sentenceCandidates[index];
+    if (!sentence) continue;
+    const located = resolveHighlightInBlock(blockText, sentence);
+    if (!located) continue;
+    const candidate: WatchtowerResolvedHighlight = {
+      blockId,
+      text: located.text,
+      startOffset: located.startOffset,
+      endOffset: located.endOffset,
+      color: 'yellow',
+    };
+    if (existing.some((item) => highlightOverlaps(item, candidate))) continue;
+    if (results.some((item) => highlightOverlaps(item, candidate))) continue;
+    results.push(candidate);
+    if (results.length >= maxCount) break;
+  }
+
+  if (results.length >= maxCount) return results;
+
+  const words = content.split(/\s+/).filter(Boolean);
+  for (let offset = 0; offset < words.length && results.length < maxCount; offset += 14) {
+    const chunk = words.slice(offset, offset + 16).join(' ');
+    if (chunk.split(/\s+/).length < 6) continue;
+    const located = resolveHighlightInBlock(blockText, chunk);
+    if (!located) continue;
+    const candidate: WatchtowerResolvedHighlight = {
+      blockId,
+      text: located.text,
+      startOffset: located.startOffset,
+      endOffset: located.endOffset,
+      color: 'yellow',
+    };
+    if (existing.some((item) => highlightOverlaps(item, candidate))) continue;
+    if (results.some((item) => highlightOverlaps(item, candidate))) continue;
+    results.push(candidate);
+  }
+
+  return results;
+}
+
+function buildWatchtowerQuestionsList(wtStructure: WatchtowerStudyStructure) {
+  return wtStructure.questions
+    .map((question) => {
+      const answerBlocks =
+        question.answerBlockIds.length > 0
+          ? question.answerBlockIds.join(', ')
+          : 'inferir do texto da pergunta';
+      return `- campo ${question.fieldId} | ${question.isReview ? 'REVISÃO' : 'estudo'} | pergunta §${question.questionBlockId} | resposta nos § ${answerBlocks}`;
+    })
+    .join('\n');
+}
+
+function answerExcerptForQuestion(
+  question: WatchtowerQuestion,
+  blockById: Map<string, string>,
+) {
+  return question.answerBlockIds
+    .map((blockId) => {
+      const text = blockById.get(blockId);
+      return text ? `[§${blockId}] ${text}` : '';
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function normalizeSentinelFieldsFromAi(
+  raw: Array<{ fieldId?: string; value?: string }>,
+  wtStructure: WatchtowerStudyStructure,
+): Array<{ fieldId: string; value: string }> {
+  const known = new Map(wtStructure.questions.map((question) => [question.fieldId, question]));
+  const result = new Map<string, string>();
+
+  for (const field of raw) {
+    if (!field.fieldId || !field.value?.trim()) continue;
+
+    let fieldId = field.fieldId.trim();
+    if (!known.has(fieldId)) {
+      const fuzzy = wtStructure.questions.find(
+        (question) =>
+          question.fieldId.toLowerCase() === fieldId.toLowerCase() ||
+          question.fieldId.endsWith(fieldId) ||
+          fieldId.endsWith(question.fieldId),
+      );
+      if (fuzzy) fieldId = fuzzy.fieldId;
+    }
+
+    const question = known.get(fieldId);
+    if (!question) continue;
+
+    result.set(
+      fieldId,
+      normalizeSentinelFieldValue(field.value.trim(), question.isReview),
+    );
+  }
+
+  return [...result.entries()].map(([fieldId, value]) => ({ fieldId, value }));
+}
+
+async function requestWatchtowerFields(
+  apiKey: string,
+  systemPrefix: string,
+  wtStructure: WatchtowerStudyStructure,
+  documentExcerpt: string,
+  questionsList: string,
+): Promise<Array<{ fieldId: string; value: string }>> {
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: AUTO_PREP_MODEL,
+      temperature: 0.25,
+      max_tokens: 8000,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            systemPrefix,
+            JW_SENTINEL_PREP_RULES,
+            '',
+            'Devolva APENAS JSON válido (sem markdown):',
+            '{"fields":[{"fieldId":"tt1","value":"Resposta principal: ...\\n\\nResposta adicional: ..."}]}',
+            '',
+            'Preencha TODOS os campos — um objeto por fieldId.',
+            'Campos:',
+            questionsList || '- detecte perguntas numeradas na matéria',
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: `Matéria:\n${documentExcerpt.slice(0, 14000)}\n\nPreencha TODOS os campos de resposta da Sentinela.`,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) return [];
+  const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const raw = data.choices?.[0]?.message?.content?.trim();
+  if (!raw) return [];
+
+  const parsed = JSON.parse(raw) as { fields?: Array<{ fieldId?: string; value?: string }> };
+  return normalizeSentinelFieldsFromAi(parsed.fields ?? [], wtStructure);
+}
+
+async function requestMissingSentinelFields(
+  apiKey: string,
+  systemPrefix: string,
+  wtStructure: WatchtowerStudyStructure,
+  documentExcerpt: string,
+  existing: Array<{ fieldId: string; value: string }>,
+): Promise<Array<{ fieldId: string; value: string }>> {
+  const blockById = new Map(wtStructure.blocks.map((block) => [block.blockId, block.text]));
+  const merged = new Map(existing.map((field) => [field.fieldId, field.value]));
+
+  for (let round = 0; round < 4; round += 1) {
+    const missing = wtStructure.questions.filter((question) => !merged.get(question.fieldId)?.trim());
+    if (missing.length === 0) break;
+
+    for (let index = 0; index < missing.length; index += 4) {
+      const batch = missing.slice(index, index + 4);
+      const pendingLines = batch.map((question) => {
+        const excerpt = answerExcerptForQuestion(question, blockById).slice(0, 1200);
+        return [
+          `- fieldId EXATO: ${question.fieldId}`,
+          `  pergunta: "${question.questionText.replace(/\s+/g, ' ').slice(0, 220)}"`,
+          `  § resposta: ${question.answerBlockIds.join(', ') || 'inferir'}`,
+          excerpt ? `  texto da resposta:\n${excerpt}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+      });
+
+      const response = await fetch(OPENAI_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: AUTO_PREP_MODEL,
+          temperature: 0.25,
+          max_tokens: 4000,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: [
+                systemPrefix,
+                JW_SENTINEL_PREP_RULES,
+                '',
+                'Complete SOMENTE os campos pendentes abaixo. APENAS JSON:',
+                '{"fields":[{"fieldId":"tt1","value":"Resposta principal: ...\\n\\nResposta adicional: ..."}]}',
+                'Use o fieldId EXATO de cada linha.',
+                '',
+                'Pendentes:',
+                ...pendingLines,
+              ].join('\n'),
+            },
+            {
+              role: 'user',
+              content: documentExcerpt.slice(0, 12000),
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) continue;
+      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const raw = data.choices?.[0]?.message?.content?.trim();
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw) as { fields?: Array<{ fieldId?: string; value?: string }> };
+      for (const field of normalizeSentinelFieldsFromAi(parsed.fields ?? [], wtStructure)) {
+        merged.set(field.fieldId, field.value);
+      }
+    }
+  }
+
+  return [...merged.entries()].map(([fieldId, value]) => ({ fieldId, value }));
+}
+
+function buildHeuristicSentinelField(
+  question: WatchtowerQuestion,
+  blockById: Map<string, string>,
+): string {
+  const excerpt = answerExcerptForQuestion(question, blockById).replace(/\[§\d+\]\s*/g, ' ');
+  const sentences = excerpt
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= 24);
+
+  const main = sentences[0] ?? excerpt.slice(0, 180).trim();
+  const extra = sentences[1] ?? sentences[0] ?? 'Aplicação pessoal com base no parágrafo citado.';
+  const prefix =
+    question.isReview && question.answerBlockIds.length > 0
+      ? `Parágrafo(s): ${question.answerBlockIds.join(', ')}\n`
+      : question.isReview
+        ? 'Parágrafo(s): —\n'
+        : '';
+
+  return normalizeSentinelFieldValue(
+    `${prefix}Resposta principal: ${main.replace(/^resposta principal:\s*/i, '')}\n\nResposta adicional: ${extra.replace(/^resposta adicional:\s*/i, '')}`,
+    question.isReview,
+  );
+}
+
+function fillHeuristicSentinelFields(
+  wtStructure: WatchtowerStudyStructure,
+  existing: Array<{ fieldId: string; value: string }>,
+): Array<{ fieldId: string; value: string }> {
+  const blockById = new Map(wtStructure.blocks.map((block) => [block.blockId, block.text]));
+  const merged = new Map(existing.map((field) => [field.fieldId, field.value]));
+
+  for (const question of wtStructure.questions) {
+    if (merged.get(question.fieldId)?.trim()) continue;
+    if (question.answerBlockIds.length === 0 && !blockById.get(question.questionBlockId)) continue;
+    merged.set(question.fieldId, buildHeuristicSentinelField(question, blockById));
+  }
+
+  return [...merged.entries()].map(([fieldId, value]) => ({ fieldId, value }));
+}
+
+async function requestWatchtowerHighlights(
+  apiKey: string,
+  systemPrefix: string,
+  wtStructure: WatchtowerStudyStructure,
+  documentExcerpt: string,
+  questionsList: string,
+): Promise<NonNullable<AutoPrepResult['highlights']>> {
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: AUTO_PREP_MODEL,
+      temperature: 0.25,
+      max_tokens: 8000,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            systemPrefix,
+            JW_SENTINEL_HIGHLIGHT_RULES,
+            '',
+            'Devolva APENAS JSON válido (sem markdown):',
+            '{"highlights":[{"blockId":"5","text":"trecho EXATO copiado do parágrafo (8-25 palavras)","color":"yellow"}]}',
+            '',
+            '- Grife nos § da RESPOSTA indicados em cada pergunta.',
+            '- Mínimo 2 grifos por pergunta; mesma cor por pergunta.',
+            '- text = cópia EXATA do parágrafo (não parafraseie).',
+            '',
+            'Perguntas:',
+            questionsList || '- detecte perguntas numeradas na matéria',
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: `Matéria:\n${documentExcerpt.slice(0, 14000)}\n\nGere grifos para TODAS as perguntas.`,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) return [];
+  const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const raw = data.choices?.[0]?.message?.content?.trim();
+  if (!raw) return [];
+
+  const parsed = JSON.parse(raw) as { highlights?: AutoPrepResult['highlights'] };
+  return (parsed.highlights ?? []).filter((highlight) => highlight.blockId && highlight.text && highlight.color);
+}
+
+async function requestMissingWatchtowerHighlights(
+  apiKey: string,
+  systemPrefix: string,
+  wtStructure: WatchtowerStudyStructure,
+  questions: WatchtowerQuestion[],
+): Promise<NonNullable<AutoPrepResult['highlights']>> {
+  if (questions.length === 0) return [];
+
+  const blockById = new Map(wtStructure.blocks.map((block) => [block.blockId, block.text]));
+  const lines = questions.map((question) => {
+    const excerpt = answerExcerptForQuestion(question, blockById).slice(0, 1500);
+    return [
+      `- § resposta ${question.answerBlockIds.join(', ') || question.questionBlockId}`,
+      `  pergunta: "${question.questionText.replace(/\s+/g, ' ').slice(0, 180)}"`,
+      excerpt ? `  parágrafos:\n${excerpt}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  });
+
+  const response = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: AUTO_PREP_MODEL,
+      temperature: 0.2,
+      max_tokens: 4000,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: [
+            systemPrefix,
+            JW_SENTINEL_HIGHLIGHT_RULES,
+            '',
+            'Gere grifos SOMENTE para as perguntas abaixo. APENAS JSON:',
+            '{"highlights":[{"blockId":"5","text":"trecho EXATO (8-25 palavras)","color":"yellow"}]}',
+            'Mínimo 2 grifos distintos por pergunta. text = cópia EXATA do parágrafo.',
+            '',
+            ...lines,
+          ].join('\n'),
+        },
+        {
+          role: 'user',
+          content: 'Gere os grifos pendentes com trechos literais dos parágrafos indicados.',
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) return [];
+  const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const raw = data.choices?.[0]?.message?.content?.trim();
+  if (!raw) return [];
+
+  const parsed = JSON.parse(raw) as { highlights?: AutoPrepResult['highlights'] };
+  return (parsed.highlights ?? []).filter((highlight) => highlight.blockId && highlight.text && highlight.color);
+}
+
 function refineWatchtowerHighlights(
   highlights: NonNullable<AutoPrepResult['highlights']>,
   wtStructure: WatchtowerStudyStructure,
-) {
+): { highlights: WatchtowerResolvedHighlight[]; gaps: WatchtowerQuestion[] } {
   const blockById = new Map(wtStructure.blocks.map((block) => [block.blockId, block.text]));
-  const answerBlockIds = new Set(
-    wtStructure.questions.flatMap((question) =>
-      question.answerBlockIds.length > 0
-        ? question.answerBlockIds
-        : [question.questionBlockId],
-    ),
-  );
+  const MAX_PER_BLOCK = 3;
+  const TARGET_PER_QUESTION = 3;
+  const MIN_PER_QUESTION = 2;
 
   const valid = highlights
-    .map((highlight) => {
-      const block = blockById.get(highlight.blockId);
-      if (!block) return null;
-      const located = resolveHighlightInBlock(block, highlight.text);
-      if (!located) return null;
-      if (located.text.trim().split(/\s+/).length > 22) return null;
-      return { ...highlight, text: located.text, startOffset: located.startOffset, endOffset: located.endOffset };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
+    .map((highlight) => resolveWatchtowerHighlight(highlight, wtStructure))
+    .filter((item): item is WatchtowerResolvedHighlight => item !== null);
 
-  const sorted = [...valid].sort((a, b) => {
-    const aScore = answerBlockIds.has(a.blockId) ? 0 : 1;
-    const bScore = answerBlockIds.has(b.blockId) ? 0 : 1;
-    if (aScore !== bScore) return aScore - bScore;
-    return b.text.length - a.text.length;
-  });
+  const result: WatchtowerResolvedHighlight[] = [];
+  const gaps: WatchtowerQuestion[] = [];
+  let colorIndex = 0;
 
-  const byBlock = new Map<string, (typeof sorted)[number]>();
-  for (const highlight of sorted) {
-    if (!byBlock.has(highlight.blockId)) byBlock.set(highlight.blockId, highlight);
+  for (const question of wtStructure.questions) {
+    const answerBlockIds =
+      question.answerBlockIds.length > 0 ? question.answerBlockIds : [question.questionBlockId];
+    const questionColor = HIGHLIGHT_COLORS[colorIndex % HIGHLIGHT_COLORS.length]!;
+    colorIndex += 1;
+
+    const candidates = valid
+      .filter((highlight) => answerBlockIds.includes(highlight.blockId))
+      .sort((a, b) => {
+        const blockOrder = answerBlockIds.indexOf(a.blockId) - answerBlockIds.indexOf(b.blockId);
+        if (blockOrder !== 0) return blockOrder;
+        return a.startOffset - b.startOffset;
+      });
+
+    const perBlockCount = new Map<string, number>();
+    const picked: WatchtowerResolvedHighlight[] = [];
+
+    for (const candidate of candidates) {
+      if (picked.length >= TARGET_PER_QUESTION) break;
+      if ((perBlockCount.get(candidate.blockId) ?? 0) >= MAX_PER_BLOCK) continue;
+      if (picked.some((existing) => highlightOverlaps(existing, candidate))) continue;
+      picked.push({ ...candidate, color: questionColor });
+      perBlockCount.set(candidate.blockId, (perBlockCount.get(candidate.blockId) ?? 0) + 1);
+    }
+
+    if (picked.length < MIN_PER_QUESTION) {
+      const needed = TARGET_PER_QUESTION - picked.length;
+      for (const blockId of answerBlockIds) {
+        const blockText = blockById.get(blockId);
+        if (!blockText) continue;
+        const extra = extractHeuristicHighlightsFromBlock(
+          blockId,
+          blockText,
+          needed,
+          [...picked, ...result],
+        );
+        for (const candidate of extra) {
+          if (picked.length >= TARGET_PER_QUESTION) break;
+          if ((perBlockCount.get(candidate.blockId) ?? 0) >= MAX_PER_BLOCK) continue;
+          if (picked.some((existing) => highlightOverlaps(existing, candidate))) continue;
+          picked.push({ ...candidate, color: questionColor });
+          perBlockCount.set(candidate.blockId, (perBlockCount.get(candidate.blockId) ?? 0) + 1);
+        }
+        if (picked.length >= MIN_PER_QUESTION) break;
+      }
+    }
+
+    if (picked.length < MIN_PER_QUESTION) {
+      for (const highlight of valid) {
+        if (picked.length >= MIN_PER_QUESTION) break;
+        if (!answerBlockIds.includes(highlight.blockId)) continue;
+        if ((perBlockCount.get(highlight.blockId) ?? 0) >= MAX_PER_BLOCK) continue;
+        if (picked.some((existing) => highlightOverlaps(existing, highlight))) continue;
+        picked.push({ ...highlight, color: questionColor });
+        perBlockCount.set(highlight.blockId, (perBlockCount.get(highlight.blockId) ?? 0) + 1);
+      }
+    }
+
+    if (picked.length === 0) {
+      for (const blockId of answerBlockIds) {
+        const blockText = blockById.get(blockId);
+        if (!blockText) continue;
+        const extra = extractHeuristicHighlightsFromBlock(blockId, blockText, MIN_PER_QUESTION, result);
+        for (const candidate of extra) {
+          if (picked.length >= MIN_PER_QUESTION) break;
+          picked.push({ ...candidate, color: questionColor });
+        }
+        if (picked.length > 0) break;
+      }
+    }
+
+    if (picked.length < MIN_PER_QUESTION) gaps.push(question);
+    result.push(...picked);
   }
 
-  return [...byBlock.values()]
-    .slice(0, Math.max(wtStructure.questions.length, 5))
-    .map((highlight, index) => ({
-      ...highlight,
-      color: HIGHLIGHT_COLORS[index % HIGHLIGHT_COLORS.length],
-    }));
+  const used = new Set(result.map((item) => `${item.blockId}:${item.startOffset}:${item.endOffset}`));
+  for (const highlight of valid) {
+    if (result.length >= wtStructure.questions.length * TARGET_PER_QUESTION) break;
+    const key = `${highlight.blockId}:${highlight.startOffset}:${highlight.endOffset}`;
+    if (used.has(key)) continue;
+    if (result.some((existing) => highlightOverlaps(existing, highlight))) continue;
+    const blockCount = result.filter((item) => item.blockId === highlight.blockId).length;
+    if (blockCount >= MAX_PER_BLOCK) continue;
+    result.push({ ...highlight, color: highlight.color || 'yellow' });
+    used.add(key);
+  }
+
+  return { highlights: result, gaps };
 }
 
 function normalizeSentinelFieldValue(value: string, isReview: boolean) {
@@ -434,15 +971,7 @@ async function runWatchtowerAutoPrep(
   }
 
   const documentExcerpt = wtStructure.blocks.map((b) => `[§${b.blockId}] ${b.text}`).join('\n\n');
-  const questionsList = wtStructure.questions
-    .map((question) => {
-      const answerBlocks =
-        question.answerBlockIds.length > 0
-          ? question.answerBlockIds.join(', ')
-          : 'inferir do texto da pergunta';
-      return `- campo ${question.fieldId} | ${question.isReview ? 'REVISÃO' : 'estudo'} | pergunta §${question.questionBlockId} | resposta nos § ${answerBlocks}`;
-    })
-    .join('\n');
+  const questionsList = buildWatchtowerQuestionsList(wtStructure);
 
   const context = await enrichAiContext(cacheDir, {
     weekLabel: params.weekLabel,
@@ -454,79 +983,59 @@ async function runWatchtowerAutoPrep(
     documentText: documentExcerpt.slice(0, 12000),
   });
 
-  const system = [
+  const systemPrefix = [
     buildAiSystemPrompt(context),
     '',
     '## Tarefa: preparação automática — estudo de A Sentinela',
     JW_AI_GROUNDING_RULES,
-    JW_SENTINEL_PREP_RULES,
-    '',
-    'Devolva APENAS JSON válido (sem markdown):',
-    '{"highlights":[{"blockId":"5","text":"trecho EXATO curto","color":"yellow"}],"fields":[{"fieldId":"tt1","value":"Resposta principal: ...\\n\\nResposta adicional: ..."}]}',
-    '',
-    JW_HIGHLIGHT_RULES,
-    '- Grife no parágrafo da RESPOSTA (blockId = número do § citado na pergunta).',
-    '',
-    'Perguntas e campos (preencha TODOS):',
-    questionsList || '- detecte perguntas numeradas na matéria',
   ]
     .filter(Boolean)
     .join('\n');
 
   try {
-    const response = await fetch(OPENAI_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: AUTO_PREP_MODEL,
-        temperature: 0.25,
-        max_tokens: 6000,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: system },
-          {
-            role: 'user',
-            content:
-              'Prepare este estudo da Sentinela: grifos nas respostas, campos com resposta principal + adicional. Sem notas/resumos.',
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      return { ok: false, error: `OpenAI retornou ${response.status}: ${body.slice(0, 180)}` };
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const raw = data.choices?.[0]?.message?.content?.trim();
-    if (!raw) return { ok: false, error: 'Resposta vazia da IA.' };
-
-    const parsed = JSON.parse(raw) as {
-      highlights?: AutoPrepResult['highlights'];
-      fields?: AutoPrepResult['fields'];
-    };
-
-    const highlights = refineWatchtowerHighlights(
-      (parsed.highlights ?? []).filter((h) => h.blockId && h.text && h.color),
+    let fieldValues = await requestWatchtowerFields(
+      apiKey,
+      systemPrefix,
       wtStructure,
+      documentExcerpt,
+      questionsList,
     );
 
-    const questionByField = new Map(wtStructure.questions.map((q) => [q.fieldId, q]));
-    const fieldValues = (parsed.fields ?? [])
-      .filter((field) => field.fieldId && field.value)
-      .map((field) => ({
-        fieldId: field.fieldId,
-        value: normalizeSentinelFieldValue(
-          field.value,
-          questionByField.get(field.fieldId)?.isReview ?? false,
-        ),
-      }));
+    if (fieldValues.length < wtStructure.questions.length) {
+      fieldValues = await requestMissingSentinelFields(
+        apiKey,
+        systemPrefix,
+        wtStructure,
+        documentExcerpt,
+        fieldValues,
+      );
+    }
+
+    fieldValues = fillHeuristicSentinelFields(wtStructure, fieldValues);
+
+    let highlightsRaw = await requestWatchtowerHighlights(
+      apiKey,
+      systemPrefix,
+      wtStructure,
+      documentExcerpt,
+      questionsList,
+    );
+
+    let { highlights, gaps } = refineWatchtowerHighlights(highlightsRaw, wtStructure);
+
+    if (gaps.length > 0) {
+      for (let index = 0; index < gaps.length; index += 3) {
+        const batch = gaps.slice(index, index + 3);
+        const extra = await requestMissingWatchtowerHighlights(
+          apiKey,
+          systemPrefix,
+          wtStructure,
+          batch,
+        );
+        highlightsRaw = [...highlightsRaw, ...extra];
+      }
+      ({ highlights, gaps } = refineWatchtowerHighlights(highlightsRaw, wtStructure));
+    }
 
     if (highlights.length > 0) {
       await saveHighlightsBatch(
@@ -539,8 +1048,8 @@ async function runWatchtowerAutoPrep(
           color: h.color,
           text: h.text,
           blockId: h.blockId,
-          startOffset: (h as { startOffset?: number }).startOffset ?? 0,
-          endOffset: (h as { endOffset?: number }).endOffset ?? h.text.length,
+          startOffset: h.startOffset,
+          endOffset: h.endOffset,
         })),
       );
     }
@@ -553,6 +1062,14 @@ async function runWatchtowerAutoPrep(
         fieldKey(params.pub, params.issue, params.documentId, field.fieldId),
         field.value,
       );
+    }
+
+    const missingFields = wtStructure.questions.length - fieldValues.length;
+    if (missingFields > 0 && fieldValues.length === 0) {
+      return {
+        ok: false,
+        error: `Nenhum campo preenchido (${wtStructure.questions.length} perguntas detectadas). Verifique OPENAI_API_KEY e tente de novo.`,
+      };
     }
 
     return { ok: true, highlights, fields: fieldValues, notes: [] };

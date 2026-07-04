@@ -48,9 +48,15 @@ import type {
   ParseElderMeetingPautaResult,
   ExportTalkThemeCardParams,
   ExportTalkThemeCardResult,
-  ResolveSongDigitalLinkResult,
+  GlobalSearchResult,
+  DictionaryDownloadResult,
+  DictionaryLookupResult,
+  DictionaryStatus,
+  ListResearchPublicationsResult,
+  ResearchPublicationItem,
   ResolveLinkParams,
   ResolveLinkResult,
+  ResolveSongDigitalLinkResult,
   SetFieldValueParams,
   SongAudioTrack,
 } from './types';
@@ -257,6 +263,19 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:get-song-audio', params),
   getDailyText: (params?: { lang?: string }): Promise<DailyTextResult> =>
     ipcRenderer.invoke('jcs:get-daily-text', params),
+  globalSearch: (params: { query: string; limit?: number }): Promise<GlobalSearchResult> =>
+    ipcRenderer.invoke('jcs:global-search', params),
+  listResearchPublications: (): Promise<ListResearchPublicationsResult> =>
+    ipcRenderer.invoke('jcs:list-research-publications'),
+  downloadResearchPublication: (params: {
+    pub: string;
+    issue?: string;
+    lang?: string;
+  }): Promise<DownloadPubResult> => ipcRenderer.invoke('jcs:download-research-publication', params),
+  getDictionaryStatus: (): Promise<DictionaryStatus> => ipcRenderer.invoke('jcs:get-dictionary-status'),
+  lookupDictionary: (params: { query: string }): Promise<DictionaryLookupResult> =>
+    ipcRenderer.invoke('jcs:lookup-dictionary', params),
+  downloadDictionary: (): Promise<DictionaryDownloadResult> => ipcRenderer.invoke('jcs:download-dictionary'),
   loadPreaching: (): Promise<PreachingContent> => ipcRenderer.invoke('jcs:load-preaching'),
   downloadPreachingPub: (params: {
     pub: string;
@@ -450,6 +469,16 @@ declare global {
       listSongs: (params?: { lang?: string }) => Promise<SongAudioTrack[]>;
       getSongAudio: (params: { songNumber: number; lang?: string }) => Promise<SongAudioTrack | null>;
       getDailyText: (params?: { lang?: string }) => Promise<DailyTextResult>;
+      globalSearch: (params: { query: string; limit?: number }) => Promise<GlobalSearchResult>;
+      listResearchPublications: () => Promise<ListResearchPublicationsResult>;
+      downloadResearchPublication: (params: {
+        pub: string;
+        issue?: string;
+        lang?: string;
+      }) => Promise<DownloadPubResult>;
+      getDictionaryStatus: () => Promise<DictionaryStatus>;
+      lookupDictionary: (params: { query: string }) => Promise<DictionaryLookupResult>;
+      downloadDictionary: () => Promise<DictionaryDownloadResult>;
       loadPreaching: () => Promise<PreachingContent>;
       downloadPreachingPub: (params: {
         pub: string;

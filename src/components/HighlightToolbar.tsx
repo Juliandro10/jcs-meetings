@@ -6,10 +6,21 @@ type HighlightToolbarProps = {
   y: number;
   onPickColor: (color: HighlightColorId) => void;
   onAddNote?: () => void;
+  onSearchSelection?: (text: string) => void;
+  onDictionarySelection?: (text: string) => void;
   onClose: () => void;
 };
 
-export function HighlightToolbar({ open, x, y, onPickColor, onAddNote, onClose }: HighlightToolbarProps) {
+export function HighlightToolbar({
+  open,
+  x,
+  y,
+  onPickColor,
+  onAddNote,
+  onSearchSelection,
+  onDictionarySelection,
+  onClose,
+}: HighlightToolbarProps) {
   if (!open) return null;
 
   return (
@@ -45,6 +56,34 @@ export function HighlightToolbar({ open, x, y, onPickColor, onAddNote, onClose }
             className="ml-1 flex h-7 w-7 items-center justify-center rounded-md border border-white/20 text-sm text-white hover:bg-white/10"
           >
             +
+          </button>
+        ) : null}
+        {onSearchSelection ? (
+          <button
+            type="button"
+            aria-label="Buscar seleção"
+            title="Buscar nas publicações"
+            onClick={() => {
+              const text = window.getSelection()?.toString().replace(/\s+/g, ' ').trim() ?? '';
+              if (text.length >= 2) onSearchSelection(text);
+            }}
+            className="ml-1 rounded-md border border-white/20 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/10"
+          >
+            Buscar
+          </button>
+        ) : null}
+        {onDictionarySelection ? (
+          <button
+            type="button"
+            aria-label="Consultar dicionário"
+            title="Consultar no dicionário"
+            onClick={() => {
+              const text = window.getSelection()?.toString().replace(/\s+/g, ' ').trim() ?? '';
+              if (text.length >= 2) onDictionarySelection(text);
+            }}
+            className="ml-1 rounded-md border border-white/20 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/10"
+          >
+            Dicionário
           </button>
         ) : null}
       </div>

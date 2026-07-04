@@ -43,6 +43,11 @@ export function pubCacheKeyVariants(pub: string): string[] {
     variants.add(`${underscoreRegional[1]}-${underscoreRegional[2]}`);
   }
 
+  // Estudo Perspicaz: a API aceita it-1/it-2, mas o .jwpub no cache usa símbolo it.
+  if (/^it-[12]$/.test(canonical)) {
+    variants.add('it');
+  }
+
   return [...variants];
 }
 

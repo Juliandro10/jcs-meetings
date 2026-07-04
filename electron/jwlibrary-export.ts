@@ -415,6 +415,38 @@ type DocumentLocationSet = {
   primary: number;
 };
 
+function stableNoteExportGuid(
+  pub: string,
+  issue: string,
+  documentId: number,
+  noteId: string,
+): string {
+  const hash = createHash('sha256')
+    .update(`${pub}|${issue}|${documentId}|${noteId}`)
+    .digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
+function allocateExportNoteGuid(
+  pub: string,
+  issue: string,
+  documentId: number,
+  noteId: string,
+  usedGuids: Set<string>,
+): string {
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const seed = attempt === 0 ? noteId : `${noteId}#${attempt}`;
+    const guid = stableNoteExportGuid(pub, issue, documentId, seed);
+    if (!usedGuids.has(guid)) {
+      usedGuids.add(guid);
+      return guid;
+    }
+  }
+  const guid = randomUUID();
+  usedGuids.add(guid);
+  return guid;
+}
+
 async function buildDatabaseContents(cacheDir: string, prep: UserPrepData) {
   const locations: LocationRow[] = [];
   const inputFields: Array<{ LocationId: number; TextTag: string; Value: string }> = [];
@@ -452,6 +484,7 @@ async function buildDatabaseContents(cacheDir: string, prep: UserPrepData) {
   let nextUserMarkId = 1;
   let nextBlockRangeId = 1;
   let nextNoteId = 1;
+  const usedNoteGuids = new Set<string>();
 
   const pubMetaCache = new Map<string, PublicationMeta | null>();
   const docMetaCache = new Map<string, DocumentMeta | null>();
@@ -683,7 +716,13 @@ async function buildDatabaseContents(cacheDir: string, prep: UserPrepData) {
       const blockIdentifier = Number.parseInt(note.blockId, 10);
       if (!Number.isFinite(blockIdentifier)) continue;
       const tokens = noteToTokenRange(documentHtml, note);
-      const noteGuid = note.id || randomUUID();
+      const noteGuid = allocateExportNoteGuid(
+        group.pub,
+        group.issue,
+        group.documentId,
+        note.id || String(nextNoteId),
+        usedNoteGuids,
+      );
       const exportTitle = noteTitleForExport(note, structure);
 
       if (locationSet.track) {

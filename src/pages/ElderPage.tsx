@@ -29,7 +29,7 @@ export function ElderPage({ onOpenOutlines, onOpenGuidelines, onOpenMeetings, on
 
         <section className="mt-6">
           <h2 className="mb-3 text-xs font-semibold tracking-wide text-jw-muted">ATALHOS</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="overflow-hidden rounded-xl border border-jw-border bg-jw-surface shadow-sm divide-y divide-jw-border">
             <ElderShortcutCard
               title="Esboços"
               description="Discursos públicos, celebração e assembleia de circuito"
@@ -70,7 +70,7 @@ function ElderShortcutCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex items-center gap-4 rounded-xl border border-jw-border bg-jw-surface px-4 py-4 text-left shadow-sm transition hover:border-jw-purple hover:shadow-md"
+      className="group flex w-full items-center gap-4 px-4 py-4 text-left transition hover:bg-jw-bg/80"
     >
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-jw-purple-light text-jw-purple">
         {icon}

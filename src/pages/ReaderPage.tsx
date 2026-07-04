@@ -30,6 +30,8 @@ type ReaderPageProps = {
   bibleReading?: string;
   downloadProgressMap: Record<string, number>;
   onBack: () => void;
+  onOpenSearch?: (query?: string) => void;
+  onOpenDictionary?: (query?: string) => void;
 };
 
 function getSelectedTextFromReader() {
@@ -39,7 +41,15 @@ function getSelectedTextFromReader() {
   return text.length >= 3 ? text : undefined;
 }
 
-export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMap, onBack }: ReaderPageProps) {
+export function ReaderPage({
+  target,
+  weekLabel,
+  bibleReading,
+  downloadProgressMap,
+  onBack,
+  onOpenSearch,
+  onOpenDictionary,
+}: ReaderPageProps) {
   const readerRef = useRef<PublicationReaderHandle>(null);
   const studyReaderRef = useRef<PublicationReaderHandle>(null);
   const pendingStudyBookOpenRef = useRef(false);
@@ -590,6 +600,11 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
           ) : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          {onOpenSearch ? (
+            <ToolbarButton label="Buscar nas publicações" onClick={() => onOpenSearch()}>
+              Buscar
+            </ToolbarButton>
+          ) : null}
           <ToolbarButton
             label="Destacar — selecione um trecho na matéria"
             onClick={() => {
@@ -657,6 +672,22 @@ export function ReaderPage({ target, weekLabel, bibleReading, downloadProgressMa
             onAddNote={() => {
               void createNoteFromSelection();
             }}
+            onSearchSelection={
+              onOpenSearch
+                ? (text) => {
+                    onOpenSearch(text);
+                    setToolbar({ open: false, x: 0, y: 0 });
+                  }
+                : undefined
+            }
+            onDictionarySelection={
+              onOpenDictionary
+                ? (text) => {
+                    onOpenDictionary(text);
+                    setToolbar({ open: false, x: 0, y: 0 });
+                  }
+                : undefined
+            }
           />
         </div>
 

@@ -5,6 +5,7 @@ type SectionHeaderProps = {
   title: string;
   subtitle?: string;
   variant?: 'purple' | 'light';
+  onSearchClick?: () => void;
   children?: ReactNode;
 };
 
@@ -12,6 +13,7 @@ export function SectionHeader({
   title,
   subtitle = 'Português (Brasil)',
   variant = 'purple',
+  onSearchClick,
   children,
 }: SectionHeaderProps) {
   if (variant === 'light') {
@@ -19,7 +21,14 @@ export function SectionHeader({
       <header className="shrink-0 border-b border-jw-border bg-white">
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <h1 className="truncate text-[17px] font-semibold text-jw-text">{title}</h1>
-          <div className="flex shrink-0 items-center gap-0.5 text-jw-muted">{children}</div>
+          <div className="flex shrink-0 items-center gap-0.5 text-jw-muted">
+            {onSearchClick ? (
+              <HeaderIconButton label="Buscar" onClick={onSearchClick} tone="light">
+                <IconSearch className="h-[18px] w-[18px]" />
+              </HeaderIconButton>
+            ) : null}
+            {children}
+          </div>
         </div>
       </header>
     );
@@ -34,7 +43,7 @@ export function SectionHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5 text-white/90">
-          <HeaderIconButton label="Buscar">
+          <HeaderIconButton label="Buscar" onClick={onSearchClick}>
             <IconSearch className="h-[18px] w-[18px]" />
           </HeaderIconButton>
           <HeaderIconButton label="Baixar">
@@ -53,12 +62,28 @@ export function SectionHeader({
   );
 }
 
-function HeaderIconButton({ label, children }: { label: string; children: ReactNode }) {
+function HeaderIconButton({
+  label,
+  children,
+  onClick,
+  tone = 'purple',
+}: {
+  label: string;
+  children: ReactNode;
+  onClick?: () => void;
+  tone?: 'purple' | 'light';
+}) {
   return (
     <button
       type="button"
       aria-label={label}
-      className="rounded p-2 text-white/85 transition hover:bg-white/10 hover:text-white"
+      onClick={onClick}
+      disabled={!onClick}
+      className={
+        tone === 'light'
+          ? 'rounded p-2 text-jw-muted transition hover:bg-jw-bg hover:text-jw-text disabled:opacity-40'
+          : 'rounded p-2 text-white/85 transition hover:bg-white/10 hover:text-white disabled:opacity-40'
+      }
     >
       {children}
     </button>

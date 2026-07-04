@@ -300,7 +300,7 @@ export function resolveHighlightInBlock(
   let matchLen = needle.length;
 
   if (idx === -1) {
-    for (let len = Math.min(needle.length, 48); len >= 12; len -= 1) {
+    for (let len = Math.min(needle.length, 48); len >= 8; len -= 1) {
       const prefix = needle.slice(0, len);
       const found = content.indexOf(prefix);
       if (found >= 0) {
@@ -395,21 +395,80 @@ export type WatchtowerStudyStructure = {
   questions: WatchtowerQuestion[];
 };
 
+function pushParagraphRange(ids: string[], startRaw: string, endRaw?: string) {
+  const start = Number(startRaw);
+  const end = endRaw ? Number(endRaw) : start;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+  const lo = Math.min(start, end);
+  const hi = Math.max(start, end);
+  for (let index = lo; index <= hi; index += 1) ids.push(String(index));
+}
+
 function parseParagraphRefs(text: string): string[] {
   const ids: string[] = [];
   const patterns = [
-    /(?:§|par\.?|parágrafo|paragrafo)\s*(\d+)(?:\s*[-–]\s*(\d+))?/gi,
+    /§§?\s*(\d+)(?:\s*[-–]\s*(\d+))?/gi,
+    /(?:par\.?|parágrafo|paragrafo|paragraph)\s*(\d+)(?:\s*[-–]\s*(\d+))?/gi,
     /\(\s*§\s*(\d+)(?:\s*[-–]\s*(\d+))?\s*\)/gi,
+    /(?:§§?\s*)?(\d+)\s+e\s+(\d+)/gi,
   ];
   for (const re of patterns) {
     let match: RegExpExecArray | null;
     while ((match = re.exec(text)) !== null) {
-      const start = Number(match[1]);
-      const end = match[2] ? Number(match[2]) : start;
-      for (let index = start; index <= end; index += 1) ids.push(String(index));
+      pushParagraphRange(ids, match[1]!, match[2]);
     }
   }
+
+  if (/(?:§|par[áa]|veja)/i.test(text)) {
+    const range = text.match(/\b(\d{1,2})\s*[-–]\s*(\d{1,2})\b/);
+    if (range) pushParagraphRange(ids, range[1]!, range[2]);
+  }
+
   return [...new Set(ids)];
+}
+
+function inferAnswerBlockIdsFromProximity(
+  blocks: Array<{ blockId: string; text: string }>,
+  questionBlockId: string,
+): string[] {
+  const qIndex = blocks.findIndex((block) => block.blockId === questionBlockId);
+  if (qIndex <= 0) return [];
+
+  const candidates: string[] = [];
+  for (let index = qIndex - 1; index >= 0 && candidates.length < 4; index -= 1) {
+    const block = blocks[index]!;
+    const trimmed = block.text.trim();
+    if (trimmed.includes('?') && trimmed.length < 220) break;
+    if (trimmed.length < 32) continue;
+    if (/^\(\d+\s*min\)/i.test(trimmed)) continue;
+    candidates.unshift(block.blockId);
+  }
+  return candidates;
+}
+
+/** Converte referências da pergunta (§ 5-7, par. 12…) em blockIds reais do HTML. */
+export function resolveWatchtowerAnswerBlockIds(
+  blocks: Array<{ blockId: string; text: string }>,
+  questionText: string,
+  questionBlockId: string,
+): string[] {
+  const refs = parseParagraphRefs(questionText);
+  let blockIds = refs
+    .map((ref) => blockIdForParagraphNumber(blocks, ref))
+    .filter((id): id is string => Boolean(id));
+
+  if (blockIds.length === 0) {
+    for (const match of questionText.matchAll(/\((\d{1,2})\)/g)) {
+      const id = blockIdForParagraphNumber(blocks, match[1]!);
+      if (id) blockIds.push(id);
+    }
+  }
+
+  if (blockIds.length === 0) {
+    blockIds = inferAnswerBlockIdsFromProximity(blocks, questionBlockId);
+  }
+
+  return [...new Set(blockIds)];
 }
 
 function isReviewSectionHeader(text: string) {
@@ -450,7 +509,11 @@ export function extractWatchtowerStudyStructure(html: string): WatchtowerStudySt
       }
     }
 
-    const answerBlockIds = parseParagraphRefs(questionBlock.text);
+    const answerBlockIds = resolveWatchtowerAnswerBlockIds(
+      blocks,
+      questionBlock.text,
+      questionBlock.blockId,
+    );
 
     questions.push({
       questionBlockId: questionBlock.blockId,
