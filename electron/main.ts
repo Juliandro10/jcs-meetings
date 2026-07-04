@@ -24,7 +24,10 @@ import {
   getElderAuthStatus,
   isElderRestrictedPub,
   lockElderSession,
+  resolveBundledElderAuthPath,
+  seedElderAuthIfMissing,
   setupElderPin,
+  syncDevElderAuthFromEnv,
   unlockElderWithPin,
 } from './elder-auth';
 import {
@@ -970,6 +973,22 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  lockElderSession();
+
+  const userDataDir = getUserDataDir();
+  if (app.isPackaged) {
+    const bundledAuthPath = await resolveBundledElderAuthPath(
+      process.env.APP_ROOT!,
+      process.resourcesPath,
+    );
+    await seedElderAuthIfMissing(userDataDir, { bundledPath: bundledAuthPath });
+  } else {
+    const sync = await syncDevElderAuthFromEnv(userDataDir, process.env.JCS_ELDER_PIN ?? null);
+    if (!sync.synced) {
+      console.warn('[JCS] PIN Elder (dev):', sync.error ?? 'não sincronizado');
+    }
+  }
+
   await migrateLegacyJwpubCache(getCacheDir(), getUserDataRoot(), app.getPath('appData'));
   await standardizeJwpubCacheDir(getCacheDir());
   await syncDownloadRegistryFromCache(getUserDataRoot(), getCacheDir());

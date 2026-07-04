@@ -32,8 +32,12 @@
     ],
     "extraResources": [
       {
-        "from": ".env",
+        "from": "build/app.release.env",
         "to": "app.env"
+      },
+      {
+        "from": "build/bundled-elder-auth.json",
+        "to": "bundled-elder-auth.json"
       }
     ],
     "win": {

@@ -42,6 +42,9 @@ export default function App() {
   const showElder = canShowElderTab(sessionMode === 'elder' ? 'elder' : 'common');
 
   const handleLoginChoice = useCallback((mode: AppSessionMode) => {
+    if (mode === 'common') {
+      void window.jcs?.lockElderSession?.();
+    }
     setSessionMode(mode);
     setStoredSessionMode(mode);
   }, []);
@@ -279,7 +282,6 @@ export default function App() {
       {elderUnlockOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
           <ElderPinGate
-            mode="unlock"
             onBack={() => setElderUnlockOpen(false)}
             onSuccess={unlockElderSuccess}
           />

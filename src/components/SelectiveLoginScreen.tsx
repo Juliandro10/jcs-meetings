@@ -8,10 +8,11 @@ type SelectiveLoginScreenProps = {
 
 export function SelectiveLoginScreen({ onChoose }: SelectiveLoginScreenProps) {
   const [pinConfigured, setPinConfigured] = useState<boolean | null>(null);
-  const [pinFlow, setPinFlow] = useState<'unlock' | 'setup' | null>(null);
+  const [pinFlowOpen, setPinFlowOpen] = useState(false);
 
   useEffect(() => {
     async function loadStatus() {
+      await window.jcs?.lockElderSession?.();
       if (!window.jcs?.getElderAuthStatus) {
         setPinConfigured(false);
         return;
@@ -22,20 +23,11 @@ export function SelectiveLoginScreen({ onChoose }: SelectiveLoginScreenProps) {
     void loadStatus();
   }, []);
 
-  function openElderFlow() {
-    if (pinConfigured === false) {
-      setPinFlow('setup');
-      return;
-    }
-    setPinFlow('unlock');
-  }
-
-  if (pinFlow) {
+  if (pinFlowOpen) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-jw-bg px-6">
         <ElderPinGate
-          mode={pinFlow}
-          onBack={() => setPinFlow(null)}
+          onBack={() => setPinFlowOpen(false)}
           onSuccess={() => onChoose('elder')}
         />
       </div>
@@ -65,11 +57,15 @@ export function SelectiveLoginScreen({ onChoose }: SelectiveLoginScreenProps) {
         />
         <LoginModeCard
           title="Área Elder"
-          description="Orientações confidenciais, esboços de discurso e ferramentas para anciãos."
+          description={
+            pinConfigured === false
+              ? 'PIN Elder não encontrado neste computador. Use o instalador oficial.'
+              : 'Orientações confidenciais, esboços de discurso e ferramentas para anciãos.'
+          }
           icon={<IconElder className="h-7 w-7" strokeWidth={1.6} />}
           accent
-          onClick={openElderFlow}
-          disabled={pinConfigured === null}
+          onClick={() => setPinFlowOpen(true)}
+          disabled={pinConfigured !== true}
         />
       </div>
     </div>
@@ -101,7 +97,7 @@ function LoginModeCard({
         accent
           ? 'border-jw-purple/30 bg-white hover:border-jw-purple hover:shadow-md'
           : 'border-jw-border bg-white hover:border-jw-purple/50 hover:shadow-md',
-        disabled ? 'cursor-wait opacity-70' : '',
+        disabled ? 'cursor-not-allowed opacity-60 hover:border-jw-purple/30 hover:shadow-sm' : '',
       ].join(' ')}
     >
       <span
