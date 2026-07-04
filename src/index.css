@@ -325,3 +325,58 @@ body {
   border-radius: 2px;
   padding: 0 1px;
 }
+
+.jcs-rich-editor .jcs-ata-title {
+  font-size: 16pt;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 0.35em;
+}
+
+.jcs-rich-editor .jcs-ata-subtitle {
+  font-size: 11pt;
+  color: #555;
+  font-style: italic;
+  margin: 0 0 1.25em;
+}
+
+.jcs-rich-editor .jcs-ata-meta {
+  margin: 0 0 0.35em;
+  line-height: 1.55;
+}
+
+.jcs-rich-editor .jcs-ata-spacer {
+  margin: 0 0 0.85em;
+}
+
+.jcs-rich-editor .jcs-ata-section {
+  margin: 0.5em 0 0.75em;
+  font-weight: 700;
+}
+
+.jcs-rich-editor .jcs-ata-item {
+  margin: 0 0 0.25em;
+  line-height: 1.55;
+}
+
+.jcs-rich-editor .jcs-ata-item-body {
+  margin: 0 0 0.15em 0;
+  line-height: 1.55;
+}
+
+.jcs-rich-editor .jcs-ata-item-gap {
+  margin: 0 0 0.65em;
+  font-size: 1pt;
+  line-height: 0;
+}
+
+.jcs-rich-editor .jcs-ata-closing {
+  margin-top: 1em;
+}
+
+.jcs-rich-editor .jcs-ata-footer {
+  font-size: 10pt;
+  color: #777;
+  font-style: italic;
+  margin-top: 1.5em;
+}

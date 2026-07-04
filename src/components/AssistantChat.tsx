@@ -5,7 +5,7 @@ type AssistantChatProps = {
   context: AiChatContext;
 };
 
-const QUICK_PROMPTS = [
+const MEETING_QUICK_PROMPTS = [
   {
     label: 'Joia espiritual',
     message:
@@ -28,6 +28,29 @@ const QUICK_PROMPTS = [
   },
 ] as const;
 
+const OUTLINE_QUICK_PROMPTS = [
+  {
+    label: 'Comparar com original',
+    message:
+      'Compare o esboço preparado com o esboço original fornecidos no contexto. O que foi mantido, omitido, resumido demais ou acrescentado? Use tópicos claros.',
+  },
+  {
+    label: 'Pontos faltando',
+    message:
+      'Com base no esboço original, quais pontos ou instruções importantes parecem faltar ou ficaram fracos na versão preparada? Seja específico.',
+  },
+  {
+    label: 'Ilustrações e transições',
+    message:
+      'Sugira ilustrações, analogias ou frases de transição úteis para este esboço, alinhadas ao tema e ao vocabulário JW. Foque na parte selecionada se houver seleção.',
+  },
+  {
+    label: 'Revisar para tribuna',
+    message:
+      'Revise o esboço preparado para proferimento: linguagem oral, clareza, ordem lógica e tempo. Indique trechos confusos ou repetidos e como melhorar.',
+  },
+] as const;
+
 function stripHtml(value: string) {
   return value
     .replace(/<[^>]+>/g, ' ')
@@ -36,6 +59,8 @@ function stripHtml(value: string) {
 }
 
 export function AssistantChat({ context }: AssistantChatProps) {
+  const outlineMode = context.contentKind === 'elder-outline';
+  const quickPrompts = outlineMode ? OUTLINE_QUICK_PROMPTS : MEETING_QUICK_PROMPTS;
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,8 +112,9 @@ export function AssistantChat({ context }: AssistantChatProps) {
   return (
     <div className="flex h-full min-h-[280px] flex-col">
       <p className="text-xs text-jw-muted">
-        Respostas baseadas na matéria aberta, referências do painel e publicações baixadas no app — vocabulário
-        das publicações JW (jw.org / JW Library).
+        {outlineMode
+          ? 'Compara o esboço original (.jwpub) com sua versão preparada, referências do painel e publicações baixadas — vocabulário JW.'
+          : 'Respostas baseadas na matéria aberta, referências do painel e publicações baixadas no app — vocabulário das publicações JW (jw.org / JW Library).'}
       </p>
 
       {keyConfigured === false ? (
@@ -106,8 +132,14 @@ export function AssistantChat({ context }: AssistantChatProps) {
         </div>
       ) : null}
 
+      {outlineMode && context.preparedOutlineText ? (
+        <div className="mt-3 rounded-lg border border-jw-border bg-white px-3 py-2 text-xs text-jw-muted">
+          Esboço preparado incluído no contexto ({context.preparedOutlineText.length.toLocaleString('pt-BR')} caracteres)
+        </div>
+      ) : null}
+
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {QUICK_PROMPTS.map((prompt) => (
+        {quickPrompts.map((prompt) => (
           <button
             key={prompt.label}
             type="button"
@@ -123,8 +155,9 @@ export function AssistantChat({ context }: AssistantChatProps) {
       <div ref={scrollRef} className="mt-3 min-h-0 flex-1 space-y-3 overflow-auto pr-1">
         {messages.length === 0 && !loading ? (
           <p className="text-sm text-jw-muted">
-            Selecione um trecho na matéria ou abra uma referência no painel. O assistente usa só o conteúdo JW
-            disponível aqui — não inventa matéria de fora.
+            {outlineMode
+              ? 'O assistente vê o esboço original e sua versão preparada. Selecione um trecho no editor para focar a análise, ou use os atalhos acima.'
+              : 'Selecione um trecho na matéria ou abra uma referência no painel. O assistente usa só o conteúdo JW disponível aqui — não inventa matéria de fora.'}
           </p>
         ) : null}
 

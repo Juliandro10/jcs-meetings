@@ -135,11 +135,31 @@ export const JW_SENTINEL_PREP_RULES = [
   '- Perguntas de **revisão**: cite no início "Parágrafo(s): X" ou "§ X" de onde veio a resposta.',
 ].join('\n');
 
-export function buildAiSystemPrompt(context: AiChatContext): string {
-  const sections = [JW_AI_GROUNDING_RULES, '', '## Contexto da sessão'];
+/** Assistente IA — esboços de discurso (Elder). */
+export const JW_OUTLINE_AI_RULES = [
+  '## Papel — esboço de discurso (OBRIGATÓRIO)',
+  'Você ajuda um ancião a preparar um discurso com base no esboço oficial (S-… / CA-…) e na versão preparada dele.',
+  'Compare o esboço original com a versão preparada quando ambos estiverem no contexto.',
+  'Indique o que foi mantido, omitido, resumido demais, expandido ou alterado em relação ao original.',
+  'Aponte pontos obrigatórios do esboço que parecem faltar na versão preparada.',
+  'Sugira ilustrações, transições e aplicações práticas alinhadas ao tema — sem inventar doutrina.',
+  'Respostas em português do Brasil, vocabulário das publicações das Testemunhas de Jeová, tom respeitoso e útil na tribuna.',
+  'Não reescreva o esboço inteiro salvo se o usuário pedir explicitamente; prefira análise estruturada e sugestões pontuais.',
+  'Se só houver o original ou só o preparado, trabalhe com o que tiver e diga o que falta para uma comparação completa.',
+].join('\n');
 
-  if (context.weekLabel) sections.push(`Semana da reunião: ${context.weekLabel}.`);
-  if (context.publicationTitle) sections.push(`Matéria aberta: ${context.publicationTitle}.`);
+export function buildAiSystemPrompt(context: AiChatContext): string {
+  const outlineMode = context.contentKind === 'elder-outline';
+  const sections = [JW_AI_GROUNDING_RULES];
+  if (outlineMode) sections.push('', JW_OUTLINE_AI_RULES);
+  sections.push('', '## Contexto da sessão');
+
+  if (context.weekLabel) {
+    sections.push(outlineMode ? `Esboço: ${context.weekLabel}.` : `Semana da reunião: ${context.weekLabel}.`);
+  }
+  if (context.publicationTitle) {
+    sections.push(outlineMode ? `Documento: ${context.publicationTitle}.` : `Matéria aberta: ${context.publicationTitle}.`);
+  }
   if (context.bibleReading) sections.push(`Leitura bíblica da semana: ${context.bibleReading}.`);
 
   if (context.cachedPublications?.length) {
@@ -156,12 +176,22 @@ export function buildAiSystemPrompt(context: AiChatContext): string {
     );
   }
 
-  if (context.documentText) {
+  if (outlineMode && context.documentText) {
+    sections.push('', '## Esboço original (fonte oficial — .jwpub)', context.documentText);
+  } else if (context.documentText) {
     sections.push('', '## Texto da matéria aberta (fonte primária)', context.documentText.slice(0, 8000));
   }
 
+  if (outlineMode && context.preparedOutlineText) {
+    sections.push('', '## Esboço preparado pelo usuário (versão de trabalho)', context.preparedOutlineText);
+  }
+
   if (context.selectedText) {
-    sections.push('', '## Trecho selecionado pelo usuário', `"${context.selectedText}"`);
+    sections.push(
+      '',
+      outlineMode ? '## Trecho selecionado no esboço preparado' : '## Trecho selecionado pelo usuário',
+      `"${context.selectedText}"`,
+    );
   }
 
   if (context.referenceTitle || context.referenceText) {

@@ -1,85 +1,258 @@
 # JCS-ELDER — Área restrita (ancianos)
 
-> **Status:** planejamento — **não implementar** até a parte comum do JCS Meetings estar fechada.  
-> Documento de backlog de funções **somente da área bloqueada** (senha local).  
+
+
+> Documento de referência da área **Elder** no JCS Meetings.  
+
+> **Regra:** o doc descreve o app como ele é — não o contrário. Atualizar aqui quando o comportamento mudar.  
+
 > Complementa [ESCOPO.md](./ESCOPO.md) (parte comum / preparação aberta).
 
----
 
-## Estratégia em duas fases
-
-| Fase | Nome | Escopo | Quando |
-|------|------|--------|--------|
-| **1** | **JCS Meetings (comum)** | Preparação de reuniões, publicações normais, Bíblia, lfb, notas, grifos, export `.jwlibrary`, assistente IA, pesquisa em conteúdo **público** jw.org | **Agora** — terminar e polir |
-| **2** | **JCS-ELDER** | Área com **senha/PIN**, publicações **só ancião congregacional**, presidir, discursos, ferramentas abaixo | **Depois** — incrementar sobre o app estável |
-
-A parte comum permanece **sempre acessível** (assistência, prep da semana, família). A parte ELDER desbloqueia com credencial local — não substitui o JW Library oficial; é uso pessoal no PC.
 
 ---
 
-## Princípios (ELDER)
 
-- **Separação de dados:** prep da reunião (`prep/`) vs dados elder (`elder/` ou namespace equivalente) — não misturar na UI aberta.
-- **Catálogo duplo:** aba Biblioteca **Normal** (fase 1) vs **Ancião** (fase 2, bloqueada) — símbolos/issues restritos configuráveis.
-- **Segurança local:** PIN/senha impede uso casual; arquivos no disco não são criptografia forte (suficiente para privacidade doméstica/congregacional leve).
-- **Definição detalhada depois:** fluxo de desbloqueio, timeout, dois PINs etc. — a definir antes da implementação.
+
+## Acesso e segurança
+
+
+
+| Item | Comportamento atual |
+
+|------|---------------------|
+
+| Desbloqueio | PIN local (`prep/elder-auth.json`); sessão em memória até **Bloquear** ou reinício do app |
+
+| Instalador | PIN opcional via `JCS_ELDER_PIN` no build → hash em `build/bundled-elder-auth.json` (sem texto plano no instalador) |
+
+| IPC Elder | Handlers protegidos por `assertElderUnlocked()` |
+
+| Dados | Namespace `elder/` em `%AppData%\JCS Meetings\` — separado de `prep/` |
+
+
 
 ---
 
-## Backlog de funções (JCS-ELDER)
 
-Itens anotados conforme conversas de produto. Expandir esta lista antes de codar.
+
+## Hub Elder (atalhos)
+
+
+
+Na aba **Elder** (desbloqueada), três atalhos:
+
+
+
+| Atalho | Função |
+
+|--------|--------|
+
+| **Esboços** | Discursos públicos (S-34), celebração, assembleia — import `.jwpub`, rascunho editável, esboços preparados, proferimento, export `.doc`/`.pdf`, IA |
+
+| **Orientações** | Publicações `s-*` / `ca-*` — leitor com referências |
+
+| **Reuniões de anciãos** | Pauta, deliberações, geração e exportação de ATA |
+
+
+
+---
+
+
+
+## Reuniões de anciãos — implementado
+
+
+
+Fluxo completo em **Elder → Reuniões de anciãos**.
+
+
+
+### Lista
+
+
+
+- Histórico por data (mais recente primeiro)
+
+- **Nova reunião** cria registro com data de hoje e título automático
+
+- Excluir reunião (confirmação)
+
+
+
+### Editor da reunião
+
+
+
+**Metadados:** data, congregação, presentes, **oração inicial**, **oração final**, título editável.
+
+**Aba Pauta e deliberações**
+
+| Ação | Detalhe |
+|------|---------|
+| **Importar pauta** | `.txt`, `.doc`, `.docx`, `.pdf` — extração de texto + **prévia editável** (assuntos, orações, reordenar) antes de confirmar (substituir ou adicionar) |
+| **Colar pauta** | Textarea para texto copiado (WhatsApp, e-mail, PDF) — mesmo fluxo de prévia |
+| **Parse em cascata** | Heurística (`mixed`, bullets, numeração, parágrafos, linhas) com pontuação; fallback **IA** (`OPENAI_API_KEY`) quando o parse automático é fraco |
+| **Organizar com IA** | Na prévia, botão opcional para reprocessar com IA (`forceAi`) |
+| **Parse inteligente** | Ignora cabeçalho “Pauta” e rodapé `-- N of M --`; reconhece `-` bullets, numeração, **Oração inicial/final**; junta linhas quebradas de PDF |
+| **Adicionar item** | Item manual com título + editor rich text para deliberações |
+| **Autosave** | Debounce ~600 ms → disco |
+
+**Aba ATA**
+
+| Ação | Detalhe |
+|------|---------|
+| **Criar ATA** | Template formal: título + data, bloco **Congregação / Data / Presentes**, orações, **PAUTA E DELIBERAÇÕES**, itens com título (`:`) e deliberação sempre abaixo |
+| **Editar ATA** | Editor rich text — revisão final antes de arquivar |
+| **Exportar .doc / .pdf** | `exportMeetingAtaDocument` — estilos tipográficos da ATA (Segoe UI / Calibri) |
+
+
+
+**Template da ATA gerada:** título “ATA de reunião de anciãos” + data, bloco rotulado (congregação, data, presentes), orações, seção **PAUTA E DELIBERAÇÕES**, itens numerados (título com `:` + deliberação em bloco separado), rodapé de revisão.
+
+
+
+### Persistência
+
+
+
+- Arquivo: `%AppData%\JCS Meetings\elder\meetings.json`
+
+- Estrutura: mapa `meetings[id]` com `items[]` (`id`, `title`, `notes`), `ataHtml`, timestamps
+
+
+
+### IPC (renderer → main)
+
+
+
+- `jcs:list-elder-meetings`
+
+- `jcs:get-elder-meeting` / `jcs:create-elder-meeting` / `jcs:save-elder-meeting` / `jcs:delete-elder-meeting`
+
+- `jcs:import-elder-meeting-pauta`
+
+- `jcs:parse-elder-meeting-pauta-text` — `{ text, forceAi? }` — colar pauta ou reorganizar com IA na prévia
+
+- `jcs:export-elder-meeting-ata`
+
+
+
+---
+
+
+
+## Esboços Elder — implementado
+
+
+
+- Catálogo estático + import `.jwpub` (S-34, etc.)
+
+- Rascunho de trabalho por documento + **esboços preparados** nomeados
+
+- **Cartão de discurso** (por esboço preparado): orador, congregação, cântico → prévia → export `.html` com link direto ao cântico digital no JW Library
+
+- Editor rich text, proferimento, export `.doc`/`.pdf`
+
+- **Assistente IA** (`contentKind: elder-outline`): vê original + preparado; atalhos Comparar, Pontos faltando, Ilustrações, Revisar tribuna
+
+
+
+---
+
+
+
+## Orientações Elder — implementado
+
+
+
+- Catálogo `s-*` / `ca-*` + import `.jwpub`
+
+- Leitor com painel de referências (Bíblia / publicações)
+
+
+
+---
+
+
+
+## Backlog (não implementado)
+
+
 
 ### Publicações e biblioteca
 
-- [ ] Aba Biblioteca **Ancião** (bloqueada): download de publicações só para ancião congregacional (lista de símbolos a definir: ex. `s-38`, orientações, etc.).
-- [ ] Manter aba **Normal** na área comum (sem senha).
-- [ ] Leitor + prep (grifos/notas) também nas pubs elder, namespace separado.
+
+
+- [ ] Aba Biblioteca **Ancião** dedicada na área comum (hoje: conteúdo elder só dentro do hub Elder)
+
+- [ ] Grifos/notas em pubs elder com namespace próprio (orientações usam leitor; prep elder limitada a esboços)
+
+
 
 ### Presidir e discursos
 
-- [ ] Modo **Presidir** reunião (meio de semana): notas, transições, comentários intro/final — *escopo a detalhar*.
-- [ ] Modo **Discurso** / partes especiais — *escopo a detalhar*.
-- [ ] *(Outras funções a acrescentar aqui.)*
 
-### Editor de atas — reunião de anciãos
 
-**Pedido registrado (jul/2026):** editor de texto integrado ao JCS, dedicado a atas de reunião de anciãos.
+- [ ] Modo **Presidir** reunião (meio de semana)
 
-| Etapa | Comportamento |
-|-------|----------------|
-| **Importar pauta** | Importar documento com assuntos em pauta (formatos a definir: `.docx`, `.pdf`, `.txt`, ou modelo interno). |
-| **Reunião ao vivo** | Durante a reunião de anciãos, anotar **decisões tomadas** por item da pauta (texto livre + estrutura por tópico). |
-| **Exportar ATA** | Botão **Exportar como ATA** → gera documento formatado como ata daquela reunião (data, presentes se preenchido, pauta, decisões). |
-| **Persistência** | Salvar rascunho local em `elder/atas/` (ou similar); histórico de atas por data. |
+- [ ] Modo **Discurso** / partes especiais
 
-**A definir antes de implementar:**
 
-- Formato de export (`.docx`, `.pdf`, `.odt`).
-- Template visual da ATA (cabeçalho congregação, data, assinaturas opcionais).
-- Se importação é one-shot por reunião ou vínculo editável pauta ↔ decisões.
-- Se há campos fixos (Oração inicial, Aprovação da ata anterior, etc.).
 
-### Longo prazo (fora do ELDER imediato)
+### Atas — melhorias futuras
 
-- Tablet / SO minimalista — ver conversas de produto; **não** bloquear fase 1.
 
-### Pregação (extensão JCS-ELDER)
 
-A aba **Pregação** existe na parte comum (Kit de Ensino + brochura `lmd`). No **JCS-ELDER**, a **mesma seção** ganhará conteúdo adicional: **ideias para reuniões de saída de campo** (ancianos), sem substituir o material de pregação pública já disponível.
+- [ ] Campos fixos opcionais (oração inicial, aprovação ata anterior, assinaturas)
+
+- [x] Import `.pdf` de pauta (extração de texto; OCR não incluído)
+
+- [ ] Template Word personalizável por congregação
+
+
+
+### Pregação (extensão Elder)
+
+
+
+- [ ] Ideias para reuniões de saída de campo na aba Pregação (comum hoje: Kit de Ensino + `lmd`)
+
+
 
 ---
+
+
 
 ## Histórico de anotações
 
+
+
 | Data | Nota |
+
 |------|------|
-| 2026-07-03 | Criado doc. Estratégia: fechar parte comum primeiro; ELDER incremental. Registrado editor de atas (import pauta → anotar decisões → export ATA). |
-| 2026-07-03 | Aba **Pregação** no comum (Kit de Ensino + `lmd`). ELDER: mesma seção + ideias para reunião de saída de campo. |
+
+| 2026-07-03 | Criado doc. Estratégia fase comum + ELDER incremental. Registrado editor de atas (planejamento). |
+
+| 2026-07-03 | Pregação comum + extensão Elder planejada. |
+
+| 2026-07-04 | **Implementado:** hub Elder, PIN, esboços, orientações, IA esboços, **reuniões de anciãos (pauta + ATA + export)**. Doc reescrito para refletir o app. |
+
+| 2026-07-04 | **Pauta:** parse em cascata + fallback IA, prévia editável, colar pauta, IPC `jcs:parse-elder-meeting-pauta-text`. |
+
+
 
 ---
 
+
+
 ## Referências
 
-- [ESCOPO.md](./ESCOPO.md) — produto comum (fase 1)
+
+
+- [ESCOPO.md](./ESCOPO.md) — produto comum
+
 - [PLANEJAMENTO.md](./PLANEJAMENTO.md) — detalhes técnicos
+
+- Código: `electron/elder-meeting-store.ts`, `src/pages/ElderMeetingEditorPage.tsx`, `shared/elder-meeting-ata.ts`
+

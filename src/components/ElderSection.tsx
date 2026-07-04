@@ -7,6 +7,8 @@ import { ElderGuidelinesPage } from '@/pages/ElderGuidelinesPage';
 import { ElderOutlineDocumentsPage } from '@/pages/ElderOutlineDocumentsPage';
 import { ElderOutlineReaderPage } from '@/pages/ElderOutlineReaderPage';
 import { ElderOutlinesPage, type ElderOutlinesTab } from '@/pages/ElderOutlinesPage';
+import { ElderMeetingEditorPage } from '@/pages/ElderMeetingEditorPage';
+import { ElderMeetingsPage } from '@/pages/ElderMeetingsPage';
 import { ElderPage } from '@/pages/ElderPage';
 import { ELDER_GUIDELINE_SECTIONS, type ElderGuidelineItem } from '@/lib/elder-guidelines';
 import { ELDER_OUTLINE_SECTIONS } from '@/lib/elder-outlines';
@@ -23,6 +25,8 @@ export type ElderOutlineReaderTarget = {
 
 type ElderSectionView =
   | { kind: 'hub' }
+  | { kind: 'meetings' }
+  | { kind: 'meeting-editor'; id: string }
   | { kind: 'outlines'; tab: ElderOutlinesTab }
   | { kind: 'outline-documents'; pub: string; title: string; label: string }
   | { kind: 'outline-reader'; target: ElderOutlineReaderTarget; back: 'outlines' | 'outline-documents' }
@@ -193,7 +197,31 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
       <ElderPage
         onOpenOutlines={() => setView({ kind: 'outlines', tab: 'catalog' })}
         onOpenGuidelines={() => setView({ kind: 'guidelines' })}
+        onOpenMeetings={() => setView({ kind: 'meetings' })}
         onLockElder={onLockElder}
+      />
+    );
+  }
+
+  if (view.kind === 'meetings') {
+    return (
+      <ElderMeetingsPage
+        onBack={() => setView({ kind: 'hub' })}
+        onOpenMeeting={(id) => setView({ kind: 'meeting-editor', id })}
+        onCreateMeeting={async () => {
+          if (!window.jcs?.createElderMeeting) return null;
+          const result = await window.jcs.createElderMeeting();
+          return result.ok && result.item ? result.item.id : null;
+        }}
+      />
+    );
+  }
+
+  if (view.kind === 'meeting-editor') {
+    return (
+      <ElderMeetingEditorPage
+        meetingId={view.id}
+        onBack={() => setView({ kind: 'meetings' })}
       />
     );
   }

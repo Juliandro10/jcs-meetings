@@ -1,12 +1,13 @@
-import { IconChevronRight, IconGuidelineList, IconOutlinePodium } from '@/components/Icons';
+import { IconChevronRight, IconGuidelineList, IconMeetings, IconOutlinePodium } from '@/components/Icons';
 
 type ElderPageProps = {
   onOpenOutlines: () => void;
   onOpenGuidelines: () => void;
+  onOpenMeetings: () => void;
   onLockElder?: () => void;
 };
 
-export function ElderPage({ onOpenOutlines, onOpenGuidelines, onLockElder }: ElderPageProps) {
+export function ElderPage({ onOpenOutlines, onOpenGuidelines, onOpenMeetings, onLockElder }: ElderPageProps) {
   return (
     <div className="px-6 py-6">
       <div className="mx-auto max-w-3xl">
@@ -28,7 +29,7 @@ export function ElderPage({ onOpenOutlines, onOpenGuidelines, onLockElder }: Eld
 
         <section className="mt-6">
           <h2 className="mb-3 text-xs font-semibold tracking-wide text-jw-muted">ATALHOS</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <ElderShortcutCard
               title="Esboços"
               description="Discursos públicos, celebração e assembleia de circuito"
@@ -40,6 +41,12 @@ export function ElderPage({ onOpenOutlines, onOpenGuidelines, onLockElder }: Eld
               description="Instruções para congregação, reuniões, pregação e assembleias"
               icon={<IconGuidelineList className="h-6 w-6" />}
               onClick={onOpenGuidelines}
+            />
+            <ElderShortcutCard
+              title="Reuniões de anciãos"
+              description="Pauta, deliberações ao vivo e exportação de ATA"
+              icon={<IconMeetings className="h-6 w-6" />}
+              onClick={onOpenMeetings}
             />
           </div>
         </section>

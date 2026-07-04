@@ -9,6 +9,9 @@ const electronMainExternals = [
   'meeting-schedules-parser/dist/node/index.js',
   'jszip',
   'pako',
+  'pdf-parse',
+  'pdf-lib',
+  'word-extractor',
   'node-html-parser',
 ];
 

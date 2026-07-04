@@ -41,6 +41,14 @@ import type {
   ListInstalledElderGuidelinesResult,
   ElderAuthStatusResult,
   ElderPinResult,
+  ElderMeetingRecord,
+  ListElderMeetingsResult,
+  ElderMeetingResult,
+  ImportElderMeetingPautaResult,
+  ParseElderMeetingPautaResult,
+  ExportTalkThemeCardParams,
+  ExportTalkThemeCardResult,
+  ResolveSongDigitalLinkResult,
   ResolveLinkParams,
   ResolveLinkResult,
   SetFieldValueParams,
@@ -140,6 +148,34 @@ contextBridge.exposeInMainWorld('jcs', {
     preserveFormatting?: boolean;
   }): Promise<PublicTalkExportResult> =>
     ipcRenderer.invoke('jcs:export-elder-outline-note', params),
+  listElderMeetings: (): Promise<ListElderMeetingsResult> =>
+    ipcRenderer.invoke('jcs:list-elder-meetings'),
+  getElderMeeting: (id: string): Promise<ElderMeetingResult> =>
+    ipcRenderer.invoke('jcs:get-elder-meeting', id),
+  createElderMeeting: (params?: {
+    meetingDate?: string;
+    title?: string;
+    congregation?: string;
+  }): Promise<ElderMeetingResult> => ipcRenderer.invoke('jcs:create-elder-meeting', params),
+  saveElderMeeting: (record: ElderMeetingRecord): Promise<ElderMeetingResult> =>
+    ipcRenderer.invoke('jcs:save-elder-meeting', record),
+  deleteElderMeeting: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:delete-elder-meeting', id),
+  importElderMeetingPauta: (): Promise<ImportElderMeetingPautaResult> =>
+    ipcRenderer.invoke('jcs:import-elder-meeting-pauta'),
+  parseElderMeetingPautaText: (params: {
+    text: string;
+    forceAi?: boolean;
+  }): Promise<ParseElderMeetingPautaResult> =>
+    ipcRenderer.invoke('jcs:parse-elder-meeting-pauta-text', params),
+  exportElderMeetingAta: (params: {
+    record: Pick<
+      ElderMeetingRecord,
+      'id' | 'meetingDate' | 'title' | 'congregation' | 'attendees' | 'openingPrayer' | 'closingPrayer' | 'items' | 'ataHtml'
+    >;
+    format: 'doc' | 'pdf';
+    preserveFormatting?: boolean;
+  }): Promise<PublicTalkExportResult> => ipcRenderer.invoke('jcs:export-elder-meeting-ata', params),
   listPreparedElderOutlines: (): Promise<ListPreparedElderOutlinesResult> =>
     ipcRenderer.invoke('jcs:list-prepared-elder-outlines'),
   getPreparedElderOutline: (id: string): Promise<SavePreparedElderOutlineResult> =>
@@ -162,6 +198,13 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:find-prepared-elder-outline-by-name', params),
   deletePreparedElderOutline: (id: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('jcs:delete-prepared-elder-outline', id),
+  resolveSongDigitalLink: (params: {
+    songNumber: number;
+    lang?: string;
+  }): Promise<ResolveSongDigitalLinkResult> =>
+    ipcRenderer.invoke('jcs:resolve-song-digital-link', params),
+  exportTalkThemeCard: (params: ExportTalkThemeCardParams): Promise<ExportTalkThemeCardResult> =>
+    ipcRenderer.invoke('jcs:export-talk-theme-card', params),
   exportJwlibrary: (): Promise<JwLibraryExportResult> => ipcRenderer.invoke('jcs:export-jwlibrary'),
   importJwlibrary: (): Promise<JwLibraryImportResult> => ipcRenderer.invoke('jcs:import-jwlibrary'),
   listBibleBooks: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }): Promise<BibleBookInfo[]> =>
@@ -321,6 +364,28 @@ declare global {
         value: string;
         preserveFormatting?: boolean;
       }) => Promise<PublicTalkExportResult>;
+      listElderMeetings: () => Promise<ListElderMeetingsResult>;
+      getElderMeeting: (id: string) => Promise<ElderMeetingResult>;
+      createElderMeeting: (params?: {
+        meetingDate?: string;
+        title?: string;
+        congregation?: string;
+      }) => Promise<ElderMeetingResult>;
+      saveElderMeeting: (record: ElderMeetingRecord) => Promise<ElderMeetingResult>;
+      deleteElderMeeting: (id: string) => Promise<{ ok: boolean; error?: string }>;
+      importElderMeetingPauta: () => Promise<ImportElderMeetingPautaResult>;
+      parseElderMeetingPautaText: (params: {
+        text: string;
+        forceAi?: boolean;
+      }) => Promise<ParseElderMeetingPautaResult>;
+      exportElderMeetingAta: (params: {
+        record: Pick<
+          ElderMeetingRecord,
+          'id' | 'meetingDate' | 'title' | 'congregation' | 'attendees' | 'openingPrayer' | 'closingPrayer' | 'items' | 'ataHtml'
+        >;
+        format: 'doc' | 'pdf';
+        preserveFormatting?: boolean;
+      }) => Promise<PublicTalkExportResult>;
       listPreparedElderOutlines: () => Promise<ListPreparedElderOutlinesResult>;
       getPreparedElderOutline: (id: string) => Promise<SavePreparedElderOutlineResult>;
       savePreparedElderOutline: (params: {
@@ -338,6 +403,11 @@ declare global {
         name: string;
       }) => Promise<{ ok: boolean; item?: PreparedElderOutline | null }>;
       deletePreparedElderOutline: (id: string) => Promise<{ ok: boolean; error?: string }>;
+      resolveSongDigitalLink: (params: {
+        songNumber: number;
+        lang?: string;
+      }) => Promise<ResolveSongDigitalLinkResult>;
+      exportTalkThemeCard: (params: ExportTalkThemeCardParams) => Promise<ExportTalkThemeCardResult>;
       exportJwlibrary: () => Promise<JwLibraryExportResult>;
       importJwlibrary: () => Promise<JwLibraryImportResult>;
       listBibleBooks: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }) => Promise<BibleBookInfo[]>;

@@ -143,6 +143,9 @@ export type AiChatContext = {
   sourceDocumentId?: number;
   cachedPublications?: string[];
   documentText?: string;
+  /** Esboço de discurso (Elder): original + preparado para comparação. */
+  contentKind?: 'meeting' | 'elder-outline';
+  preparedOutlineText?: string;
 };
 
 export type AiChatParams = {
@@ -299,10 +302,85 @@ export type ElderPinResult = {
   error?: string;
 };
 
+export type ElderMeetingAgendaItem = {
+  id: string;
+  title: string;
+  notes: string;
+};
+
+export type ElderMeetingRecord = {
+  id: string;
+  meetingDate: string;
+  title: string;
+  congregation: string;
+  attendees: string;
+  openingPrayer: string;
+  closingPrayer: string;
+  items: ElderMeetingAgendaItem[];
+  ataHtml: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListElderMeetingsResult = {
+  ok: boolean;
+  items?: ElderMeetingRecord[];
+  error?: string;
+};
+
+export type ElderMeetingResult = {
+  ok: boolean;
+  item?: ElderMeetingRecord;
+  error?: string;
+};
+
+export type ImportElderMeetingPautaResult = {
+  ok: boolean;
+  items?: ElderMeetingAgendaItem[];
+  openingPrayer?: string;
+  closingPrayer?: string;
+  fileName?: string;
+  rawText?: string;
+  parseMethod?: string;
+  parseMethodLabel?: string;
+  parseScore?: number;
+  usedAi?: boolean;
+  error?: string;
+};
+
+export type ParseElderMeetingPautaResult = ImportElderMeetingPautaResult;
+
 export type PublicTalkExportResult = {
   ok: boolean;
   error?: string;
+  filePath?: string;
 };
+
+export type ResolveSongDigitalLinkResult = {
+  ok: boolean;
+  songNumber?: number;
+  title?: string;
+  documentId?: number;
+  jwOrgFinderUrl?: string;
+  jwLibraryUrl?: string;
+  jwLibraryAndroidIntentUrl?: string;
+  error?: string;
+};
+
+export type ExportTalkThemeCardParams = {
+  format?: 'html' | 'pdf';
+  themeNumber: number | null;
+  themeTitle: string;
+  speakerName: string;
+  congregation: string;
+  songNumber: number;
+  songTitle: string;
+  jwOrgFinderUrl: string;
+  jwLibraryUrl: string;
+  jwLibraryAndroidIntentUrl: string;
+};
+
+export type ExportTalkThemeCardResult = PublicTalkExportResult;
 
 export type JwLibraryExportResult = {
   ok: boolean;

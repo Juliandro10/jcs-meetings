@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { BrowserWindow } from 'electron';
+import { MEETING_ATA_EDITOR_STYLES } from '../shared/elder-meeting-ata';
 
 function escapeHtml(value: string) {
   return value
@@ -53,7 +54,7 @@ export function sanitizeOutlineHtmlForExport(value: string) {
 
 const EXPORT_BODY_STYLES = `
   body {
-    font-family: Calibri, 'Segoe UI', sans-serif;
+    font-family: 'Segoe UI', Calibri, 'Arial Unicode MS', sans-serif;
     font-size: 12pt;
     line-height: 1.55;
     margin: 2cm;
@@ -73,6 +74,7 @@ const EXPORT_BODY_STYLES = `
   font[size="5"] { font-size: 16pt; }
   font[size="6"] { font-size: 18pt; }
   font[size="7"] { font-size: 22pt; }
+  ${MEETING_ATA_EDITOR_STYLES}
 `;
 
 function buildPlainHtmlDocument(title: string, subtitle: string, body: string) {
@@ -139,6 +141,43 @@ async function printHtmlToPdf(html: string, filePath: string) {
     return { ok: true as const };
   } finally {
     win.destroy();
+  }
+}
+
+function buildBodyOnlyHtmlDocument(bodyHtml: string) {
+  return `<!DOCTYPE html>
+<html lang="pt-BR" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head>
+  <meta charset="utf-8">
+  <title>ATA</title>
+  <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+  <style>${EXPORT_BODY_STYLES}</style>
+</head>
+<body>
+  <div class="outline-body">${bodyHtml}</div>
+</body>
+</html>`;
+}
+
+/** Exportação da ATA de reunião — corpo único, sem H1/H2 duplicados. */
+export async function exportMeetingAtaDocument(
+  filePath: string,
+  format: 'doc' | 'pdf',
+  bodyHtml: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const sanitized = sanitizeOutlineHtmlForExport(bodyHtml);
+    const html = buildBodyOnlyHtmlDocument(sanitized);
+
+    if (format === 'pdf') {
+      return printHtmlToPdf(html, filePath);
+    }
+
+    await fs.writeFile(filePath, `\ufeff${html}`, 'utf8');
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erro ao exportar ATA';
+    return { ok: false, error: message };
   }
 }
 

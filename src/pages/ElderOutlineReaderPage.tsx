@@ -255,16 +255,18 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
 
   const assistantContext = useMemo(
     () => ({
+      contentKind: 'elder-outline' as const,
       weekLabel: target.pubLabel,
       publicationTitle: `${target.pubLabel} — ${target.title}`,
       selectedText,
       sourcePub: target.pub,
       sourceIssue: '',
       sourceDocumentId: target.documentId,
+      preparedOutlineText: outlineHtmlToPlainText(editorValue),
       referenceTitle: reference?.ok ? reference.title : undefined,
       referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
     }),
-    [reference, selectedText, target.documentId, target.pub, target.pubLabel, target.title],
+    [editorValue, reference, selectedText, target.documentId, target.pub, target.pubLabel, target.title],
   );
 
   const handleExport = async (format: 'doc' | 'pdf') => {

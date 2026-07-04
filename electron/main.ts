@@ -19,6 +19,18 @@ import {
   isElderGuidelinePubSymbol,
   listInstalledElderGuidelines,
 } from './elder-guideline-catalog';
+import { composeMeetingAtaFromRecord, formatMeetingDateLabel } from './elder-meeting-export';
+import {
+  extractPautaFileText,
+  normalizePautaFromFileText,
+} from './elder-meeting-pauta';
+import {
+  createElderMeeting,
+  deleteElderMeeting,
+  getElderMeeting,
+  listElderMeetings,
+  saveElderMeeting,
+} from './elder-meeting-store';
 import {
   assertElderUnlocked,
   getElderAuthStatus,
@@ -57,7 +69,7 @@ import {
   syncDownloadRegistryFromCache,
 } from './download-registry';
 import { standardizeJwpubCacheDir } from './jwpub-cache-normalize';
-import { exportOutlineDocument, exportPublicTalkNote } from './outline-export';
+import { exportMeetingAtaDocument, exportOutlineDocument, exportPublicTalkNote } from './outline-export';
 import { exportJwlibrary, importJwlibrary } from './jwlibrary-export';
 import { dedupeNotesByTitle, pruneDuplicateDocumentNotes } from './note-dedupe';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
@@ -76,6 +88,8 @@ import {
   renamePlaylist,
 } from './playlist-store';
 import { getSongAudioTrack, listSongAudioTracks } from './song-audio';
+import { resolveSongDigitalLink } from './song-digital-link';
+import { suggestTalkThemeCardFileName, writeTalkThemeCardHtml, writeTalkThemeCardPdf } from './talk-theme-card-export';
 import {
   clearDocumentPrep,
   fieldKey,
@@ -583,6 +597,111 @@ function registerIpc() {
     return { ok, error: ok ? undefined : 'Esboço preparado não encontrado.' };
   });
 
+  ipcMain.handle('jcs:resolve-song-digital-link', async (_event, params: { songNumber: number; lang?: string }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    try {
+      const link = await resolveSongDigitalLink(params.songNumber, params.lang ?? 'T');
+      if (!link) {
+        return { ok: false, error: 'Número de cântico inválido.' };
+      }
+      return {
+        ok: true,
+        songNumber: link.songNumber,
+        title: link.title,
+        documentId: link.documentId,
+        jwOrgFinderUrl: link.jwOrgFinderUrl,
+        jwLibraryUrl: link.jwLibraryUrl,
+        jwLibraryAndroidIntentUrl: link.jwLibraryAndroidIntentUrl,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao buscar cântico';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:export-talk-theme-card',
+    async (
+      _event,
+      params: {
+        format?: 'html' | 'pdf';
+        themeNumber: number | null;
+        themeTitle: string;
+        speakerName: string;
+        congregation: string;
+        songNumber: number;
+        songTitle: string;
+        jwOrgFinderUrl: string;
+        jwLibraryUrl: string;
+        jwLibraryAndroidIntentUrl: string;
+      },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+
+      const format = params.format === 'pdf' ? 'pdf' : 'html';
+      const speaker = params.speakerName.trim();
+      const congregation = params.congregation.trim();
+      const themeTitle = params.themeTitle.trim();
+      if (!speaker || !congregation || !themeTitle) {
+        return { ok: false, error: 'Preencha orador, congregação e tema.' };
+      }
+      if (!params.songNumber || !params.songTitle.trim()) {
+        return { ok: false, error: 'Informe um cântico válido.' };
+      }
+
+      if (format === 'pdf' && !params.jwLibraryAndroidIntentUrl?.trim()) {
+        return { ok: false, error: 'Link do cântico indisponível. Informe o cântico novamente.' };
+      }
+
+      const defaultName = suggestTalkThemeCardFileName(
+        {
+          themeNumber: params.themeNumber,
+          speakerName: speaker,
+        },
+        format,
+      );
+      const result = await dialog.showSaveDialog({
+        title: format === 'pdf' ? 'Salvar cartão de discurso (PDF)' : 'Salvar cartão de discurso',
+        defaultPath: defaultName,
+        filters: [
+          format === 'pdf'
+            ? { name: 'PDF', extensions: ['pdf'] }
+            : { name: 'Página HTML', extensions: ['html'] },
+        ],
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'Exportação cancelada.' };
+      }
+
+      const cardInput = {
+        themeNumber: params.themeNumber,
+        themeTitle,
+        speakerName: speaker,
+        congregation,
+        songNumber: params.songNumber,
+        songTitle: params.songTitle.trim(),
+        jwOrgFinderUrl: params.jwOrgFinderUrl,
+        jwLibraryUrl: params.jwLibraryUrl,
+        jwLibraryAndroidIntentUrl: params.jwLibraryAndroidIntentUrl.trim(),
+      };
+
+      try {
+        if (format === 'pdf') {
+          await writeTalkThemeCardPdf(result.filePath, cardInput);
+        } else {
+          await writeTalkThemeCardHtml(result.filePath, cardInput);
+        }
+        return { ok: true, filePath: result.filePath };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao salvar cartão';
+        return { ok: false, error: message };
+      }
+    },
+  );
+
   ipcMain.handle(
     'jcs:export-public-talk-note',
     async (
@@ -650,6 +769,178 @@ function registerIpc() {
         params.value,
         params.preserveFormatting ?? false,
       );
+    },
+  );
+
+  ipcMain.handle('jcs:list-elder-meetings', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return listElderMeetings(getUserDataRoot());
+  });
+
+  ipcMain.handle('jcs:get-elder-meeting', async (_event, id: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return getElderMeeting(getUserDataRoot(), id);
+  });
+
+  ipcMain.handle(
+    'jcs:create-elder-meeting',
+    async (
+      _event,
+      params?: { meetingDate?: string; title?: string; congregation?: string },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      return createElderMeeting(getUserDataRoot(), params);
+    },
+  );
+
+  ipcMain.handle('jcs:save-elder-meeting', async (_event, record) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return saveElderMeeting(getUserDataRoot(), record);
+  });
+
+  ipcMain.handle('jcs:delete-elder-meeting', async (_event, id: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return deleteElderMeeting(getUserDataRoot(), id);
+  });
+
+  ipcMain.handle('jcs:import-elder-meeting-pauta', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    const result = await dialog.showOpenDialog({
+      title: 'Importar pauta',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Documentos de pauta', extensions: ['txt', 'doc', 'docx', 'pdf'] },
+        { name: 'Texto', extensions: ['txt'] },
+        { name: 'Word', extensions: ['doc', 'docx'] },
+        { name: 'PDF', extensions: ['pdf'] },
+        { name: 'Todos os arquivos', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePaths[0]) {
+      return { ok: false, error: 'Importação cancelada.' };
+    }
+
+    try {
+      const filePath = result.filePaths[0];
+      const fileName = path.basename(filePath);
+      const buffer = await fs.readFile(filePath);
+      const text = await extractPautaFileText(fileName, buffer);
+      if (!text.trim()) {
+        return { ok: false, error: 'Não foi possível extrair texto da pauta.' };
+      }
+      const normalized = await normalizePautaFromFileText(text);
+      if (!normalized.ok) {
+        return { ok: false, error: normalized.error };
+      }
+      const payload = normalized.result;
+      return {
+        ok: true,
+        items: payload.items,
+        openingPrayer: payload.openingPrayer,
+        closingPrayer: payload.closingPrayer,
+        fileName,
+        rawText: payload.rawText,
+        parseMethod: payload.parseMethod,
+        parseMethodLabel: payload.parseMethodLabel,
+        parseScore: payload.parseScore,
+        usedAi: payload.usedAi,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao importar pauta';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:parse-elder-meeting-pauta-text',
+    async (_event, params: { text: string; forceAi?: boolean }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+
+      try {
+        const normalized = await normalizePautaFromFileText(params.text ?? '', {
+          forceAi: params.forceAi,
+        });
+        if (!normalized.ok) {
+          return { ok: false, error: normalized.error };
+        }
+        const payload = normalized.result;
+        return {
+          ok: true,
+          items: payload.items,
+          openingPrayer: payload.openingPrayer,
+          closingPrayer: payload.closingPrayer,
+          fileName: 'Texto colado',
+          rawText: payload.rawText,
+          parseMethod: payload.parseMethod,
+          parseMethodLabel: payload.parseMethodLabel,
+          parseScore: payload.parseScore,
+          usedAi: payload.usedAi,
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao analisar pauta';
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:export-elder-meeting-ata',
+    async (
+      _event,
+      params: {
+        record: {
+          id: string;
+          meetingDate: string;
+          title: string;
+          congregation: string;
+          attendees: string;
+          openingPrayer: string;
+          closingPrayer: string;
+          items: Array<{ id: string; title: string; notes: string }>;
+          ataHtml: string;
+        };
+        format: 'doc' | 'pdf';
+        preserveFormatting?: boolean;
+      },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+
+      const body =
+        params.record.ataHtml.trim() ||
+        composeMeetingAtaFromRecord({
+          ...params.record,
+          createdAt: '',
+          updatedAt: '',
+        });
+
+      const ext = params.format === 'pdf' ? 'pdf' : 'doc';
+      const safeDate = params.record.meetingDate.replace(/[^\d-]/g, '') || 'reuniao';
+      const defaultName = `ATA anciãos ${safeDate}.${ext}`;
+      const result = await dialog.showSaveDialog({
+        title: 'Exportar ATA',
+        defaultPath: defaultName,
+        filters: [
+          params.format === 'pdf'
+            ? { name: 'PDF', extensions: ['pdf'] }
+            : { name: 'Documento Word', extensions: ['doc'] },
+        ],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'Exportação cancelada.' };
+      }
+
+      return exportMeetingAtaDocument(result.filePath, params.format, body);
     },
   );
 
