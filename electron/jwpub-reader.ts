@@ -14,6 +14,7 @@ import { clearJwpubBundleCache, openJwpubBundle } from './jwpub-bundle';
 import { clearPublicationCssCache, prepareJwpubDocument } from './jwpub-publication-css';
 import {
   canonicalPubSymbol,
+  isPeriodicalPubSymbol,
   meetingPubCachePrefix,
   parseJwpubCachePrefix,
   pubCacheKeyVariants,
@@ -425,13 +426,20 @@ async function buildWeekFromMwbEntry(
   };
 }
 
+export type ResolveCachedPubPathOptions = {
+  /** Só aceita o .jwpub da edição pedida — sem fallback para outra edição da mesma revista. */
+  exactIssue?: boolean;
+};
+
 export async function resolveCachedPubPath(
   cacheDir: string,
   pub: string,
   issue?: string,
+  options?: ResolveCachedPubPathOptions,
 ): Promise<string | null> {
   const normalized = pub.toLowerCase();
   const meetingKind = meetingPubCachePrefix(normalized);
+  const exactIssue = options?.exactIssue ?? (Boolean(issue) && isPeriodicalPubSymbol(pub));
 
   if (normalized === 'lfb') {
     return tryAccess(path.join(cacheDir, 'lfb_T_.jwpub'));
@@ -449,7 +457,11 @@ export async function resolveCachedPubPath(
       const hit = await findMeetingPubByIssue(cacheDir, meetingKind, issue);
       if (hit) return hit;
     }
+
+    if (exactIssue) return null;
   }
+
+  if (exactIssue) return null;
 
   for (const pubKey of variants) {
     const hit = await tryAccess(path.join(cacheDir, `${pubKey}_T_.jwpub`));

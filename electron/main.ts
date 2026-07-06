@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, protocol, session, shell } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import type { DownloadProgressEvent } from './types';
 import path from 'node:path';
@@ -81,6 +81,8 @@ import {
   listPreachingPubDocuments,
   loadPreachingContent,
 } from './preaching';
+import { listLibraryCategory, listLibraryDownloaded } from './library';
+import type { LibraryCategoryId } from './publication-catalog';
 import { downloadJwpub, downloadMeetingPublications } from './jw-download';
 import {
   listRegisteredCacheKeys,
@@ -1568,6 +1570,16 @@ function registerIpc() {
     async (_event, params: { pub: string; issue?: string; lang?: string }) =>
       listPreachingPubDocuments(getCacheDir(), params.pub, params.issue ?? '', params.lang ?? 'T'),
   );
+
+  ipcMain.handle(
+    'jcs:list-library-category',
+    async (_event, params: { categoryId: string; lang?: string }) =>
+      listLibraryCategory(getCacheDir(), params.categoryId as LibraryCategoryId, params.lang ?? 'T'),
+  );
+
+  ipcMain.handle('jcs:list-library-downloaded', async (_event, params?: { lang?: string }) =>
+    listLibraryDownloaded(getCacheDir(), getUserDataDir(), params?.lang ?? 'T'),
+  );
 }
 
 function registerMediaProtocol() {
@@ -1627,6 +1639,22 @@ function registerMediaProtocol() {
   });
 }
 
+function setupJwCdnImageHeaders() {
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    {
+      urls: [
+        '*://*.jw-cdn.org/*',
+        '*://assetsnffrgf-a.akamaihd.net/*',
+      ],
+    },
+    (details, callback) => {
+      details.requestHeaders.Referer = 'https://www.jw.org/';
+      details.requestHeaders.Origin = 'https://www.jw.org';
+      callback({ requestHeaders: details.requestHeaders });
+    },
+  );
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -1672,6 +1700,7 @@ app.whenReady().then(async () => {
   await standardizeJwpubCacheDir(getCacheDir());
   await syncDownloadRegistryFromCache(getUserDataRoot(), getCacheDir());
   registerMediaProtocol();
+  setupJwCdnImageHeaders();
   registerIpc();
   createWindow();
 });

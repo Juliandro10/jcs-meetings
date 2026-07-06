@@ -629,6 +629,32 @@ export type DailyTextResult = {
   error?: string;
 };
 
+export type LibraryPublicationItem = {
+  id: string;
+  pub: string;
+  issue: string;
+  title: string;
+  cardTitle: string;
+  subtitle?: string;
+  imageUrl?: string;
+  imageFallbackUrls?: string[];
+  downloaded: boolean;
+  section: 'current' | 'archive' | 'yearbooks';
+  year: number;
+};
+
+export type LibraryCategoryListResult = {
+  ok: boolean;
+  items?: LibraryPublicationItem[];
+  error?: string;
+};
+
+export type LibraryDownloadedListResult = {
+  ok: boolean;
+  items?: LibraryPublicationItem[];
+  error?: string;
+};
+
 export type TeachingKitItem = {
   id: string;
   kind: 'video' | 'publication';

@@ -142,16 +142,12 @@ export const MEETING_PUBLICATIONS: MeetingPublication[] = [
 ];
 
 export const LIBRARY_CATEGORIES = [
-  { id: 'books', label: 'Livros', enabled: false },
-  { id: 'brochures', label: 'Brochuras e Livretos', enabled: false },
-  { id: 'tracts', label: 'Folhetos e Convites', enabled: false },
-  { id: 'articles', label: 'Séries de Artigos', enabled: false },
-  { id: 'watchtower', label: 'A Sentinela', enabled: true },
-  { id: 'awake', label: 'Despertai!', enabled: false },
-  { id: 'workbooks', label: 'Apostilas', enabled: true },
-  { id: 'km', label: 'Ministério do Reino', enabled: false },
-  { id: 'programs', label: 'Programas', enabled: false },
-  { id: 'index', label: 'Índice', enabled: false },
-  { id: 'guidelines', label: 'Orientações', enabled: false },
-  { id: 'convention', label: 'Lançamentos do Congresso', enabled: false },
-];
+  { id: 'books', label: 'Livros', enabled: true, abbrev: 'LI' },
+  { id: 'brochures', label: 'Brochuras e Livretos', enabled: true, abbrev: 'BR' },
+  { id: 'tracts', label: 'Folhetos e Convites', enabled: true, abbrev: 'FO' },
+  { id: 'watchtower', label: 'A Sentinela', enabled: true, abbrev: 'A' },
+  { id: 'awake', label: 'Despertai!', enabled: true, abbrev: 'DE' },
+  { id: 'workbooks', label: 'Apostilas', enabled: true, abbrev: 'AP' },
+] as const;
+
+export type LibraryCategoryId = (typeof LIBRARY_CATEGORIES)[number]['id'];

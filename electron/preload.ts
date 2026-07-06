@@ -29,6 +29,8 @@ import type {
   PlaylistItem,
   PreachingContent,
   ListPreachingPubDocumentsResult,
+  LibraryCategoryListResult,
+  LibraryDownloadedListResult,
   PublicTalkExportResult,
   PublicTalkNoteResult,
   FieldServiceConsiderationsResult,
@@ -389,6 +391,12 @@ contextBridge.exposeInMainWorld('jcs', {
     lang?: string;
   }): Promise<ListPreachingPubDocumentsResult> =>
     ipcRenderer.invoke('jcs:list-preaching-pub-documents', params),
+  listLibraryCategory: (params: {
+    categoryId: string;
+    lang?: string;
+  }): Promise<LibraryCategoryListResult> => ipcRenderer.invoke('jcs:list-library-category', params),
+  listLibraryDownloaded: (params?: { lang?: string }): Promise<LibraryDownloadedListResult> =>
+    ipcRenderer.invoke('jcs:list-library-downloaded', params),
   onDownloadProgress: (callback: (progress: DownloadProgressEvent) => void) => {
     const listener = (_event: unknown, progress: DownloadProgressEvent) => callback(progress);
     ipcRenderer.on('jcs:download-progress', listener);
@@ -626,6 +634,11 @@ declare global {
         issue?: string;
         lang?: string;
       }) => Promise<ListPreachingPubDocumentsResult>;
+      listLibraryCategory: (params: {
+        categoryId: string;
+        lang?: string;
+      }) => Promise<LibraryCategoryListResult>;
+      listLibraryDownloaded: (params?: { lang?: string }) => Promise<LibraryDownloadedListResult>;
       jwBrowserOpen: (params: {
         mode: JwBrowserMode;
         bounds: JwBrowserBounds;

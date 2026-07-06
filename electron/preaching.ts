@@ -1,12 +1,9 @@
 import path from 'node:path';
 import { downloadJwpub, isPubCached } from './jw-download';
-import { standardizeJwpubCacheDir } from './jwpub-cache-normalize';
-import { getJwpubCoverUrl } from './jwpub-bundle';
 import { getDocumentHtml, listDocuments, resolveCachedPubPath } from './jwpub-reader';
-import { fetchTeachingKitPublicationCards, type CatalogPublicationCard } from './publication-catalog';
+import { fetchTeachingKitPublicationCards, ensureJwpubCoverCache, resolvePublicationCoverUrl } from './publication-catalog';
 
 const MEDIATOR_BASE = 'https://b.jw-cdn.org/apis/mediator/v1/categories';
-const TEACHING_KIT_COVER_DOWNLOAD_CONCURRENCY = 4;
 
 function getCatalogDir(cacheDir: string) {
   return path.join(path.dirname(cacheDir), 'catalog');
@@ -48,73 +45,13 @@ export type PreachingContent = {
   error?: string;
 };
 
-async function resolvePublicationCover(
-  cacheDir: string,
-  lang: string,
-  card: CatalogPublicationCard,
-): Promise<string | undefined> {
-  const jwpubPath = await resolveCachedPubPath(cacheDir, card.pub, card.issue);
-  if (jwpubPath) {
-    const coverUrl = await getJwpubCoverUrl(jwpubPath, card.pub, card.issue, lang);
-    if (coverUrl) return coverUrl;
-  }
-
-  return card.imageUrl;
-}
-
-async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>) {
-  let index = 0;
-  async function next() {
-    while (index < items.length) {
-      const current = items[index++];
-      await worker(current);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => next()));
-}
-
-async function ensureTeachingKitCoverSources(
-  cacheDir: string,
-  lang: string,
-  cards: CatalogPublicationCard[],
-) {
-  const toDownload = [];
-
-  for (const card of cards) {
-    if (card.imageUrl) continue;
-    if (await isPubCached(cacheDir, card.pub, card.issue, lang)) continue;
-    toDownload.push(card);
-  }
-
-  await runWithConcurrency(toDownload, TEACHING_KIT_COVER_DOWNLOAD_CONCURRENCY, async (card) => {
-    const result = await downloadJwpub({
-      pub: card.pub,
-      issue: card.issue,
-      lang,
-      cacheDir,
-      skipStandardize: true,
-    });
-    if (!result.ok) {
-      console.warn(`[JCS] Falha ao baixar capa de ${card.pub}:`, result.error);
-    }
-  });
-
-  if (toDownload.length > 0) {
-    try {
-      await standardizeJwpubCacheDir(cacheDir);
-    } catch (err) {
-      console.warn('[JCS] Falha ao padronizar cache após kit de ensino:', err);
-    }
-  }
-}
-
 async function fetchTeachingKitPublications(cacheDir: string, lang = 'T'): Promise<TeachingKitItem[]> {
   const cards = await fetchTeachingKitPublicationCards(getCatalogDir(cacheDir), lang);
-  await ensureTeachingKitCoverSources(cacheDir, lang, cards);
+  await ensureJwpubCoverCache(cacheDir, lang, cards);
 
   const items: TeachingKitItem[] = [];
   for (const card of cards) {
-    const imageUrl = await resolvePublicationCover(cacheDir, lang, card);
+    const imageUrl = await resolvePublicationCoverUrl(cacheDir, lang, card);
     const key = `${card.pub}_${card.issue || 'latest'}`;
     items.push({
       id: key,

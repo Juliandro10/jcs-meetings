@@ -144,6 +144,73 @@ export const JW_PUB_FIGURE_FALLBACK_CSS = `
   text-align: center;
   margin-top: 0.35em;
 }
+.jwpub-content div.east_right.third,
+.jwpub-content div.west_left.third,
+.jwpub-content img.east_right.third,
+.jwpub-content img.west_left.third {
+  width: 32%;
+  max-width: 32%;
+}
+/* folhetos / brochuras — figure com posição lateral */
+.jwpub-content figure.side,
+.jwpub-content figure.inline,
+.jwpub-content figure.box {
+  box-sizing: border-box;
+  margin: 0 0 0.75em;
+  padding: 0;
+}
+.jwpub-content figure.side,
+.jwpub-content figure.east,
+.jwpub-content figure.inline.east {
+  float: right;
+  clear: right;
+  width: 48%;
+  max-width: 48%;
+  margin-left: 0.75em;
+}
+.jwpub-content figure.west,
+.jwpub-content figure.inline.west {
+  float: left;
+  clear: left;
+  width: 48%;
+  max-width: 48%;
+  margin-right: 0.75em;
+}
+.jwpub-content figure.side img,
+.jwpub-content figure.box img,
+.jwpub-content figure.inline img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.jwpub-content .sideImage,
+.jwpub-content .inlineImage {
+  box-sizing: border-box;
+}
+.jwpub-content .sideImage.east,
+.jwpub-content .inlineImage.east {
+  float: right;
+  clear: right;
+  width: 48%;
+  max-width: 48%;
+  margin: 0 0 0.75em 0.75em;
+}
+.jwpub-content .sideImage.west,
+.jwpub-content .inlineImage.west {
+  float: left;
+  clear: left;
+  width: 48%;
+  max-width: 48%;
+  margin: 0 0.75em 0.75em 0;
+}
+.jwpub-content .sideImage img,
+.jwpub-content .inlineImage img {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
 .jwpub-content .bodyTxt::after,
 .jwpub-content .pub::after,
 .jwpub-content .section::after,
@@ -346,7 +413,9 @@ export async function prepareJwpubDocument(
   const cached = publicationCssCache.get(bundle.jwpubPath) ?? '';
   const combined = [cached, linkedCss, inlineFromDoc].filter(Boolean).join('\n\n');
   const scoped = combined ? scopeCssToJwpubContent(combined) : '';
-  const publicationCss = scoped || JW_PUB_FIGURE_FALLBACK_CSS;
+  const publicationCss = scoped
+    ? `${JW_PUB_FIGURE_FALLBACK_CSS}\n\n${scoped}`
+    : JW_PUB_FIGURE_FALLBACK_CSS;
 
   const html = enrichImagesFromMultimedia(htmlWithMedia, bundle.db);
 

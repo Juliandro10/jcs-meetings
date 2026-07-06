@@ -17,6 +17,13 @@ export function meetingPubCachePrefix(symbol: string): 'mwb' | 'w' | null {
   return null;
 }
 
+/** Revistas e apostilas — cada edição tem issue próprio (YYYYMM). */
+export function isPeriodicalPubSymbol(symbol: string): boolean {
+  const canonical = canonicalPubSymbol(symbol);
+  if (meetingPubCachePrefix(canonical)) return true;
+  return canonical === 'wp' || canonical === 'g';
+}
+
 /** Variantes de prefixo de arquivo .jwpub para um símbolo. */
 export function pubCacheKeyVariants(pub: string): string[] {
   const canonical = canonicalPubSymbol(pub);

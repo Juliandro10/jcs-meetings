@@ -342,10 +342,10 @@ export default function App() {
       ) : null}
       {section === 'library' ? (
         <LibraryPage
-          downloadedPubs={downloadedPubs}
+          onDownloadMeetingPubs={downloadMeetingPubs}
+          onRefreshCache={refreshCache}
           downloading={downloading}
           downloadProgressMap={downloadProgressMap}
-          onDownloadMeetingPubs={downloadMeetingPubs}
         />
       ) : null}
       {section === 'personal-study' ? (
