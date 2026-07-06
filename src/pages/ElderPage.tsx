@@ -1,13 +1,20 @@
-import { IconChevronRight, IconGuidelineList, IconMeetings, IconOutlinePodium } from '@/components/Icons';
+import { IconChevronRight, IconDiamond, IconGuidelineList, IconMeetings, IconOutlinePodium } from '@/components/Icons';
 
 type ElderPageProps = {
   onOpenOutlines: () => void;
   onOpenGuidelines: () => void;
   onOpenMeetings: () => void;
+  onOpenCircuitVisits: () => void;
   onLockElder?: () => void;
 };
 
-export function ElderPage({ onOpenOutlines, onOpenGuidelines, onOpenMeetings, onLockElder }: ElderPageProps) {
+export function ElderPage({
+  onOpenOutlines,
+  onOpenGuidelines,
+  onOpenMeetings,
+  onOpenCircuitVisits,
+  onLockElder,
+}: ElderPageProps) {
   return (
     <div className="px-6 py-6">
       <div className="mx-auto max-w-3xl">
@@ -47,6 +54,12 @@ export function ElderPage({ onOpenOutlines, onOpenGuidelines, onOpenMeetings, on
               description="Pauta, deliberações ao vivo e exportação de ATA"
               icon={<IconMeetings className="h-6 w-6" />}
               onClick={onOpenMeetings}
+            />
+            <ElderShortcutCard
+              title="Visita do superintendente"
+              description="Hourglass → correção, S-21 por grupo, S-88 e resumo para pendrive"
+              icon={<IconDiamond className="h-6 w-6" />}
+              onClick={onOpenCircuitVisits}
             />
           </div>
         </section>

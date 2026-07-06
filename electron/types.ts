@@ -350,6 +350,65 @@ export type ImportElderMeetingPautaResult = {
 
 export type ParseElderMeetingPautaResult = ImportElderMeetingPautaResult;
 
+export type CircuitVisitRecord = {
+  id: string;
+  title: string;
+  visitDate: string;
+  congregation: string;
+  hourglassData: import('../shared/hourglass/types').HourglassExport | null;
+  fixedMonths: string[];
+  periodStartMonth: string;
+  periodLengthMonths: number;
+  templateS21Path: string;
+  templateS88Path: string;
+  importFileName: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImportHourglassParams = {
+  periodStartMonth: string;
+  periodLengthMonths: number;
+};
+
+export type ListCircuitVisitsResult = {
+  ok: boolean;
+  items?: CircuitVisitRecord[];
+  error?: string;
+};
+
+export type CircuitVisitResult = {
+  ok: boolean;
+  item?: CircuitVisitRecord;
+  error?: string;
+};
+
+export type ImportHourglassResult = {
+  ok: boolean;
+  item?: CircuitVisitRecord;
+  issueCount?: number;
+  error?: string;
+};
+
+export type FixHourglassMonthsResult = {
+  ok: boolean;
+  item?: CircuitVisitRecord;
+  fixedMonths?: string[];
+  error?: string;
+};
+
+export type FixHourglassMonthsParams = {
+  months: string[];
+};
+
+export type ExportCircuitVisitResult = {
+  ok: boolean;
+  outputDir?: string;
+  files?: string[];
+  warnings?: string[];
+  error?: string;
+};
+
 export type PublicTalkExportResult = {
   ok: boolean;
   error?: string;

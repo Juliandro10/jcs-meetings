@@ -44,6 +44,14 @@ import type {
   ElderMeetingRecord,
   ListElderMeetingsResult,
   ElderMeetingResult,
+  CircuitVisitRecord,
+  ListCircuitVisitsResult,
+  CircuitVisitResult,
+  ImportHourglassResult,
+  ImportHourglassParams,
+  FixHourglassMonthsResult,
+  FixHourglassMonthsParams,
+  ExportCircuitVisitResult,
   ImportElderMeetingPautaResult,
   ParseElderMeetingPautaResult,
   ExportTalkThemeCardParams,
@@ -182,6 +190,32 @@ contextBridge.exposeInMainWorld('jcs', {
     format: 'doc' | 'pdf';
     preserveFormatting?: boolean;
   }): Promise<PublicTalkExportResult> => ipcRenderer.invoke('jcs:export-elder-meeting-ata', params),
+  listCircuitVisits: (): Promise<ListCircuitVisitsResult> =>
+    ipcRenderer.invoke('jcs:list-circuit-visits'),
+  getCircuitVisit: (id: string): Promise<CircuitVisitResult> =>
+    ipcRenderer.invoke('jcs:get-circuit-visit', id),
+  createCircuitVisit: (params?: {
+    visitDate?: string;
+    title?: string;
+    congregation?: string;
+  }): Promise<CircuitVisitResult> => ipcRenderer.invoke('jcs:create-circuit-visit', params),
+  saveCircuitVisit: (record: CircuitVisitRecord): Promise<CircuitVisitResult> =>
+    ipcRenderer.invoke('jcs:save-circuit-visit', record),
+  deleteCircuitVisit: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:delete-circuit-visit', id),
+  importHourglassJson: (
+    visitId: string,
+    params: ImportHourglassParams,
+  ): Promise<ImportHourglassResult> => ipcRenderer.invoke('jcs:import-hourglass-json', visitId, params),
+  fixCircuitVisitMonths: (
+    visitId: string,
+    params?: FixHourglassMonthsParams,
+  ): Promise<FixHourglassMonthsResult> =>
+    ipcRenderer.invoke('jcs:fix-circuit-visit-months', visitId, params),
+  pickCircuitVisitTemplate: (kind: 's21' | 's88'): Promise<{ ok: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke('jcs:pick-circuit-visit-template', kind),
+  exportCircuitVisit: (visitId: string): Promise<ExportCircuitVisitResult> =>
+    ipcRenderer.invoke('jcs:export-circuit-visit', visitId),
   listPreparedElderOutlines: (): Promise<ListPreparedElderOutlinesResult> =>
     ipcRenderer.invoke('jcs:list-prepared-elder-outlines'),
   getPreparedElderOutline: (id: string): Promise<SavePreparedElderOutlineResult> =>
@@ -405,6 +439,25 @@ declare global {
         format: 'doc' | 'pdf';
         preserveFormatting?: boolean;
       }) => Promise<PublicTalkExportResult>;
+      listCircuitVisits: () => Promise<ListCircuitVisitsResult>;
+      getCircuitVisit: (id: string) => Promise<CircuitVisitResult>;
+      createCircuitVisit: (params?: {
+        visitDate?: string;
+        title?: string;
+        congregation?: string;
+      }) => Promise<CircuitVisitResult>;
+      saveCircuitVisit: (record: CircuitVisitRecord) => Promise<CircuitVisitResult>;
+      deleteCircuitVisit: (id: string) => Promise<{ ok: boolean; error?: string }>;
+      importHourglassJson: (
+        visitId: string,
+        params: ImportHourglassParams,
+      ) => Promise<ImportHourglassResult>;
+      fixCircuitVisitMonths: (
+        visitId: string,
+        params?: FixHourglassMonthsParams,
+      ) => Promise<FixHourglassMonthsResult>;
+      pickCircuitVisitTemplate: (kind: 's21' | 's88') => Promise<{ ok: boolean; filePath?: string; error?: string }>;
+      exportCircuitVisit: (visitId: string) => Promise<ExportCircuitVisitResult>;
       listPreparedElderOutlines: () => Promise<ListPreparedElderOutlinesResult>;
       getPreparedElderOutline: (id: string) => Promise<SavePreparedElderOutlineResult>;
       savePreparedElderOutline: (params: {

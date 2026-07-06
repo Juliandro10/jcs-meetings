@@ -32,6 +32,21 @@ import {
   saveElderMeeting,
 } from './elder-meeting-store';
 import {
+  createCircuitVisit,
+  deleteCircuitVisit,
+  getCircuitVisit,
+  listCircuitVisits,
+  saveCircuitVisit,
+} from './circuit-visit-store';
+import {
+  exportCircuitVisitPackage,
+  fixHourglassData,
+  parseHourglassJsonFile,
+  defaultTemplatePaths,
+} from './circuit-visit-export';
+import { listMonthsWithIssues } from '../shared/hourglass/validate';
+import { inferPeriodStartFromData } from '../shared/hourglass/period';
+import {
   assertElderUnlocked,
   getElderAuthStatus,
   isElderRestrictedPub,
@@ -950,6 +965,170 @@ function registerIpc() {
       return exportMeetingAtaDocument(result.filePath, params.format, body);
     },
   );
+
+  ipcMain.handle('jcs:list-circuit-visits', async () => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return listCircuitVisits(getUserDataRoot());
+  });
+
+  ipcMain.handle('jcs:get-circuit-visit', async (_event, id: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return getCircuitVisit(getUserDataRoot(), id);
+  });
+
+  ipcMain.handle(
+    'jcs:create-circuit-visit',
+    async (_event, params?: { visitDate?: string; title?: string; congregation?: string }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      return createCircuitVisit(getUserDataRoot(), {
+        ...params,
+        ...defaultTemplatePaths(process.env.APP_ROOT ?? path.join(__dirname, '..')),
+      });
+    },
+  );
+
+  ipcMain.handle('jcs:save-circuit-visit', async (_event, record) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return saveCircuitVisit(getUserDataRoot(), record);
+  });
+
+  ipcMain.handle('jcs:delete-circuit-visit', async (_event, id: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return deleteCircuitVisit(getUserDataRoot(), id);
+  });
+
+  ipcMain.handle(
+    'jcs:import-hourglass-json',
+    async (
+      _event,
+      visitId: string,
+      params: { periodStartMonth: string; periodLengthMonths: number },
+    ) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    const current = await getCircuitVisit(getUserDataRoot(), visitId);
+    if (!current.ok || !current.item) return { ok: false, error: current.error ?? 'Visita não encontrada.' };
+
+    const pick = await dialog.showOpenDialog({
+      title: 'Importar export Hourglass',
+      properties: ['openFile'],
+      filters: [{ name: 'Hourglass JSON', extensions: ['json'] }],
+    });
+    if (pick.canceled || !pick.filePaths[0]) {
+      return { ok: false, error: 'Importação cancelada.' };
+    }
+
+    try {
+      const buffer = await fs.readFile(pick.filePaths[0]);
+      const data = await parseHourglassJsonFile(buffer);
+      const periodStartMonth =
+        params.periodStartMonth || inferPeriodStartFromData(data, params.periodLengthMonths || 6);
+      const periodLengthMonths = params.periodLengthMonths || 6;
+      const period = { periodStartMonth, periodLengthMonths };
+      const issueCount = listMonthsWithIssues(data, period).reduce((n, m) => n + m.issues.length, 0);
+      const item = {
+        ...current.item,
+        hourglassData: data,
+        congregation: data.congregationName,
+        importFileName: path.basename(pick.filePaths[0]),
+        fixedMonths: [],
+        periodStartMonth,
+        periodLengthMonths,
+      };
+      const saved = await saveCircuitVisit(getUserDataRoot(), item);
+      if (!saved.ok || !saved.item) return { ok: false, error: saved.error };
+      return { ok: true, item: saved.item, issueCount };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao importar JSON';
+      return { ok: false, error: message };
+    }
+  },
+  );
+
+  ipcMain.handle(
+    'jcs:fix-circuit-visit-months',
+    async (_event, visitId: string, params?: { months?: string[] }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    const current = await getCircuitVisit(getUserDataRoot(), visitId);
+    if (!current.ok || !current.item?.hourglassData) {
+      return { ok: false, error: 'Importe o JSON do Hourglass antes de corrigir.' };
+    }
+
+    const monthsToFix = params?.months?.length ? params.months : undefined;
+    const { data, fixedMonths } = fixHourglassData(current.item.hourglassData, monthsToFix);
+    const item = {
+      ...current.item,
+      hourglassData: data,
+      fixedMonths: [...new Set([...current.item.fixedMonths, ...fixedMonths])],
+    };
+    const saved = await saveCircuitVisit(getUserDataRoot(), item);
+    if (!saved.ok || !saved.item) return { ok: false, error: saved.error };
+    return { ok: true, item: saved.item, fixedMonths };
+  },
+  );
+
+  ipcMain.handle('jcs:pick-circuit-visit-template', async (_event, kind: 's21' | 's88') => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    const result = await dialog.showOpenDialog({
+      title: kind === 's21' ? 'Modelo S-21-T (PDF)' : 'Modelo S-88-T (PDF)',
+      properties: ['openFile'],
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (result.canceled || !result.filePaths[0]) {
+      return { ok: false, error: 'Seleção cancelada.' };
+    }
+    return { ok: true, filePath: result.filePaths[0] };
+  });
+
+  ipcMain.handle('jcs:export-circuit-visit', async (_event, visitId: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    const current = await getCircuitVisit(getUserDataRoot(), visitId);
+    if (!current.ok || !current.item?.hourglassData) {
+      return { ok: false, error: 'Importe e revise os dados antes de exportar.' };
+    }
+
+    const pick = await dialog.showOpenDialog({
+      title: 'Pasta de destino (pendrive)',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (pick.canceled || !pick.filePaths[0]) {
+      return { ok: false, error: 'Exportação cancelada.' };
+    }
+
+    try {
+      const item = current.item;
+      const subDir = path.join(
+        pick.filePaths[0],
+        `Visita ${item.visitDate}`.replace(/[^\w\s-]/g, '').trim(),
+      );
+
+      return await exportCircuitVisitPackage({
+        data: item.hourglassData,
+        outputDir: subDir,
+        congregationLabel: item.congregation || item.hourglassData.congregationName,
+        templateS21Path: item.templateS21Path || undefined,
+        templateS88Path: item.templateS88Path || undefined,
+        appRoot: process.env.APP_ROOT ?? path.join(__dirname, '..'),
+        periodStartMonth: item.periodStartMonth,
+        periodLengthMonths: item.periodLengthMonths,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao exportar visita';
+      return { ok: false, error: message };
+    }
+  });
 
   ipcMain.handle('jcs:export-jwlibrary', async () => {
     const defaultName = `JCSMeetingsBackup_${new Date().toISOString().slice(0, 10)}.jwlibrary`;

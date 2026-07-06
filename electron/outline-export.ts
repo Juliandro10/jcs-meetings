@@ -218,6 +218,14 @@ export async function exportOutlineDocument(
   }
 }
 
+/** HTML completo → PDF (relatórios, resumos). */
+export async function exportFullHtmlToPdf(
+  filePath: string,
+  html: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return printHtmlToPdf(html, filePath);
+}
+
 /** Exportação simples (texto puro) — discurso público e compatibilidade. */
 export async function exportPublicTalkNote(
   filePath: string,

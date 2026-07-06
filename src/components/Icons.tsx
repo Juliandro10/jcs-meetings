@@ -121,6 +121,14 @@ export function IconChevronRight(props: IconProps) {
   );
 }
 
+export function IconChevronDown(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="m6 10 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function IconHeadphones(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>

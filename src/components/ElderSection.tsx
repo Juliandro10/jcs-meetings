@@ -9,6 +9,8 @@ import { ElderOutlineReaderPage } from '@/pages/ElderOutlineReaderPage';
 import { ElderOutlinesPage, type ElderOutlinesTab } from '@/pages/ElderOutlinesPage';
 import { ElderMeetingEditorPage } from '@/pages/ElderMeetingEditorPage';
 import { ElderMeetingsPage } from '@/pages/ElderMeetingsPage';
+import { ElderCircuitVisitEditorPage } from '@/pages/ElderCircuitVisitEditorPage';
+import { ElderCircuitVisitsPage } from '@/pages/ElderCircuitVisitsPage';
 import { ElderPage } from '@/pages/ElderPage';
 import { ELDER_GUIDELINE_SECTIONS, type ElderGuidelineItem } from '@/lib/elder-guidelines';
 import { ELDER_OUTLINE_SECTIONS } from '@/lib/elder-outlines';
@@ -27,6 +29,8 @@ type ElderSectionView =
   | { kind: 'hub' }
   | { kind: 'meetings' }
   | { kind: 'meeting-editor'; id: string }
+  | { kind: 'circuit-visits' }
+  | { kind: 'circuit-visit-editor'; id: string }
   | { kind: 'outlines'; tab: ElderOutlinesTab }
   | { kind: 'outline-documents'; pub: string; title: string; label: string }
   | { kind: 'outline-reader'; target: ElderOutlineReaderTarget; back: 'outlines' | 'outline-documents' }
@@ -198,6 +202,7 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
         onOpenOutlines={() => setView({ kind: 'outlines', tab: 'catalog' })}
         onOpenGuidelines={() => setView({ kind: 'guidelines' })}
         onOpenMeetings={() => setView({ kind: 'meetings' })}
+        onOpenCircuitVisits={() => setView({ kind: 'circuit-visits' })}
         onLockElder={onLockElder}
       />
     );
@@ -222,6 +227,29 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
       <ElderMeetingEditorPage
         meetingId={view.id}
         onBack={() => setView({ kind: 'meetings' })}
+      />
+    );
+  }
+
+  if (view.kind === 'circuit-visits') {
+    return (
+      <ElderCircuitVisitsPage
+        onBack={() => setView({ kind: 'hub' })}
+        onOpenVisit={(id) => setView({ kind: 'circuit-visit-editor', id })}
+        onCreateVisit={async () => {
+          if (!window.jcs?.createCircuitVisit) return null;
+          const result = await window.jcs.createCircuitVisit();
+          return result.ok && result.item ? result.item.id : null;
+        }}
+      />
+    );
+  }
+
+  if (view.kind === 'circuit-visit-editor') {
+    return (
+      <ElderCircuitVisitEditorPage
+        visitId={view.id}
+        onBack={() => setView({ kind: 'circuit-visits' })}
       />
     );
   }
