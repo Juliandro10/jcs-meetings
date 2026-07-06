@@ -33,7 +33,6 @@ export type PreachingTopic = {
   title: string;
   imageUrl?: string;
   points: PreachingTopicPoint[];
-  introduction: string;
 };
 
 export type PreachingContent = {
@@ -81,16 +80,6 @@ function sanitizeInlineHtml(value: string) {
     .replace(/jwpub-media:\/\//g, 'https://jw.org/')
     .replace(/<(?!\/?(em|a|strong|i|b|sup)\b)[^>]+>/gi, '')
     .trim();
-}
-
-function buildTopicIntroduction(title: string, firstPointPlain: string) {
-  const topic = title.toLowerCase();
-  const lead = firstPointPlain.split('—')[0]?.trim() || firstPointPlain;
-  if (!lead) {
-    return `Você sabia que a Bíblia fala sobre ${topic}? Use um dos textos abaixo para explicar essa verdade.`;
-  }
-  const sentence = lead.replace(/\.$/, '');
-  return `Você sabia que ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}?`;
 }
 
 async function ensureLmdPath(cacheDir: string, lang = 'T') {
@@ -178,7 +167,6 @@ function parsePreachingTopics(html: string): { introHtml: string; topics: Preach
       title,
       imageUrl,
       points,
-      introduction: buildTopicIntroduction(title, points[0].plainText.replace(/^\d+\.\s*/, '')),
     });
   }
 

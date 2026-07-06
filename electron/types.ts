@@ -679,7 +679,6 @@ export type PreachingTopic = {
   title: string;
   imageUrl?: string;
   points: PreachingTopicPoint[];
-  introduction: string;
 };
 
 export type PreachingContent = {

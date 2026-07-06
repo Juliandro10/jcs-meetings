@@ -16,6 +16,7 @@ type BibleRange = {
   bookEnd: number;
   chapterEnd: number;
   verseEnd: number;
+  verseList?: number[];
 };
 
 function stripHtml(value: string) {
@@ -79,17 +80,40 @@ function extractVerseHtml(chapterHtml: string, book: number, chapter: number, ve
 }
 
 function parseBibleHref(href: string): BibleRange | null {
-  const match = href.match(/^jwpub:\/\/b\/[^/]+\/(\d+):(\d+):(\d+)-(\d+):(\d+):(\d+)/);
+  const match = href.match(/^jwpub:\/\/b\/[^/]+\/(\d+):(\d+):([\d,]+)-(\d+):(\d+):(\d+)/);
   if (!match) return null;
+
+  const verseStartRaw = match[3];
+  let verseList: number[] | undefined;
+  let verseStart: number;
+
+  if (verseStartRaw.includes(',')) {
+    verseList = verseStartRaw.split(',').map((value) => Number(value)).filter((value) => value > 0);
+    verseStart = verseList[0] ?? Number(verseStartRaw);
+  } else {
+    verseStart = Number(verseStartRaw);
+  }
 
   return {
     bookStart: Number(match[1]),
     chapterStart: Number(match[2]),
-    verseStart: Number(match[3]),
+    verseStart,
     bookEnd: Number(match[4]),
     chapterEnd: Number(match[5]),
     verseEnd: Number(match[6]),
+    verseList,
   };
+}
+
+function shouldIncludeVerse(range: BibleRange, book: number, chapter: number, verse: number) {
+  if (range.verseList?.length) {
+    return (
+      book === range.bookStart &&
+      chapter === range.chapterStart &&
+      range.verseList.includes(verse)
+    );
+  }
+  return verseInRange(range, book, chapter, verse);
 }
 
 function verseInRange(range: BibleRange, book: number, chapter: number, verse: number) {
@@ -126,6 +150,7 @@ async function resolveBibleLink(
       : `${bookTitle} ${range.chapterStart}:${range.verseStart}–${range.chapterEnd}:${range.verseEnd}`);
 
   const parts: string[] = [];
+  const studyNoteParts: string[] = [];
   for (let book = range.bookStart; book <= range.bookEnd; book++) {
     const chapterFrom = book === range.bookStart ? range.chapterStart : 1;
     const chapterTo = book === range.bookEnd ? range.chapterEnd : 999;
@@ -145,17 +170,16 @@ async function resolveBibleLink(
       }
 
       for (const verseNumber of [...verseNumbers].sort((a, b) => a - b)) {
-        if (!verseInRange(range, book, chapterNumber, verseNumber)) continue;
+        if (!shouldIncludeVerse(range, book, chapterNumber, verseNumber)) continue;
         const verseHtml = extractVerseHtml(chapterHtml, book, chapterNumber, verseNumber);
         if (!verseHtml) continue;
-        let block = `<p class="bible-verse"><sup>${verseNumber}</sup> ${verseHtml}</p>`;
+        parts.push(`<p class="bible-verse"><sup>${verseNumber}</sup> ${verseHtml}</p>`);
         if (edition === 'nwtsty') {
           const studyNotes = getStudyNotesHtmlForVerse(bundle, book, chapterNumber, verseNumber);
           if (studyNotes) {
-            block += `\n<div class="bible-study-note">${studyNotes}</div>`;
+            studyNoteParts.push(`<div class="bible-study-note">${studyNotes}</div>`);
           }
         }
-        parts.push(block);
       }
     }
   }
@@ -179,7 +203,11 @@ async function resolveBibleLink(
     kind: 'bible',
     title,
     subtitle: BIBLE_EDITION_LABELS[edition],
-    html: parts.join('\n'),
+    html:
+      parts.join('\n') +
+      (studyNoteParts.length > 0
+        ? `\n<div class="bible-study-notes">${studyNoteParts.join('\n')}</div>`
+        : ''),
     download: {
       pub: edition,
       issue: '',

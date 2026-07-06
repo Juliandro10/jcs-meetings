@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { referencePlainText } from '@/components/AssistantChat';
 import { IconCloudDownload } from '@/components/Icons';
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
 import { readBibleEdition } from '@/lib/bible-edition';
+import { linkifyScriptureRef } from '@/lib/bible-citation';
 import {
   TeachingKitPublicationReaderPage,
   type TeachingKitReaderTarget,
@@ -11,9 +12,15 @@ import type {
   PreachingContent,
   PreachingPubDocument,
   PreachingTopic,
+  PreachingTopicPoint,
   ResolveLinkResult,
   TeachingKitItem,
 } from '../../electron/types';
+import {
+  preachingPresentationsForPoint,
+  type PreachingPresentationFollowUp,
+  type PreachingTruthPresentation,
+} from '../../shared/preaching-truth-presentations';
 
 export function PreachingPage() {
   const [content, setContent] = useState<PreachingContent | null>(null);
@@ -148,6 +155,67 @@ export function PreachingPage() {
     [openPublication, reload],
   );
 
+  const handleOpenFollowUp = useCallback(
+    async (followUp: PreachingPresentationFollowUp) => {
+      if (!window.jcs?.listPreachingPubDocuments) return;
+
+      if (followUp.kind === 'tract') {
+        const kitItem =
+          content?.teachingKit.find((item) => item.kind === 'publication' && item.pub === followUp.pub) ??
+          ({
+            id: `${followUp.pub}_latest`,
+            kind: 'publication',
+            title: followUp.label,
+            pub: followUp.pub,
+            issue: '',
+          } satisfies TeachingKitItem);
+        await handleOpenPublication(kitItem);
+        return;
+      }
+
+      const kitItem =
+        content?.teachingKit.find((item) => item.kind === 'publication' && item.pub === 'lff') ??
+        ({
+          id: 'lff_latest',
+          kind: 'publication',
+          title: 'Seja Feliz para Sempre!',
+          pub: 'lff',
+          issue: '',
+        } satisfies TeachingKitItem);
+
+      setOpeningId(kitItem.id);
+      try {
+        if (!kitItem.downloaded && window.jcs.downloadPreachingPub) {
+          const download = await window.jcs.downloadPreachingPub({
+            pub: 'lff',
+            issue: kitItem.issue ?? '',
+          });
+          if (!download.ok) {
+            window.alert(download.error ?? 'Não foi possível baixar Seja Feliz para Sempre!');
+            return;
+          }
+          await reload();
+        }
+
+        const result = await window.jcs.listPreachingPubDocuments({
+          pub: 'lff',
+          issue: kitItem.issue ?? '',
+        });
+
+        if (!result.ok || !result.documents?.length) {
+          window.alert(result.error ?? 'Não foi possível abrir a brochura.');
+          return;
+        }
+
+        const documentIndex = findLffLessonDocumentIndex(result.documents, followUp.lesson);
+        openPublication(kitItem, result.documents, documentIndex);
+      } finally {
+        setOpeningId(null);
+      }
+    },
+    [content?.teachingKit, handleOpenPublication, openPublication, reload],
+  );
+
   function scrollToTopic(topicId: string) {
     document.getElementById(`preaching-topic-${topicId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -191,7 +259,7 @@ export function PreachingPage() {
             <section className="mt-10">
               <h2 className="text-lg font-semibold text-jw-text">Ame as Pessoas — Faça Discípulos</h2>
               <p className="mt-1 text-sm text-jw-muted">
-                Verdades que amamos ensinar, textos bíblicos e introduções para a pregação.
+                Verdades que amamos ensinar, textos bíblicos e apresentações sugeridas para a pregação.
               </p>
 
               {content?.introHtml ? (
@@ -218,7 +286,12 @@ export function PreachingPage() {
 
               <div ref={contentRef} className="mt-6 max-w-3xl space-y-8">
                 {(content?.topics ?? []).map((topic) => (
-                  <TopicCard key={topic.id} topic={topic} />
+                  <TopicCard
+                    key={topic.id}
+                    topic={topic}
+                    onOpenFollowUp={(followUp) => void handleOpenFollowUp(followUp)}
+                    onOpenReference={(href, label) => void openReference(href, label)}
+                  />
                 ))}
               </div>
             </section>
@@ -406,38 +479,155 @@ function TeachingKitVideoModal({
   );
 }
 
-function TopicCard({ topic }: { topic: PreachingTopic }) {
-  const [introOpen, setIntroOpen] = useState(false);
+function findLffLessonDocumentIndex(documents: PreachingPubDocument[], lesson: number) {
+  const padded = String(lesson).padStart(2, '0');
+  const index = documents.findIndex((doc) => {
+    const title = doc.title.trim();
+    return (
+      title.startsWith(`${padded} `) ||
+      title.startsWith(`${lesson} `) ||
+      new RegExp(`\\bLição\\s+0?${lesson}\\b`, 'i').test(title)
+    );
+  });
+  return index >= 0 ? index : 0;
+}
 
+function TopicCard({
+  topic,
+  onOpenFollowUp,
+  onOpenReference,
+}: {
+  topic: PreachingTopic;
+  onOpenFollowUp: (followUp: PreachingPresentationFollowUp) => void;
+  onOpenReference: (href: string, label: string) => void;
+}) {
   return (
     <article id={`preaching-topic-${topic.id}`} className="scroll-mt-6 rounded-xl border border-jw-border bg-white p-5">
       <h3 className="text-base font-bold uppercase tracking-wide text-jw-purple-dark">{topic.title}</h3>
 
-      <ol className="mt-4 space-y-3">
+      <ol className="mt-4 space-y-6">
         {topic.points.map((point) => (
-          <li key={point.number} className="text-[15px] leading-relaxed text-jw-text">
-            <span
-              className="jwpub-content"
-              dangerouslySetInnerHTML={{ __html: point.html }}
-            />
-          </li>
+          <TopicPointRow
+            key={point.number}
+            point={point}
+            onOpenFollowUp={onOpenFollowUp}
+            onOpenReference={onOpenReference}
+          />
         ))}
       </ol>
-
-      <div className="mt-4 border-t border-jw-border pt-3">
-        <button
-          type="button"
-          onClick={() => setIntroOpen((value) => !value)}
-          className="text-sm font-medium text-jw-purple hover:underline"
-        >
-          {introOpen ? 'Ocultar introdução sugerida' : 'Introdução sugerida para a pregação'}
-        </button>
-        {introOpen ? (
-          <p className="mt-2 rounded-lg bg-jw-bg px-3 py-2 text-sm leading-relaxed text-jw-text">
-            {topic.introduction}
-          </p>
-        ) : null}
-      </div>
     </article>
+  );
+}
+
+function TopicPointRow({
+  point,
+  onOpenFollowUp,
+  onOpenReference,
+}: {
+  point: PreachingTopicPoint;
+  onOpenFollowUp: (followUp: PreachingPresentationFollowUp) => void;
+  onOpenReference: (href: string, label: string) => void;
+}) {
+  const presentations = preachingPresentationsForPoint(point.number);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  return (
+    <li className="text-[15px] leading-relaxed text-jw-text">
+      <span className="jwpub-content" dangerouslySetInnerHTML={{ __html: point.html }} />
+
+      {presentations.length > 0 ? (
+        <div className="mt-3 space-y-1.5 border-t border-jw-border pt-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-jw-muted">Apresentações sugeridas</p>
+          {presentations.map((presentation) => (
+            <PresentationAccordion
+              key={presentation.id}
+              presentation={presentation}
+              expanded={openId === presentation.id}
+              onToggle={() =>
+                setOpenId((current) => (current === presentation.id ? null : presentation.id))
+              }
+              onOpenFollowUp={onOpenFollowUp}
+              onOpenReference={onOpenReference}
+            />
+          ))}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+function PresentationAccordion({
+  presentation,
+  expanded,
+  onToggle,
+  onOpenFollowUp,
+  onOpenReference,
+}: {
+  presentation: PreachingTruthPresentation;
+  expanded: boolean;
+  onToggle: () => void;
+  onOpenFollowUp: (followUp: PreachingPresentationFollowUp) => void;
+  onOpenReference: (href: string, label: string) => void;
+}) {
+  const panelId = `presentation-${presentation.id}`;
+  const scriptureHtml = useMemo(
+    () => linkifyScriptureRef(presentation.scriptureRef),
+    [presentation.scriptureRef],
+  );
+
+  const handleScriptureClick = (event: MouseEvent<HTMLSpanElement>) => {
+    const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref');
+    if (!anchor) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const href = anchor.getAttribute('data-href');
+    const label = anchor.getAttribute('data-label') ?? anchor.textContent?.trim() ?? '';
+    if (href) onOpenReference(href, label);
+  };
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-jw-border bg-jw-bg/40">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-medium text-jw-text hover:bg-white/70"
+      >
+        <span>{presentation.title}</span>
+        <span className="shrink-0 text-xs text-jw-purple" aria-hidden>
+          {expanded ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {expanded ? (
+        <div id={panelId} className="space-y-3 border-t border-jw-border bg-white px-3 py-3 text-sm leading-relaxed text-jw-text">
+          <p>{presentation.opening}</p>
+          <p>
+            <span className="font-semibold text-jw-purple-dark">Texto bíblico: </span>
+            <span
+              className="[&_a.jcs-bible-ref]:font-medium [&_a.jcs-bible-ref]:text-jw-purple [&_a.jcs-bible-ref]:underline [&_a.jcs-bible-ref]:decoration-jw-purple/40 [&_a.jcs-bible-ref]:hover:decoration-jw-purple"
+              onClick={handleScriptureClick}
+              dangerouslySetInnerHTML={{ __html: scriptureHtml }}
+            />
+          </p>
+          <p>
+            <span className="font-semibold text-jw-purple-dark">Leitura com o morador: </span>
+            {presentation.readWithResident}
+          </p>
+          <p>
+            <span className="font-semibold text-jw-purple-dark">Encaminhamento: </span>
+            {presentation.bridge}
+          </p>
+          <button
+            type="button"
+            onClick={() => onOpenFollowUp(presentation.followUp)}
+            className="text-sm font-medium text-jw-purple hover:underline"
+          >
+            Abrir {presentation.followUp.label}
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }

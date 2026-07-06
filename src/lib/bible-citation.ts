@@ -121,6 +121,71 @@ export function buildBibleHref(citation: Pick<BibleCitation, 'bookNumber' | 'cha
   return `jwpub://b/T/${bookNumber}:${chapter}:${verseStart}-${bookNumber}:${chapter}:${verseEnd}`;
 }
 
+export type ScriptureRefParts = {
+  bookNumber: number;
+  chapter: number;
+  verses: number[];
+  raw: string;
+};
+
+/** Interpreta referências como "Mateus 24:7, 8", "2 Timóteo 3:1-5" ou "Mateus 24:15 e 17". */
+export function parseScriptureRef(ref: string): ScriptureRefParts | null {
+  const trimmed = ref.trim();
+  if (!trimmed) return null;
+
+  const bookMatch = trimmed.match(new RegExp(`^((?:${BOOK_PATTERN}))\\s+(\\d{1,3})\\s*[:.]\\s*(.+)$`, 'iu'));
+  if (!bookMatch) return null;
+
+  const bookNumber = resolveBookNumber(bookMatch[1]);
+  if (!bookNumber) return null;
+
+  const chapter = Number(bookMatch[2]);
+  const versePart = bookMatch[3].trim();
+  if (!chapter || !versePart) return null;
+
+  let verses: number[] = [];
+
+  const rangeMatch = versePart.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+  if (rangeMatch) {
+    const start = Number(rangeMatch[1]);
+    const end = Number(rangeMatch[2]);
+    for (let verse = start; verse <= end; verse += 1) verses.push(verse);
+  } else if (/^\d+\s+e\s+\d+$/iu.test(versePart)) {
+    verses = versePart.split(/\s+e\s+/iu).map((value) => Number(value.trim()));
+  } else if (versePart.includes(',')) {
+    verses = versePart.split(',').map((value) => Number(value.trim()));
+  } else {
+    verses = [Number(versePart)];
+  }
+
+  verses = [...new Set(verses.filter((value) => Number.isFinite(value) && value > 0))].sort((a, b) => a - b);
+  if (verses.length === 0) return null;
+
+  return { bookNumber, chapter, verses, raw: trimmed };
+}
+
+export function buildBibleHrefFromParts(parts: ScriptureRefParts) {
+  const { bookNumber, chapter, verses } = parts;
+  const min = verses[0];
+  const max = verses[verses.length - 1];
+  const isContiguous =
+    verses.length === max - min + 1 && verses.every((verse, index) => verse === min + index);
+  const verseStartToken = isContiguous ? String(min) : verses.join(',');
+  return `jwpub://b/T/${bookNumber}:${chapter}:${verseStartToken}-${bookNumber}:${chapter}:${max}`;
+}
+
+/** Um único link para a referência inteira (leitura contínua no painel). */
+export function linkifyScriptureRef(ref: string) {
+  const trimmed = ref.trim();
+  if (!trimmed) return '';
+
+  const parts = parseScriptureRef(trimmed);
+  if (!parts) return escapeHtml(trimmed);
+
+  const href = buildBibleHrefFromParts(parts);
+  return `<a href="#" class="jcs-bible-ref" contenteditable="false" tabindex="-1" data-href="${escapeHtml(href)}" data-label="${escapeHtml(trimmed)}">${escapeHtml(trimmed)}</a>`;
+}
+
 export function parseBibleCitations(text: string): BibleCitation[] {
   const results: BibleCitation[] = [];
   const seen = new Set<string>();

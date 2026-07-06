@@ -133,6 +133,12 @@ body {
   margin-right: 0.25rem;
 }
 
+.study-panel-content .bible-study-notes {
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5dfe8;
+}
+
 .study-panel-content .bible-study-note {
   margin: 0.75rem 0 1rem;
   padding: 0.75rem 0.85rem;
