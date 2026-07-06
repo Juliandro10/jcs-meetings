@@ -6,6 +6,7 @@ export type AppSection =
   | 'meetings'
   | 'preaching'
   | 'personal-study'
+  | 'jw-research'
   | 'elder';
 
 export type SectionMeta = {
@@ -24,6 +25,7 @@ export const SECTIONS: SectionMeta[] = [
   { id: 'meetings', title: 'Reuniões', enabled: true },
   { id: 'preaching', title: 'Pregação', enabled: true },
   { id: 'personal-study', title: 'Estudo Pessoal', enabled: true },
+  { id: 'jw-research', title: 'JW.ORG', enabled: true },
   { id: 'elder', title: 'Elder', enabled: true, requiresElder: true },
 ];
 

@@ -11,8 +11,13 @@ import { runAiChat } from './ai-assistant';
 import { prepareAiChatParams } from './ai-context';
 import { loadEnvFile } from './env';
 import {
+  generateFieldServiceConsiderations,
+  previewFieldServiceContext,
+} from './field-service-considerations';
+import {
   importElderOutlineJwpubFiles,
   listInstalledElderOutlines,
+  deleteInstalledElderOutline,
 } from './elder-outline-catalog';
 import {
   importElderGuidelineJwpubFiles,
@@ -117,6 +122,8 @@ import {
   fieldKey,
   getFieldValues,
   getPublicTalkNote,
+  getFieldServiceNote,
+  getFieldServiceSuggestions,
   getElderOutlineNote,
   getPreparedElderOutline,
   getHighlights,
@@ -129,12 +136,26 @@ import {
   replaceTaggedNotes,
   setFieldValue,
   setPublicTalkNote,
+  setFieldServiceNote,
   setElderOutlineNote,
   listPreparedElderOutlines,
   savePreparedElderOutline,
   findPreparedElderOutlineByName,
   deletePreparedElderOutline,
 } from './user-prep-store';
+import { buildWeekMeetingSummary } from './week-meeting-summary';
+import {
+  captureJwpubFromUrl,
+  closeJwBrowser,
+  getJwBrowserDefaultUrl,
+  initJwBrowser,
+  jwBrowserGoBack,
+  jwBrowserGoForward,
+  jwBrowserReload,
+  navigateJwBrowser,
+  openJwBrowser,
+  resizeJwBrowser,
+} from './jw-browser';
 import type {
   AiChatParams,
   AutoPrepParams,
@@ -144,6 +165,7 @@ import type {
   LfbPrepParams,
   ResolveLinkParams,
   SetFieldValueParams,
+  MeetingWeek,
 } from './types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -365,6 +387,17 @@ function registerIpc() {
     return result;
   });
 
+  ipcMain.handle('jcs:delete-installed-elder-outline', async (_event, params: { pub: string }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const result = await deleteInstalledElderOutline(getCacheDir(), params.pub);
+    if (result.ok) {
+      clearPubPathIndexCache();
+      await syncDownloadRegistryFromCache(getUserDataRoot(), getCacheDir());
+    }
+    return result;
+  });
+
   ipcMain.handle('jcs:elder-guideline-availability', async (_event, params: { pubs: string[] }) => {
     const denied = assertElderUnlocked();
     if (denied) return denied;
@@ -405,6 +438,43 @@ function registerIpc() {
     }
     return result;
   });
+
+  ipcMain.handle(
+    'jcs:jw-browser-open',
+    async (_event, params: { mode: 'public' | 'elder'; bounds: { x: number; y: number; width: number; height: number }; url?: string }) => {
+      if (params.mode === 'elder') {
+        const denied = assertElderUnlocked();
+        if (denied) return denied;
+      }
+      try {
+        return openJwBrowser({ ...params, cacheDir: getCacheDir(), userDataRoot: getUserDataRoot() });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Não foi possível abrir o navegador.';
+        return { ok: false as const, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle('jcs:jw-browser-close', async () => closeJwBrowser());
+
+  ipcMain.handle(
+    'jcs:jw-browser-resize',
+    async (_event, bounds: { x: number; y: number; width: number; height: number }) => resizeJwBrowser(bounds),
+  );
+
+  ipcMain.handle('jcs:jw-browser-navigate', async (_event, url: string) => navigateJwBrowser(url));
+
+  ipcMain.handle('jcs:jw-browser-back', async () => jwBrowserGoBack());
+
+  ipcMain.handle('jcs:jw-browser-forward', async () => jwBrowserGoForward());
+
+  ipcMain.handle('jcs:jw-browser-reload', async () => jwBrowserReload());
+
+  ipcMain.handle('jcs:jw-browser-default-url', async (_event, mode: 'public' | 'elder') =>
+    getJwBrowserDefaultUrl(mode),
+  );
+
+  ipcMain.handle('jcs:jw-browser-capture-url', async (_event, url: string) => captureJwpubFromUrl(url));
 
   ipcMain.handle('jw:get-field-values', async (_event, params: { pub: string; issue: string; documentId: number }) => {
     const prefix = `${params.pub}_${params.issue}_d${params.documentId}_f`;
@@ -524,11 +594,82 @@ function registerIpc() {
     value: await getPublicTalkNote(getUserDataDir(), weekId),
   }));
 
+  ipcMain.handle('jcs:get-week-meeting-summary', async (_event, week: MeetingWeek) => {
+    try {
+      const summary = await buildWeekMeetingSummary(getCacheDir(), getUserDataDir(), week);
+      return { ok: true, summary };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao montar resumo da semana';
+      return { ok: false, error: message };
+    }
+  });
+
   ipcMain.handle(
     'jcs:set-public-talk-note',
     async (_event, params: { weekId: string; value: string }) => {
       await setPublicTalkNote(getUserDataDir(), params.weekId, params.value);
       return { ok: true };
+    },
+  );
+
+  ipcMain.handle('jcs:get-field-service-note', async (_event, weekId: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return { ok: true, value: await getFieldServiceNote(getUserDataDir(), weekId) };
+  });
+
+  ipcMain.handle('jcs:get-field-service-suggestions', async (_event, weekId: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    const bundle = await getFieldServiceSuggestions(getUserDataDir(), weekId);
+    return { ok: true, bundle: bundle ?? undefined };
+  });
+
+  ipcMain.handle(
+    'jcs:set-field-service-note',
+    async (_event, params: { weekId: string; value: string }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      await setFieldServiceNote(getUserDataDir(), params.weekId, params.value);
+      return { ok: true };
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:preview-field-service-context',
+    async (_event, params: { week: MeetingWeek; previousWeek?: MeetingWeek }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      try {
+        const preview = await previewFieldServiceContext(
+          getCacheDir(),
+          getUserDataDir(),
+          params.week,
+          params.previousWeek,
+        );
+        return { ok: true, preview };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao analisar fontes.';
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:generate-field-service-considerations',
+    async (
+      _event,
+      params: { week: MeetingWeek; previousWeek?: MeetingWeek; forceRegenerate?: boolean },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      return generateFieldServiceConsiderations(
+        getCacheDir(),
+        getUserDataDir(),
+        params.week,
+        params.previousWeek,
+        params.forceRegenerate ?? false,
+      );
     },
   );
 
@@ -1501,18 +1642,13 @@ function createWindow() {
     },
   });
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) {
-      shell.openExternal(url);
-    }
-    return { action: 'deny' };
-  });
-
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
     win.loadFile(path.join(RENDERER_DIST, 'index.html'));
   }
+
+  initJwBrowser(win);
 }
 
 app.whenReady().then(async () => {

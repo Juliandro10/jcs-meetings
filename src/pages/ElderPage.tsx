@@ -1,8 +1,9 @@
-import { IconChevronRight, IconDiamond, IconGuidelineList, IconMeetings, IconOutlinePodium } from '@/components/Icons';
+import { IconChevronRight, IconDiamond, IconGuidelineList, IconMeetings, IconOutlinePodium, IconPreaching } from '@/components/Icons';
 
 type ElderPageProps = {
   onOpenOutlines: () => void;
   onOpenGuidelines: () => void;
+  onOpenFieldService: () => void;
   onOpenMeetings: () => void;
   onOpenCircuitVisits: () => void;
   onLockElder?: () => void;
@@ -11,6 +12,7 @@ type ElderPageProps = {
 export function ElderPage({
   onOpenOutlines,
   onOpenGuidelines,
+  onOpenFieldService,
   onOpenMeetings,
   onOpenCircuitVisits,
   onLockElder,
@@ -48,6 +50,12 @@ export function ElderPage({
               description="Instruções para congregação, reuniões, pregação e assembleias"
               icon={<IconGuidelineList className="h-6 w-6" />}
               onClick={onOpenGuidelines}
+            />
+            <ElderShortcutCard
+              title="Saída de campo"
+              description="Considerações para animar e ajudar os irmãos na pregação"
+              icon={<IconPreaching className="h-6 w-6" />}
+              onClick={onOpenFieldService}
             />
             <ElderShortcutCard
               title="Reuniões de anciãos"

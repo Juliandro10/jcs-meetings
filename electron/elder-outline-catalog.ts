@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { openJwpubBundle } from './jwpub-bundle';
 import { installJwpubToCache } from './jwpub-cache-normalize';
+import { canonicalPubSymbol } from './jwpub-pub-symbol';
 import { isElderOutlinePubSymbol as classifyOutlinePub } from './elder-pub-classify';
 import { getPubSymbolFromJwpubFile, listDocuments, resolveCachedPubPath } from './jwpub-reader';
 
@@ -147,4 +148,55 @@ export async function importElderOutlineJwpubFiles(
   }
 
   return { ok: imported.length > 0, imported, errors };
+}
+
+export async function deleteInstalledElderOutline(
+  cacheDir: string,
+  pub: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const normalized = canonicalPubSymbol(pub);
+  if (!isOutlinePub(normalized)) {
+    return { ok: false, error: 'Publicação inválida.' };
+  }
+
+  let removed = false;
+  const files = await fs.readdir(cacheDir).catch(() => [] as string[]);
+
+  for (const fileName of files) {
+    if (!fileName.toLowerCase().endsWith('.jwpub')) continue;
+    const filePath = path.join(cacheDir, fileName);
+    let filePub: string | null = null;
+    try {
+      filePub = await getPubSymbolFromJwpubFile(filePath);
+    } catch {
+      continue;
+    }
+    if (canonicalPubSymbol(filePub ?? '') !== normalized) continue;
+    try {
+      await fs.unlink(filePath);
+      removed = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao remover arquivo';
+      return { ok: false, error: message };
+    }
+  }
+
+  if (!removed) {
+    const resolved = await resolveCachedPubPath(cacheDir, normalized, '');
+    if (resolved) {
+      try {
+        await fs.unlink(resolved);
+        removed = true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao remover arquivo';
+        return { ok: false, error: message };
+      }
+    }
+  }
+
+  if (!removed) {
+    return { ok: false, error: 'Esboço não encontrado neste dispositivo.' };
+  }
+
+  return { ok: true };
 }

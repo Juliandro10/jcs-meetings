@@ -40,11 +40,15 @@ export type PreparedElderOutline = {
   updatedAt: string;
 };
 
+import type { FieldServiceSuggestionsBundle } from './types';
+
 export type UserPrepData = {
   fields: Record<string, PrepField>;
   highlights: Record<string, PrepHighlight>;
   notes: Record<string, PrepNote>;
   publicTalkNotes?: Record<string, PrepField>;
+  fieldServiceNotes?: Record<string, PrepField>;
+  fieldServiceSuggestions?: Record<string, FieldServiceSuggestionsBundle>;
   elderOutlineNotes?: Record<string, PrepField>;
   preparedElderOutlines?: Record<string, PreparedElderOutline>;
 };
@@ -54,6 +58,8 @@ const EMPTY: UserPrepData = {
   highlights: {},
   notes: {},
   publicTalkNotes: {},
+  fieldServiceNotes: {},
+  fieldServiceSuggestions: {},
   elderOutlineNotes: {},
   preparedElderOutlines: {},
 };
@@ -71,6 +77,8 @@ export async function loadPrepData(userDataDir: string): Promise<UserPrepData> {
       highlights: parsed.highlights ?? {},
       notes: parsed.notes ?? {},
       publicTalkNotes: parsed.publicTalkNotes ?? {},
+      fieldServiceNotes: parsed.fieldServiceNotes ?? {},
+      fieldServiceSuggestions: parsed.fieldServiceSuggestions ?? {},
       elderOutlineNotes: parsed.elderOutlineNotes ?? {},
       preparedElderOutlines: parsed.preparedElderOutlines ?? {},
     };
@@ -173,6 +181,24 @@ export async function saveHighlightsBatch(
   highlights: Omit<PrepHighlight, 'updatedAt'>[],
 ): Promise<PrepHighlight[]> {
   const data = await loadPrepData(userDataDir);
+  const now = new Date().toISOString();
+  for (const highlight of highlights) {
+    const key = highlightKey(pub, issue, documentId, highlight.id);
+    data.highlights[key] = { ...highlight, updatedAt: now };
+  }
+  await savePrepData(userDataDir, data);
+  return getHighlights(userDataDir, pub, issue, documentId);
+}
+
+export async function replaceDocumentHighlights(
+  userDataDir: string,
+  pub: string,
+  issue: string,
+  documentId: number,
+  highlights: Omit<PrepHighlight, 'updatedAt'>[],
+): Promise<PrepHighlight[]> {
+  const data = await loadPrepData(userDataDir);
+  purgeKeys(data.highlights, highlightPrefix(pub, issue, documentId));
   const now = new Date().toISOString();
   for (const highlight of highlights) {
     const key = highlightKey(pub, issue, documentId, highlight.id);
@@ -416,6 +442,41 @@ export async function setPublicTalkNote(
   const data = await loadPrepData(userDataDir);
   if (!data.publicTalkNotes) data.publicTalkNotes = {};
   data.publicTalkNotes[weekId] = { value, updatedAt: new Date().toISOString() };
+  await savePrepData(userDataDir, data);
+}
+
+export async function getFieldServiceNote(userDataDir: string, weekId: string): Promise<string> {
+  const data = await loadPrepData(userDataDir);
+  return data.fieldServiceNotes?.[weekId]?.value ?? '';
+}
+
+export async function setFieldServiceNote(
+  userDataDir: string,
+  weekId: string,
+  value: string,
+): Promise<void> {
+  const data = await loadPrepData(userDataDir);
+  if (!data.fieldServiceNotes) data.fieldServiceNotes = {};
+  data.fieldServiceNotes[weekId] = { value, updatedAt: new Date().toISOString() };
+  await savePrepData(userDataDir, data);
+}
+
+export async function getFieldServiceSuggestions(
+  userDataDir: string,
+  weekId: string,
+): Promise<FieldServiceSuggestionsBundle | null> {
+  const data = await loadPrepData(userDataDir);
+  return data.fieldServiceSuggestions?.[weekId] ?? null;
+}
+
+export async function setFieldServiceSuggestions(
+  userDataDir: string,
+  weekId: string,
+  bundle: FieldServiceSuggestionsBundle,
+): Promise<void> {
+  const data = await loadPrepData(userDataDir);
+  if (!data.fieldServiceSuggestions) data.fieldServiceSuggestions = {};
+  data.fieldServiceSuggestions[weekId] = bundle;
   await savePrepData(userDataDir, data);
 }
 

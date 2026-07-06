@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import electron from 'vite-plugin-electron/simple';
@@ -27,6 +28,16 @@ export default defineConfig({
               external: electronMainExternals,
             },
           },
+          plugins: [
+            {
+              name: 'copy-elder-browser-preload',
+              closeBundle() {
+                const src = path.resolve(__dirname, 'electron/jw-elder-browser-preload.mjs');
+                const dest = path.resolve(__dirname, 'dist-electron/jw-elder-browser-preload.mjs');
+                fs.copyFileSync(src, dest);
+              },
+            },
+          ],
         },
       },
       preload: {

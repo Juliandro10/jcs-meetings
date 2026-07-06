@@ -17,6 +17,7 @@ import { PersonalStudyPage } from '@/pages/PersonalStudyPage';
 import { PreachingPage } from '@/pages/PreachingPage';
 import { PublicTalkNotesPage } from '@/pages/PublicTalkNotesPage';
 import { ReaderPage } from '@/pages/ReaderPage';
+import { JwBrowserPage } from '@/pages/JwBrowserPage';
 import {
   TeachingKitPublicationReaderPage,
   type TeachingKitReaderTarget,
@@ -301,7 +302,13 @@ export default function App() {
 
   return wrapWithSelectionTools(
     <>
-      <AppShell section={section} onSectionChange={setSection} showElder={showElder} onSearchClick={() => openSearch()}>
+      <AppShell
+        section={section}
+        onSectionChange={setSection}
+        showElder={showElder}
+        onSearchClick={() => openSearch()}
+        contentFill={section === 'jw-research' || section === 'elder'}
+      >
       {section === 'home' ? (
         <HomePage
           currentWeek={currentWeek}
@@ -353,6 +360,7 @@ export default function App() {
       ) : null}
       {section === 'preaching' ? <PreachingPage /> : null}
       {section === 'bible' ? <BiblePage downloadProgressMap={downloadProgressMap} /> : null}
+      {section === 'jw-research' ? <JwBrowserPage /> : null}
       {section === 'elder' && showElder ? <ElderSection onLockElder={() => void lockElder()} /> : null}
       {section === 'media' ? <ComingSoon section={section} /> : null}
       </AppShell>

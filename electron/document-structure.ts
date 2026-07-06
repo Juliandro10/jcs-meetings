@@ -1,4 +1,11 @@
 import { extractCbsStudyFromHtml } from './lfb-reader';
+import {
+  expandHighlightRange,
+  expandHighlightToQuestion,
+  expandToCompleteUnit,
+  isCompleteHighlightUnit,
+} from '../shared/highlight-expand';
+import { normalizePlainText } from '../shared/text-normalize';
 
 export type MeetingPartKind =
   | 'treasures'
@@ -41,43 +48,157 @@ export type DocumentStructure = {
 };
 
 function stripHtml(value: string) {
-  return value
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizePlainText(
+    value
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' '),
+  );
+}
+
+function findTextIndex(content: string, needle: string) {
+  const direct = content.indexOf(needle);
+  if (direct >= 0) return { idx: direct, matchLen: needle.length };
+
+  const lowerContent = content.toLowerCase();
+  const lowerNeedle = needle.toLowerCase();
+  const caseInsensitive = lowerContent.indexOf(lowerNeedle);
+  if (caseInsensitive >= 0) return { idx: caseInsensitive, matchLen: needle.length };
+
+  for (let len = Math.min(needle.length, 72); len >= 4; len -= 1) {
+    const prefix = needle.slice(0, len);
+    let idx = content.indexOf(prefix);
+    if (idx >= 0) return { idx, matchLen: len };
+    idx = lowerContent.indexOf(prefix.toLowerCase());
+    if (idx >= 0) return { idx, matchLen: len };
+  }
+
+  return null;
+}
+
+/** Grifo amarelo — só o título numerado (ex.: "4. Iniciando conversas"), sem "(4 min)". */
+export function resolveNumberedTitleHighlightOnly(
+  blockText: string,
+): { text: string; startOffset: number; endOffset: number } | null {
+  const content = normalizePlainText(blockText);
+  if (!content) return null;
+
+  const firstLine = content.split('\n').map((line) => line.trim()).find(Boolean) ?? content;
+  const numbered = firstLine.match(/^(\d+\.\s.+?)(?=\s*\(\d+\s*min\)|$)/i);
+  if (!numbered) return null;
+
+  const titleOnly = numbered[1]!.trim();
+  if (titleOnly.length < 4 || isAllCapsSectionBanner(titleOnly)) return null;
+
+  return resolveHighlightInBlock(content, titleOnly, { maxWords: 16, minWords: 2 });
+}
+
+export function resolvePartTitleHighlight(
+  blockText: string,
+  part: MeetingPart,
+): { text: string; startOffset: number; endOffset: number } | null {
+  const content = normalizePlainText(blockText);
+  if (!content) return null;
+
+  const needles: string[] = [];
+  const minLine = part.text.match(/^\(\d+\s*min\)\s*[^.?\n]{2,100}/i);
+  if (minLine) needles.push(normalizePlainText(minLine[0]));
+  const numbered = part.text.match(/^\d+\.\s*[^.?\n]{2,100}/);
+  if (numbered) needles.push(normalizePlainText(numbered[0]));
+  // Título após "(15 min)" na mesma linha: "(15 min) Iniciar conversas"
+  const minInline = part.text.match(/\(\d+\s*min\)\s*[A-Za-zÀ-ú][^.?\n]{2,80}/i);
+  if (minInline) needles.push(normalizePlainText(minInline[0]));
+  needles.push(
+    normalizePlainText(part.noteAnchorText),
+    normalizePlainText(part.title),
+    normalizePlainText(part.title.replace(/^\d+\.\s*/, '')),
+  );
+
+  const seen = new Set<string>();
+  for (const needle of needles) {
+    if (!needle || needle.length < 3 || seen.has(needle)) continue;
+    seen.add(needle);
+    const located = resolveHighlightInBlock(content, needle, { maxWords: 24, minWords: 2 });
+    if (located) return located;
+  }
+
+  const fallback = content.match(/^(\(\d+\s*min\)[^.?\n]{2,90}|\d+\.\s[^.?\n]{2,90})/i);
+  if (fallback) {
+    return resolveHighlightInBlock(content, fallback[1]!, { maxWords: 24, minWords: 2 });
+  }
+
+  return null;
+}
+
+const MEETING_SECTION_KEYWORDS = [
+  'TESOUROS DA PALAVRA',
+  'JOIAS ESPIRITUAIS',
+  'LEITURA DA BÍBLIA',
+  'LEITURA DA BIBLIA',
+  'FAÇA SEU MELHOR NO MINISTÉRIO',
+  'FAÇA SEU MELHOR NO MINISTERIO',
+  'NOSSA VIDA CRISTÃ',
+  'NOSSA VIDA CRISTA',
+] as const;
+
+function sectionTitleMatches(text: string) {
+  const upper = text.toUpperCase();
+  return MEETING_SECTION_KEYWORDS.some((keyword) => upper.includes(keyword));
 }
 
 function isSectionHeader(text: string) {
   const trimmed = text.trim();
-  if (trimmed.length > 90) return false;
+  if (trimmed.length > 90 || trimmed.length < 8) return false;
 
   const numbered = trimmed.match(/^(\d+)\.\s+(.+)$/);
-  if (!numbered) return false;
+  if (numbered) return sectionTitleMatches(numbered[2]!);
 
-  const title = numbered[2].toUpperCase();
-  return (
-    title.includes('TESOUROS DA PALAVRA') ||
-    title.includes('JOIAS ESPIRITUAIS') ||
-    title.includes('LEITURA DA BÍBLIA') ||
-    title.includes('LEITURA DA BIBLIA') ||
-    title.includes('FAÇA SEU MELHOR NO MINISTÉRIO') ||
-    title.includes('FAÇA SEU MELHOR NO MINISTERIO') ||
-    title.includes('NOSSA VIDA CRISTÃ') ||
-    title.includes('NOSSA VIDA CRISTA')
-  );
+  // Cabeçalho sem número: "FAÇA SEU MELHOR NO MINISTÉRIO"
+  if (trimmed === trimmed.toUpperCase() && /[A-ZÁÉÍÓÚÀÊÔÃÕÇ]/u.test(trimmed)) {
+    return sectionTitleMatches(trimmed);
+  }
+
+  return false;
+}
+
+function sectionFromHeader(text: string) {
+  return text.trim().replace(/^\d+\.\s+/, '');
+}
+
+export function isMeetingSectionHeader(text: string) {
+  return isSectionHeader(text);
+}
+
+/** Banner de seção em MAIÚSCULAS (TESOUROS, FAÇA SEU MELHOR...) — não grifar. */
+export function isAllCapsSectionBanner(text: string) {
+  const trimmed = text.trim();
+  if (trimmed.length > 90 || trimmed.length < 8) return false;
+
+  const numbered = trimmed.match(/^\d+\.\s+(.+)$/);
+  const title = (numbered ? numbered[1]! : trimmed).trim();
+  if (title !== title.toUpperCase()) return false;
+  return sectionTitleMatches(title);
+}
+
+export function resolveSectionHeaderHighlight(
+  blockText: string,
+): { text: string; startOffset: number; endOffset: number } | null {
+  const content = normalizePlainText(blockText);
+  if (!content || !isSectionHeader(content)) return null;
+  const header = content.length <= 90 ? content : content.slice(0, 90).trim();
+  return resolveHighlightInBlock(content, header, { maxWords: 14, minWords: 2 });
 }
 
 function detectKind(text: string, section: string): MeetingPartKind {
   const lower = text.toLowerCase();
+  const sectionLower = section.toLowerCase();
   if (lower.includes('joias espirituais') && lower.includes('?')) return 'joias';
   if (lower.includes('joias espirituais')) return 'joias';
-  if (section.includes('minist')) return 'ministry';
-  if (section.includes('vida crist')) return 'life';
-  if (section.includes('tesouro')) return 'treasures';
-  if (/^\(\d+\s*min\)/i.test(text) && section.includes('minist')) return 'ministry';
-  if (/^\(\d+\s*min\)/i.test(text) && section.includes('vida crist')) return 'life';
+  if (sectionLower.includes('minist')) return 'ministry';
+  if (sectionLower.includes('vida crist')) return 'life';
+  if (sectionLower.includes('tesouro')) return 'treasures';
+  if (sectionLower.includes('leitura da b') && /^\(\d+\s*min\)/i.test(text)) return 'reading';
+  if (/^\(\d+\s*min\)/i.test(text) && sectionLower.includes('minist')) return 'ministry';
+  if (/^\(\d+\s*min\)/i.test(text) && sectionLower.includes('vida crist')) return 'life';
   if (lower.includes('leitura da bíblia') && /^\(\d+\s*min\)/i.test(text)) return 'reading';
   if (lower.includes('necessidades locais')) return 'local';
   if (lower.includes('estudo bíblico de congregação') || lower.includes('estudo biblico')) return 'cbs';
@@ -198,7 +319,7 @@ export function extractDocumentStructure(html: string): DocumentStructure {
   const parts: MeetingPart[] = [];
   for (const block of blocks) {
     if (isSectionHeader(block.text)) {
-      section = block.text.replace(/^\d+\.\s+/, '');
+      section = sectionFromHeader(block.text);
       continue;
     }
 
@@ -287,29 +408,60 @@ export function getPartBlockRanges(
   return map;
 }
 
-/** Localiza trecho no bloco, expande até limite de palavra e devolve offsets reais. */
 export function resolveHighlightInBlock(
   blockText: string,
   aiText: string,
+  options?: {
+    fullSentence?: boolean;
+    completeUnit?: boolean;
+    maxWords?: number;
+    minWords?: number;
+    hintStart?: number;
+  },
 ): { text: string; startOffset: number; endOffset: number } | null {
-  const content = blockText.replace(/\s+/g, ' ').trim();
-  const needle = aiText.replace(/\s+/g, ' ').trim();
+  const content = normalizePlainText(blockText);
+  const needle = normalizePlainText(aiText);
   if (!needle || !content) return null;
 
-  let idx = content.indexOf(needle);
-  let matchLen = needle.length;
+  const pickNearest = (indices: number[]) => {
+    if (indices.length === 0) return -1;
+    if (options?.hintStart === undefined) return indices[0]!;
+    return indices.reduce((best, idx) =>
+      Math.abs(idx - options.hintStart!) < Math.abs(best - options.hintStart!) ? idx : best,
+    );
+  };
 
-  if (idx === -1) {
-    for (let len = Math.min(needle.length, 48); len >= 8; len -= 1) {
-      const prefix = needle.slice(0, len);
-      const found = content.indexOf(prefix);
-      if (found >= 0) {
-        idx = found;
-        matchLen = prefix.length;
-        break;
+  const findAll = (haystack: string, search: string) => {
+    const hits: number[] = [];
+    let from = 0;
+    while (from <= haystack.length) {
+      const idx = haystack.indexOf(search, from);
+      if (idx === -1) break;
+      hits.push(idx);
+      from = idx + 1;
+    }
+    if (hits.length === 0) {
+      const lowerHay = haystack.toLowerCase();
+      const lowerSearch = search.toLowerCase();
+      from = 0;
+      while (from <= lowerHay.length) {
+        const idx = lowerHay.indexOf(lowerSearch, from);
+        if (idx === -1) break;
+        hits.push(idx);
+        from = idx + 1;
       }
     }
-    if (idx === -1) return null;
+    return pickNearest(hits);
+  };
+
+  let idx = findAll(content, needle);
+  let matchLen = needle.length;
+
+  if (idx < 0) {
+    const found = findTextIndex(content, needle);
+    if (!found) return null;
+    idx = found.idx;
+    matchLen = found.matchLen;
   }
 
   let start = idx;
@@ -322,16 +474,45 @@ export function resolveHighlightInBlock(
     while (start > 0 && /\S/u.test(content[start - 1] ?? '')) start -= 1;
   }
 
+  if (options?.completeUnit) {
+    const expanded = expandToCompleteUnit(content, start, end);
+    start = expanded.start;
+    end = expanded.end;
+  } else if (options?.fullSentence) {
+    const expanded = expandHighlightRange(content, start, end);
+    start = expanded.start;
+    end = expanded.end;
+  } else if (needle.includes('?') || (content.includes('?') && content.indexOf('?', start) >= start)) {
+    const expanded = expandHighlightToQuestion(content, start, end);
+    start = expanded.start;
+    end = expanded.end;
+  }
+
   let text = content.slice(start, end).trim();
   let words = text.split(/\s+/).filter(Boolean);
-  if (words.length > 18) {
-    text = words.slice(0, 18).join(' ');
+  const maxWords = options?.maxWords ?? (options?.fullSentence || options?.completeUnit ? 60 : 18);
+  const endsComplete = isCompleteHighlightUnit(text);
+  if (words.length > maxWords && !options?.fullSentence && !options?.completeUnit && !endsComplete) {
+    text = words.slice(0, maxWords).join(' ');
     words = text.split(/\s+/).filter(Boolean);
     end = start + text.length;
   }
 
-  if (words.length < 3) return null;
+  if (words.length < (options?.minWords ?? 3)) return null;
   return { text, startOffset: start, endOffset: end };
+}
+
+/** Resolve grifo no corpo da apostila — sempre frase/pergunta completa. */
+export function resolveCompleteHighlightInBlock(
+  blockText: string,
+  aiText: string,
+  hintStart?: number,
+): { text: string; startOffset: number; endOffset: number } | null {
+  return resolveHighlightInBlock(blockText, aiText, {
+    completeUnit: true,
+    minWords: 3,
+    hintStart,
+  });
 }
 
 export function buildFieldPromptLines(

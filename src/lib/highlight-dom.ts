@@ -1,3 +1,5 @@
+import { expandToCompleteUnit } from '../../shared/highlight-expand';
+import { normalizePlainText } from '../../shared/text-normalize';
 export const HIGHLIGHT_COLORS = [
   { id: 'yellow', label: 'Amarelo', className: 'jcs-hl-yellow', swatch: '#fff176' },
   { id: 'green', label: 'Verde', className: 'jcs-hl-green', swatch: '#a5d6a7' },
@@ -38,9 +40,6 @@ export function getBlockId(block: HTMLElement) {
   return block.dataset.pid || block.id.replace(/^p/, '') || block.id;
 }
 
-function blockTextLength(block: HTMLElement) {
-  return block.textContent?.length ?? 0;
-}
 
 export function serializeSelection(root: HTMLElement): DocumentHighlight | null {
   const selection = window.getSelection();
@@ -71,23 +70,186 @@ export function serializeSelection(root: HTMLElement): DocumentHighlight | null 
   };
 }
 
+type TextPoint = { node: Text; offset: number };
+
+function buildNormalizedTextIndex(block: HTMLElement) {
+  const points: TextPoint[] = [];
+  let norm = '';
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    for (let offset = 0; offset < node.data.length; offset += 1) {
+      const ch = node.data[offset] ?? '';
+      if (ch === '\u00A0' || /\s/u.test(ch)) {
+        if (norm.length === 0 || norm.endsWith(' ')) continue;
+        points.push({ node, offset });
+        norm += ' ';
+      } else {
+        points.push({ node, offset });
+        norm += ch;
+      }
+    }
+  }
+  return { norm, points };
+}
+
+function expandLocatedRange(norm: string, start: number, end: number) {
+  const expanded = expandToCompleteUnit(norm, start, end);
+  return { start: expanded.start, end: expanded.end, text: expanded.text };
+}
+
+function findNeedleRangeInNorm(norm: string, needle: string, hintStart?: number) {
+  const pickIndex = (candidates: number[]) => {
+    if (candidates.length === 0) return -1;
+    if (hintStart === undefined) return candidates[0]!;
+    return candidates.reduce((best, idx) =>
+      Math.abs(idx - hintStart) < Math.abs(best - hintStart) ? idx : best,
+    );
+  };
+
+  const collectMatches = (haystack: string, search: string) => {
+    const hits: number[] = [];
+    let from = 0;
+    while (from <= haystack.length) {
+      const idx = haystack.indexOf(search, from);
+      if (idx === -1) break;
+      hits.push(idx);
+      from = idx + 1;
+    }
+    return hits;
+  };
+
+  let candidates = collectMatches(norm, needle);
+  if (candidates.length === 0) {
+    candidates = collectMatches(norm.toLowerCase(), needle.toLowerCase());
+  }
+  const idx = pickIndex(candidates);
+  if (idx < 0) return null;
+
+  return expandLocatedRange(norm, idx, idx + needle.length);
+}
+
+function wrapNormalizedText(
+  block: HTMLElement,
+  searchText: string,
+  className: string,
+  id: string,
+  hintStart?: number,
+) {
+  const needle = normalizePlainText(searchText);
+  if (!needle) return false;
+
+  const { norm, points } = buildNormalizedTextIndex(block);
+  if (!norm || points.length === 0) return false;
+
+  let range = findNeedleRangeInNorm(norm, needle, hintStart);
+  if (!range) {
+    for (let len = Math.min(needle.length - 1, 72); len >= 4; len -= 1) {
+      const prefix = needle.slice(0, len);
+      if (len < needle.length && !/[\s.!?,;:]$/.test(prefix)) continue;
+      range = findNeedleRangeInNorm(norm, prefix, hintStart);
+      if (range) break;
+    }
+  }
+  if (!range || range.end > points.length || range.start >= points.length) return false;
+
+  return wrapNormRangePoints(points, range.start, range.end, className, id);
+}
+
+function wrapNormRangePoints(
+  points: TextPoint[],
+  start: number,
+  end: number,
+  className: string,
+  id: string,
+) {
+  if (end > points.length || start >= points.length) return false;
+
+  const startPoint = points[start];
+  const endPoint = points[end - 1];
+  if (!startPoint || !endPoint) return false;
+
+  const domRange = document.createRange();
+  domRange.setStart(startPoint.node, startPoint.offset);
+  domRange.setEnd(endPoint.node, endPoint.offset + 1);
+
+  const mark = document.createElement('mark');
+  mark.className = className;
+  mark.dataset.highlightId = id;
+
+  const fragment = domRange.extractContents();
+  if (!fragment.textContent?.replace(/\s/gu, '')) return false;
+  mark.appendChild(fragment);
+  domRange.insertNode(mark);
+  return true;
+}
+
+function wrapNormalizedOffsets(
+  block: HTMLElement,
+  startOffset: number,
+  endOffset: number,
+  className: string,
+  id: string,
+) {
+  const { norm, points } = buildNormalizedTextIndex(block);
+  if (!norm || points.length === 0) return false;
+  const expanded = expandLocatedRange(
+    norm,
+    Math.min(startOffset, norm.length - 1),
+    Math.min(endOffset, norm.length),
+  );
+  return wrapNormRangePoints(points, expanded.start, expanded.end, className, id);
+}
+
 function locateTextOffsets(block: HTMLElement, text: string, hintStart?: number) {
-  const content = block.textContent ?? '';
-  const normalizedNeedle = text.replace(/\s+/g, ' ').trim();
+  const content = normalizePlainText(block.textContent ?? '');
+  const normalizedNeedle = normalizePlainText(text);
   if (!normalizedNeedle) return null;
 
-  let from = hintStart ?? 0;
-  while (from <= content.length) {
-    const idx = content.indexOf(normalizedNeedle, from);
-    if (idx === -1) break;
-    return { startOffset: idx, endOffset: idx + normalizedNeedle.length };
+  const pickIndex = (candidates: number[]) => {
+    if (candidates.length === 0) return -1;
+    if (hintStart === undefined) return candidates[0]!;
+    return candidates.reduce((best, idx) =>
+      Math.abs(idx - hintStart) < Math.abs(best - hintStart) ? idx : best,
+    );
+  };
+
+  const tryNeedle = (needle: string) => {
+    const candidates: number[] = [];
+    let from = 0;
+    while (from <= content.length) {
+      const idx = content.indexOf(needle, from);
+      if (idx === -1) break;
+      candidates.push(idx);
+      from = idx + 1;
+    }
+    if (candidates.length === 0) {
+      const lower = content.toLowerCase();
+      const lowerNeedle = needle.toLowerCase();
+      from = 0;
+      while (from <= lower.length) {
+        const idx = lower.indexOf(lowerNeedle, from);
+        if (idx === -1) break;
+        candidates.push(idx);
+        from = idx + 1;
+      }
+    }
+    const idx = pickIndex(candidates);
+    if (idx < 0) return null;
+    const expanded = expandLocatedRange(content, idx, idx + needle.length);
+    return { startOffset: expanded.start, endOffset: expanded.end };
+  };
+
+  let located = tryNeedle(normalizedNeedle);
+  if (located) return located;
+
+  for (let len = Math.min(normalizedNeedle.length - 1, 72); len >= 4; len -= 1) {
+    const prefix = normalizedNeedle.slice(0, len);
+    if (len < normalizedNeedle.length && !/[\s.!?,;:]$/.test(prefix)) continue;
+    located = tryNeedle(prefix);
+    if (located) return located;
   }
 
-  const fuzzy = content.replace(/\s+/g, ' ').trim();
-  const fuzzyIdx = fuzzy.indexOf(normalizedNeedle);
-  if (fuzzyIdx >= 0) {
-    return { startOffset: fuzzyIdx, endOffset: fuzzyIdx + normalizedNeedle.length };
-  }
   return null;
 }
 
@@ -147,21 +309,24 @@ export function applyHighlight(root: HTMLElement, highlight: DocumentHighlight) 
 
   if (target.querySelector(`mark[data-highlight-id="${highlight.id}"]`)) return true;
 
-  let { startOffset, endOffset } = highlight;
-  if (startOffset >= blockTextLength(target) || endOffset > blockTextLength(target)) {
-    const located = locateTextOffsets(target, highlight.text, highlight.startOffset);
-    if (!located) return false;
-    startOffset = located.startOffset;
-    endOffset = located.endOffset;
+  const className = highlightClassForColor(highlight.color);
+
+  if (
+    highlight.startOffset >= 0 &&
+    highlight.endOffset > highlight.startOffset &&
+    wrapNormalizedOffsets(target, highlight.startOffset, highlight.endOffset, className, highlight.id)
+  ) {
+    return true;
   }
 
-  return wrapTextOffsets(
-    target,
-    startOffset,
-    endOffset,
-    highlightClassForColor(highlight.color),
-    highlight.id,
-  );
+  if (wrapNormalizedText(target, highlight.text, className, highlight.id, highlight.startOffset)) {
+    return true;
+  }
+
+  const located = locateTextOffsets(target, highlight.text, highlight.startOffset);
+  if (!located) return false;
+
+  return wrapNormalizedOffsets(target, located.startOffset, located.endOffset, className, highlight.id);
 }
 
 export function applyAllHighlights(root: HTMLElement, highlights: DocumentHighlight[]) {

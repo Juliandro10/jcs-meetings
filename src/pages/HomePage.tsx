@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { WeekMeetingSummaryCards, type WeekMeetingSummaryData } from '@/components/WeekMeetingSummaryCards';
 import type { MeetingWeek } from '@/lib/meeting-types';
 import type { AppSection } from '@/lib/types';
 
@@ -19,6 +20,9 @@ export function HomePage({ currentWeek, onNavigate, onOpenMeetings }: HomePagePr
   const [dailyText, setDailyText] = useState<DailyText | null>(null);
   const [loadingDaily, setLoadingDaily] = useState(true);
   const [dailyError, setDailyError] = useState<string | null>(null);
+  const [weekSummary, setWeekSummary] = useState<WeekMeetingSummaryData | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadDailyText() {
@@ -46,6 +50,39 @@ export function HomePage({ currentWeek, onNavigate, onOpenMeetings }: HomePagePr
 
     void loadDailyText();
   }, []);
+
+  useEffect(() => {
+    if (!currentWeek) {
+      setWeekSummary(null);
+      return;
+    }
+
+    async function loadWeekSummary() {
+      if (!window.jcs?.getWeekMeetingSummary) {
+        setSummaryError('Resumos disponíveis apenas no app Electron.');
+        return;
+      }
+
+      setLoadingSummary(true);
+      setSummaryError(null);
+      try {
+        const result = await window.jcs.getWeekMeetingSummary(currentWeek);
+        if (!result.ok) {
+          setSummaryError(result.error ?? 'Não foi possível carregar os resumos.');
+          setWeekSummary(null);
+          return;
+        }
+        setWeekSummary(result.summary ?? null);
+      } catch (err) {
+        setSummaryError(err instanceof Error ? err.message : 'Erro ao carregar resumos.');
+        setWeekSummary(null);
+      } finally {
+        setLoadingSummary(false);
+      }
+    }
+
+    void loadWeekSummary();
+  }, [currentWeek]);
 
   return (
     <div className="px-8 py-6">
@@ -94,21 +131,13 @@ export function HomePage({ currentWeek, onNavigate, onOpenMeetings }: HomePagePr
         </section>
 
         {currentWeek ? (
-          <section className="mb-10">
-            <SectionHeading title="Reunião desta semana" />
-            <button
-              type="button"
-              onClick={onOpenMeetings}
-              className="w-full rounded-xl border border-jw-border bg-white p-5 text-left shadow-sm transition hover:border-jw-purple/40 hover:bg-jw-purple-light/30"
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-jw-purple-dark">
-                {currentWeek.dateRangeCaps}
-              </p>
-              <p className="mt-2 text-sm text-jw-text">Leitura bíblica: {currentWeek.bibleReading}</p>
-              <p className="mt-1 text-sm text-jw-muted">{currentWeek.watchtowerTitle}</p>
-              <span className="mt-3 inline-block text-sm text-[#2f6fad]">Abrir reuniões →</span>
-            </button>
-          </section>
+          <WeekMeetingSummaryCards
+            week={currentWeek}
+            summary={weekSummary}
+            loading={loadingSummary}
+            error={summaryError}
+            onOpenMeetings={onOpenMeetings}
+          />
         ) : null}
 
         <section className="mb-10">

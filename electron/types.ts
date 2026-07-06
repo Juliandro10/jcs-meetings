@@ -99,7 +99,7 @@ export type StudyBookStoryRef = {
 
 export type ResolveLinkResult = {
   ok: boolean;
-  kind?: 'bible' | 'publication' | 'study-book';
+  kind?: 'bible' | 'publication' | 'study-book' | 'wol';
   title?: string;
   subtitle?: string;
   html?: string;
@@ -226,6 +226,86 @@ export type PublicTalkNoteResult = {
   error?: string;
 };
 
+export type WeekMeetingSummary = {
+  midweek: {
+    dateRangeCaps: string;
+    bibleReading: string;
+    subtitle?: string;
+    summary?: string;
+    points: string[];
+    hasPrep: boolean;
+  };
+  weekend: {
+    discourseTheme?: string;
+    discourseThemeNumber?: number;
+    discourseSummary?: string;
+    watchtowerTitle: string;
+    watchtowerSummary?: string;
+    watchtowerPoints: string[];
+    hasPrep: boolean;
+  };
+};
+
+export type WeekMeetingSummaryResult = {
+  ok: boolean;
+  summary?: WeekMeetingSummary;
+  error?: string;
+};
+
+export type FieldServiceReferenceLink = {
+  label: string;
+  href: string;
+  sourcePub?: string;
+  sourceIssue?: string;
+};
+
+export type FieldServiceConsiderationSuggestion = {
+  id: string;
+  title: string;
+  scripture?: string;
+  body: string;
+  sources: string[];
+  encouragement?: string;
+  links?: FieldServiceReferenceLink[];
+};
+
+export type FieldServiceSuggestionsBundle = {
+  suggestions: FieldServiceConsiderationSuggestion[];
+  generatedAt: string;
+};
+
+export type FieldServiceConsiderationContextPreview = {
+  lmd: boolean;
+  currentMwb: boolean;
+  previousMwb: boolean;
+  watchtower: boolean;
+  watchtowerArchive: boolean;
+  jwOrg: boolean;
+  bibleReading: boolean;
+  missing: string[];
+};
+
+export type FieldServiceConsiderationsResult = {
+  ok: boolean;
+  suggestions?: FieldServiceConsiderationSuggestion[];
+  contextPreview?: FieldServiceConsiderationContextPreview;
+  generatedAt?: string;
+  fromCache?: boolean;
+  error?: string;
+};
+
+export type FieldServiceNoteResult = {
+  ok: boolean;
+  value?: string;
+  error?: string;
+};
+
+export type FieldServiceSuggestionsResult = {
+  ok: boolean;
+  bundle?: FieldServiceSuggestionsBundle;
+  error?: string;
+};
+
 export type ElderOutlineNoteResult = {
   ok: boolean;
   value?: string;
@@ -274,6 +354,11 @@ export type ImportElderOutlineJwpubResult = {
   ok: boolean;
   imported?: InstalledElderOutline[];
   errors?: string[];
+  error?: string;
+};
+
+export type DeleteInstalledElderOutlineResult = {
+  ok: boolean;
   error?: string;
 };
 
@@ -649,4 +734,33 @@ export type DictionaryStatus = {
 export type DictionaryDownloadResult = {
   ok: boolean;
   error?: string;
+};
+
+export type JwBrowserMode = 'public' | 'elder';
+
+export type JwBrowserBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type JwBrowserState = {
+  url: string;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  isLoading: boolean;
+};
+
+export type JwBrowserJwpubInstalledEvent = {
+  ok: boolean;
+  fileName: string;
+  kind?: 'outline' | 'guideline';
+  label?: string;
+  error?: string;
+};
+
+export type JwBrowserDownloadProgressEvent = {
+  fileName: string;
+  percent: number;
 };

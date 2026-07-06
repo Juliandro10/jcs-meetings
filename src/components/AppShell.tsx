@@ -10,10 +10,20 @@ type AppShellProps = {
   onSearchClick?: () => void;
   headerExtra?: ReactNode;
   showElder?: boolean;
+  /** Conteúdo que preenche a área (ex.: navegador embutido) — sem scroll no main. */
+  contentFill?: boolean;
   children: ReactNode;
 };
 
-export function AppShell({ section, onSectionChange, onSearchClick, headerExtra, showElder, children }: AppShellProps) {
+export function AppShell({
+  section,
+  onSectionChange,
+  onSearchClick,
+  headerExtra,
+  showElder,
+  contentFill = false,
+  children,
+}: AppShellProps) {
   const meta = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
   const headerVariant = section === 'home' ? 'light' : 'purple';
 
@@ -24,7 +34,15 @@ export function AppShell({ section, onSectionChange, onSearchClick, headerExtra,
         <SectionHeader title={meta.title} variant={headerVariant} onSearchClick={onSearchClick}>
           {headerExtra}
         </SectionHeader>
-        <main className="min-h-0 flex-1 overflow-auto">{children}</main>
+        <main
+          className={
+            contentFill
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+              : 'min-h-0 flex-1 overflow-auto'
+          }
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

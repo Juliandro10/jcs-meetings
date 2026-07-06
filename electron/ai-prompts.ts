@@ -38,15 +38,41 @@ export const JW_JOIAS_RULES = [
   'Exemplo: "Jer. 12:5 — Sobre Jeová: se a corrida contra homens nos cansou, precisamos de força de Jeová para desafios maiores."',
 ].join('\n');
 
+/** Preparação — livro lfb (estudo bíblico de congregação). */
+export const JW_LFB_PREP_RULES = [
+  '## Livro lfb — preparação equilibrada (OBRIGATÓRIO)',
+  '- Leia a história inteira antes de responder.',
+  '- Tom claro, vocabulário JW, pronto para comentar no EBC.',
+  '- **Controle de tamanho**: nem telegráfico, nem dissertação — frases completas, densidade média.',
+].join('\n');
+
 /** Grifos no livro lfb — histórias do EBC. */
 export const JW_LFB_HIGHLIGHT_RULES = [
   '## Grifos na história (OBRIGATÓRIO — livro lfb)',
-  '- Grife trechos que respondem às perguntas "Sabe responder?" ou destacam a IDEIA PRINCIPAL da história.',
+  '- Grife trechos que respondem às perguntas "Sabe responder?", sustentam as 3 respostas do EBC ou destacam a IDEIA PRINCIPAL.',
   '- Priorize parágrafos do corpo narrativo (não título "HISTÓRIA X", não lista de referências bíblicas).',
-  '- 3 a 5 grifos no total — cada um com propósito claro (ponto-chave ou resposta implícita à pergunta).',
-  '- "text" = trecho EXATO copiado do parágrafo — frase completa (5 a 18 palavras), sem cortar palavra.',
-  '- NÃO grife automaticamente o início de cada parágrafo.',
-  '- Máximo 1 grifo por parágrafo (blockId).',
+  '- **6 a 10 grifos** por história — aparência de livro já preparado.',
+  '- Mínimo **1 grifo** em cada parágrafo narrativo relevante; parágrafos ricos: **2 grifos** (trechos distintos).',
+  '- "text" = trecho EXATO copiado do parágrafo — **frase ou oração completa** (8 a 30 palavras), sem cortar palavra.',
+  '- NÃO grife só o início de cada parágrafo por rotina — escolha frases com propósito.',
+].join('\n');
+
+/** Segunda passagem — grifos lfb (complemento). */
+export const JW_LFB_HIGHLIGHT_PASS_RULES = [
+  '## Tarefa — grifos adicionais (livro lfb)',
+  'Você recebe a história e as respostas já preparadas. Devolva APENAS grifos extras.',
+  '- Complete até **8–12 grifos no total** (somando os que já existem).',
+  '- Inclua trechos que sustentam cada resposta "Sabe responder?" e as 3 perguntas fixas do EBC.',
+  '- Frases literais completas; blockId = parágrafo [pN].',
+  '- Saída: {"highlights":[{"blockId":"3","text":"Frase completa literal."}]}',
+].join('\n');
+
+/** Respostas fixas do EBC (study-q1, q2, q3). */
+export const JW_LFB_FIELD_RULES = [
+  '## Respostas fixas do EBC (study-q1, study-q2, study-q3)',
+  '- Cada "value": **3 a 5 frases** (cerca de 50 a 110 palavras).',
+  '- Baseie-se nos fatos da história; cite nomes, lugares, ações concretas.',
+  '- Proibido: uma linha seca; proibido: parágrafo longo com repetição.',
 ].join('\n');
 
 /** Respostas às perguntas "Sabe responder?" de cada história (livro lfb). */
@@ -54,7 +80,7 @@ export const JW_LFB_SABE_RULES = [
   '## Perguntas "Sabe responder?" (OBRIGATÓRIO quando existirem na história)',
   '- Cada história tem perguntas próprias no final — diferentes das 3 perguntas fixas do EBC.',
   '- Devolva em "sabeAnswers" uma entrada por pergunta listada (noteId exato).',
-  '- "body" = resposta curta (2-4 frases) com base no texto da história, pronta para ler no estudo.',
+  '- "body" = **3 a 5 frases** equilibradas, com base no texto da história, pronta para ler no estudo.',
   '- Vocabulário JW; cite fatos da história (nomes, ações, lugares).',
   '- NÃO repita em sabeAnswers as 3 perguntas fixas do estudo de congregação.',
 ].join('\n');
@@ -71,6 +97,71 @@ export const JW_HIGHLIGHT_RULES = [
   '- Total sugerido: cerca de 1 grifo por parte principal (5 a 10 grifos no documento).',
 ].join('\n');
 
+/** Preparação automática — Apostila Vida e Ministério (visão geral). */
+export const JW_MWB_PREP_RULES = [
+  '## Apostila — preparação equilibrada (OBRIGATÓRIO)',
+  '- Leia a matéria inteira antes de responder — mantenha coerência entre partes.',
+  '- Tom útil na reunião: claro, respeitoso, vocabulário JW.',
+  '- **Controle de tamanho**: nem telegráfico, nem dissertação — frases completas, densidade média.',
+  '- Respostas dos campos e joias: elaboradas o suficiente para comentar; notas: proveito pessoal resumido.',
+].join('\n');
+
+/** Campos editáveis da apostila. */
+export const JW_MWB_FIELD_RULES = [
+  '## Campos editáveis — apostila (OBRIGATÓRIO)',
+  '- Cada "value": **3 a 5 frases** (cerca de 50 a 100 palavras).',
+  '- Responda à pergunta com clareza; inclua versículo ou ideia-chave quando couber.',
+  '- Proibido: uma linha seca; proibido: parágrafo longo com repetição.',
+  '- Vida Cristã com várias perguntas: resposta distinta por fieldId.',
+  '- Tesouros: versículo + ensino + aplicação breve no mesmo tamanho.',
+].join('\n');
+
+/** Grifos — apostila (títulos numerados + corpo). */
+export const JW_MWB_HIGHLIGHT_RULES = [
+  '## Grifos',
+  '- Títulos numerados (ex.: "4. Iniciando conversas") são grifados em **amarelo** automaticamente pelo app.',
+  '- Cabeçalhos de seção (TESOUROS..., FAÇA SEU MELHOR..., NOSSA VIDA CRISTÃ) **não** recebem grifo.',
+  '- Grifos no **corpo** das partes vêm numa passagem separada — NÃO inclua "highlights" no JSON principal.',
+].join('\n');
+
+/** Grifos no corpo das partes — apostila (passagem dedicada). */
+export const JW_MWB_BODY_HIGHLIGHT_PASS_RULES = [
+  '## Grifos no corpo — apostila (OBRIGATÓRIO)',
+  'Simule uma apostila já estudada: marque trechos que alguém passou lendo cada parte.',
+  '',
+  '### Meta por parte (respeite o "Alvo" de cada bloco no guia)',
+  '- **Ministério** (4–6): instrução prática + contexto; 2–3 trechos.',
+  '- **Vida Cristã / Tesouros**: consideração + cada pergunta/campo; 4–8 trechos quando houver várias perguntas.',
+  '- **Joias / Leitura / Discurso**: 1–3 trechos no corpo.',
+  '- Varie **green | blue | pink | purple | orange** dentro da mesma parte (não uma cor só por parte).',
+  '',
+  '### O que grifar (prioridade)',
+  '- Frases da **consideração** e parágrafos explicativos.',
+  '- Linhas **"Leia …"** (frase completa até o ponto) ou **"Depois, pergunte:"**.',
+  '- **Pergunta inteira** (do início até o ?) — nunca só um pedaço no meio da frase.',
+  '- **Ministério**: linha "Use/Mostre/Fale…" completa, com referência ao folheto ou jw.org.',
+  '- Trechos que **sustentam a resposta preparada** indicada no guia.',
+  '',
+  '### O que NÃO grifar',
+  '- Cabeçalhos de seção (TESOUROS..., FAÇA SEU MELHOR..., NOSSA VIDA CRISTÃ).',
+  '- Títulos numerados (ex.: "7. Obedecer…") — o app já grifa em amarelo.',
+  '- "(10 min)" sozinho; referências bíblicas isoladas (Jer. 13:1-14).',
+  '- **Trechos cortados** no meio de frase ou pergunta — proibido.',
+  '',
+  '### Qualidade',
+  '- "text" = frase ou pergunta **literal e completa** (termina em . ou ?); nunca truncar no meio.',
+  '- Se a frase tiver ponto e vírgula, inclua até o ponto final da oração.',
+  '- "blockId" = parágrafo do corpo da parte (não o título numerado).',
+  '- Saída: {"highlights":[{"blockId":"12","text":"Trecho literal.","color":"green"}]}',
+].join('\n');
+
+/** Joias espirituais — apostila (elaboração controlada). */
+export const JW_MWB_JOIAS_RULES = [
+  '## Joias — apostila (complemento)',
+  '- Cada joia: versículo da leitura + **1–2 frases** de ensino e aplicação (até ~240 caracteres por linha).',
+  '- Elabore o ponto espiritual; não copie a Bíblia inteira nem repita a mesma ideia nas 3 joias.',
+].join('\n');
+
 /** Respostas do estudo bíblico de congregação (livro lfb). */
 export const JW_CBS_STUDY_RULES = [
   '## Estudo bíblico de congregação — livro lfb (OBRIGATÓRIO quando houver histórias)',
@@ -78,8 +169,8 @@ export const JW_CBS_STUDY_RULES = [
   '1) O que você aprendeu sobre Jeová nessa história?',
   '2) Que lições você aprendeu com essa história?',
   '3) Como colocar em prática as lições aprendidas no ministério, na família e na congregação?',
-  'Cada resposta: 2 a 4 frases, vocabulário JW, cite fatos da história (nomes, lugares, ações).',
-  'Inclua em "cbsStoryAnswers" no JSON (respostas ficam no livro lfb, não nas notas da apostila).',
+  'Cada resposta (study-q1, study-q2, study-q3): **3 a 5 frases** equilibradas, vocabulário JW, cite fatos da história.',
+  'Inclua em "fields" com fieldId study-q1, study-q2, study-q3.',
 ].join('\n');
 
 /** Notas estilo condução da tribuna (JCS-ELDER — não usar na parte comum). */
@@ -104,7 +195,7 @@ export const JW_PERSONAL_LEARNING_NOTE_RULES = [
   '- **Ministério (estudante):** lição da parte + como aplicar no ministério.',
   '- **Vida cristã:** o que a parte ensina + aplicação na minha vida cristã.',
   '- **EBC:** breve resumo do que será considerado no estudo + o que posso tirar de proveito (NÃO inclua respostas às 3 perguntas oficiais — ficam no livro lfb).',
-  'Estilo: 80-180 palavras, frases completas, vocabulário JW, foco em aplicação pessoal.',
+  'Estilo: 90-160 palavras, frases completas, vocabulário JW, foco em aplicação pessoal.',
   'Proibido: "Abertura da tribuna", "Comentários introdutórios do presidente", transições de condução.',
 ].join('\n');
 
@@ -116,38 +207,89 @@ export const JW_PRACTICE_POINTS_RULES = [
   'Tom pessoal ("Posso...", "Esta semana vou..."); vocabulário JW.',
 ].join('\n');
 
-/** Preparação automática — estudo de A Sentinela (parte comum). */
+/** Preparação automática — estudo de A Sentinela (campos). */
 export const JW_SENTINEL_PREP_RULES = [
-  '## Estudo de A Sentinela (OBRIGATÓRIO)',
+  '## Estudo de A Sentinela — campos (OBRIGATÓRIO)',
   'NÃO crie notas/resumos introdutórios ou finais — a matéria já tem resumos.',
-  'NÃO use o array "notes" — deixe vazio ou omita.',
   '',
-  '### Grifos (highlights)',
-  '- Para CADA pergunta de estudo, grife 2 a 4 trechos no(s) parágrafo(s) da RESPOSTA (não na pergunta).',
-  '- Juntos, os grifos devem permitir um comentário COMPLETO na reunião — não basta uma frase genérica.',
-  '- Cubra, quando o texto tiver: (1) ideia principal, (2) fundamento ou detalhe de apoio, (3) aplicação ou consequência.',
-  '- Cada trecho: 8 a 25 palavras — orações ou frases completas que você leria ao comentar.',
-  '- Pode haver VÁRIOS grifos no MESMO § (parágrafo) se forem trechos diferentes (até 3 por §).',
-  '- Use a MESMA cor em todos os grifos ligados à mesma pergunta.',
-  '- Use o blockId do § citado na pergunta.',
+  '### Formato de cada campo ("value")',
+  '- Pergunta com subitens **(a), (b), (c)...**: use "Resposta A:", "Resposta B:", etc. — uma por subitem, na ordem.',
+  '- Depois dos subitens, inclua "Resposta adicional:" (comentário extra ou aplicação).',
+  '- Pergunta **sem** subitens (a/b): use "Resposta principal:" e "Resposta adicional:".',
+  '- Perguntas de **revisão**: comece com "Parágrafo(s): X" (§ citados na pergunta).',
   '',
-  '### Campos editáveis (fields)',
-  '- Preencha TODOS os campos (perguntas de estudo + revisão).',
-  '- Formato do "value" (sempre):',
-  '  Resposta principal: [com suas palavras — ponto-chave, NÃO copie o parágrafo literalmente]',
-  '  Resposta adicional: [sempre mais uma — outro destaque do parágrafo, aplicação ou texto adicional citado]',
-  '- Perguntas de **revisão**: cite no início "Parágrafo(s): X" ou "§ X" de onde veio a resposta.',
+  '### Qualidade',
+  '- Leia a matéria INTEIRA antes de responder — mantenha a linha de pensamento do artigo.',
+  '- Cada pergunta = respostas DISTINTAS; não repita a mesma ideia em campos diferentes.',
+  '- Resposta A/B/principal: o que você diria em 1–3 frases na reunião.',
+  '- Resposta adicional: aprofunde, aplique ou traga outro ponto do(s) § de resposta.',
 ].join('\n');
 
-/** Grifos — estudo de A Sentinela (vários trechos por resposta). */
-export const JW_SENTINEL_HIGHLIGHT_RULES = [
-  '## Grifos na Sentinela (OBRIGATÓRIO)',
-  '- Mínimo 2 grifos por pergunta de estudo (ideal: 2–4), sempre no(s) § da resposta.',
-  '- Trechos distintos e complementares — como roteiro do que você diria ao comentar.',
-  '- 8 a 25 palavras por trecho; frases completas, não fragmentos vagos.',
-  '- Até 3 grifos no mesmo § se forem trechos separados (sem sobrepor o mesmo texto).',
-  '- Mesma cor para todos os grifos de uma pergunta.',
-  '- NÃO grife: enunciado da pergunta, títulos, "(10 min)", referências soltas.',
+/** Segunda passagem — grifos completos (estudo de A Sentinela). */
+export const JW_SENTINEL_HIGHLIGHT_PASS_RULES = [
+  '## Tarefa — grifos para matéria preparada (A Sentinela)',
+  'Você recebe a matéria inteira e as respostas já preparadas. Devolva APENAS grifos — trechos literais para marcar no texto.',
+  '',
+  '### Cobertura (OBRIGATÓRIO)',
+  '- **Todo** § citado como resposta de alguma pergunta deve ter grifos.',
+  '- Mínimo **3 grifos** por § de resposta; parágrafos longos ou ricos: **5–8 grifos**.',
+  '- Inclua frases que sustentam Resposta A/B/C, Resposta principal e Resposta adicional.',
+  '- Inclua ideias para comentar: princípios, exemplos, aplicações, frases em negrito do original.',
+  '- Não grife só o enunciado da pergunta — grife o **parágrafo de resposta**.',
+  '',
+  '### Qualidade do trecho',
+  '- **Frase ou oração completa**: do início da frase até . ! ? — nunca corte palavra pela metade.',
+  '- Copie **literalmente** da matéria (mesma grafia, aspas, travessões).',
+  '- Trechos de 8–35 palavras; prefira frases que você leria em voz alta na reunião.',
+  '- blockId = número do § no início do parágrafo ([§N]).',
+  '- fieldId = pergunta à qual o grifo se relaciona (cor do grifo).',
+  '',
+  '### Saída JSON (sem markdown)',
+  '{"highlights":[{"fieldId":"ID_EXATO","blockId":"8","text":"Frase completa literal terminada em ponto."}]}',
+  '- Liste TODOS os grifos necessários — matéria com aparência de revista já preparada.',
+].join('\n');
+
+/** Preparação documento inteiro — estudo de A Sentinela (estilo matéria preparada). */
+export const JW_SENTINEL_DOCUMENT_PREP_RULES = [
+  '## Tarefa — preparar o estudo COMPLETO de A Sentinela',
+  'Você recebe a matéria inteira (como um PDF do estudo). Prepare TODAS as perguntas de estudo e revisão.',
+  'Imagine reescrever a matéria já preparada para comentar na reunião — respostas + comentários adicionais + aplicações.',
+  '',
+  JW_SENTINEL_PREP_RULES,
+  '',
+  '### Grifos',
+  '- Os grifos serão gerados numa passagem separada — foque nas respostas dos campos.',
+  '- "quotes" é opcional; se incluir, use frases completas (até o ponto).',
+  '',
+  '### Saída JSON (sem markdown)',
+  '{"fields":[{"fieldId":"ID_EXATO","value":"Resposta A: ...\\n\\nResposta B: ...\\n\\nResposta adicional: ..."}]}',
+  '- Um objeto em "fields" para CADA fieldId listado no índice.',
+  '- Use o fieldId EXATO — não invente ids.',
+].join('\n');
+
+/** Considerações para reunião de saída de campo (Elder). */
+export const JW_FIELD_SERVICE_CONSIDERATION_RULES = [
+  '## Papel — considerações para saída de campo (OBRIGATÓRIO)',
+  'Você ajuda um ancião ou superintendente de serviço a preparar considerações breves para a reunião de saída de campo.',
+  'O objetivo é INCENTIVAR, ANIMAR e AJUDAR os irmãos na pregação das boas novas — tom pastoral, positivo, prático.',
+  'NÃO é discurso de tribuna, NÃO é palestra longa, NÃO é reunião de anciãos.',
+  '',
+  '## Fontes (OBRIGATÓRIO)',
+  'Cruze ideias APENAS com o material fornecido: brochura lmd, apostila da semana (e anterior se houver), Sentinela, pesquisa jw.org e leitura bíblica.',
+  'Cada sugestão deve citar em "sources" quais fontes inspiraram (ex.: "lmd — tópico X", "Apostila semana atual", "Sentinela", "jw.org").',
+  'Se uma fonte não estiver no contexto, NÃO a invente.',
+  '',
+  '## Qualidade das sugestões (OBRIGATÓRIO)',
+  'Gere exatamente 4 ou 5 sugestões DISTINTAS entre si.',
+  'Cada sugestão deve ser bem elaborada — pronta para o ancião usar como base, com desenvolvimento claro.',
+  '"body": 120 a 220 palavras — parágrafos fluidos, não bullets telegráficos.',
+  'Inclua quando possível: texto bíblico do contexto, aplicação prática no território, encorajamento sincero.',
+  '"encouragement": 1 frase final que motive os publicadores a sair com confiança.',
+  'Evite repetir a mesma ideia em sugestões diferentes.',
+  'Priorize conexão com a matéria da semana e com a pregação no dia a dia.',
+  '',
+  '## Saída JSON (sem markdown)',
+  '{"suggestions":[{"title":"Tema curto","scripture":"Referência bíblica se houver no contexto","body":"Consideração elaborada...","sources":["lmd","Apostila desta semana"],"encouragement":"Frase de ânimo final."}]}',
 ].join('\n');
 
 /** Assistente IA — esboços de discurso (Elder). */

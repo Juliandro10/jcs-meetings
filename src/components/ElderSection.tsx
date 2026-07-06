@@ -3,6 +3,7 @@ import {
   ElderGuidelineReaderPage,
   type ElderGuidelineReaderTarget,
 } from '@/pages/ElderGuidelineReaderPage';
+import { ElderFieldServicePage } from '@/pages/ElderFieldServicePage';
 import { ElderGuidelinesPage } from '@/pages/ElderGuidelinesPage';
 import { ElderOutlineDocumentsPage } from '@/pages/ElderOutlineDocumentsPage';
 import { ElderOutlineReaderPage } from '@/pages/ElderOutlineReaderPage';
@@ -35,6 +36,7 @@ type ElderSectionView =
   | { kind: 'outline-documents'; pub: string; title: string; label: string }
   | { kind: 'outline-reader'; target: ElderOutlineReaderTarget; back: 'outlines' | 'outline-documents' }
   | { kind: 'guidelines' }
+  | { kind: 'field-service' }
   | { kind: 'guideline-documents'; pub: string; title: string; label: string }
   | {
       kind: 'guideline-reader';
@@ -123,6 +125,21 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
     return { ok: false, message: result.error ?? 'Nenhum esboço importado.' };
   }, [refreshOutlineCatalog]);
 
+  const handleDeleteOutline = useCallback(
+    async (pub: string) => {
+      if (!window.jcs?.deleteInstalledElderOutline) {
+        return { ok: false, message: 'Remoção disponível apenas no app Electron.' };
+      }
+      const result = await window.jcs.deleteInstalledElderOutline({ pub });
+      await refreshOutlineCatalog();
+      if (result.ok) {
+        return { ok: true, message: 'Esboço removido deste dispositivo.' };
+      }
+      return { ok: false, message: result.error ?? 'Não foi possível remover o esboço.' };
+    },
+    [refreshOutlineCatalog],
+  );
+
   const handleImportGuidelines = useCallback(async () => {
     if (!window.jcs?.importElderGuidelineJwpub) {
       return { ok: false, message: 'Importação disponível apenas no app Electron.' };
@@ -196,11 +213,16 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
     })();
   }, []);
 
+  const handleJwpubInstalled = useCallback(() => {
+    void refreshAll();
+  }, [refreshAll]);
+
   if (view.kind === 'hub') {
     return (
       <ElderPage
         onOpenOutlines={() => setView({ kind: 'outlines', tab: 'catalog' })}
         onOpenGuidelines={() => setView({ kind: 'guidelines' })}
+        onOpenFieldService={() => setView({ kind: 'field-service' })}
         onOpenMeetings={() => setView({ kind: 'meetings' })}
         onOpenCircuitVisits={() => setView({ kind: 'circuit-visits' })}
         onLockElder={onLockElder}
@@ -263,6 +285,8 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
         onTabChange={(tab) => setView({ kind: 'outlines', tab })}
         onBack={() => setView({ kind: 'hub' })}
         onImportOutlines={handleImportOutlines}
+        onDeleteOutline={handleDeleteOutline}
+        onJwpubInstalled={handleJwpubInstalled}
         onOpenItem={(item) => {
           if (item.documentId !== undefined) {
             setView({
@@ -302,6 +326,10 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
     );
   }
 
+  if (view.kind === 'field-service') {
+    return <ElderFieldServicePage onBack={() => setView({ kind: 'hub' })} />;
+  }
+
   if (view.kind === 'guidelines') {
     return (
       <ElderGuidelinesPage
@@ -309,6 +337,7 @@ export function ElderSection({ onLockElder }: { onLockElder?: () => void }) {
         installed={installedGuidelines}
         onBack={() => setView({ kind: 'hub' })}
         onImportGuidelines={handleImportGuidelines}
+        onJwpubInstalled={handleJwpubInstalled}
         onOpenItem={openGuidelineItem}
       />
     );

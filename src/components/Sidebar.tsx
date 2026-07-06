@@ -5,6 +5,7 @@ import {
   IconBible,
   IconDiamond,
   IconElder,
+  IconGlobe,
   IconHome,
   IconLibrary,
   IconMedia,
@@ -21,6 +22,7 @@ const ICONS: Record<AppSection, typeof IconHome> = {
   meetings: IconMeetings,
   preaching: IconPreaching,
   'personal-study': IconDiamond,
+  'jw-research': IconGlobe,
   elder: IconElder,
 };
 

@@ -1,4 +1,4 @@
-import { fetchBibleVerseOnline, fetchPublicationExtractOnline } from './jw-online-search';
+import { fetchBibleVerseOnline, fetchPublicationExtractOnline, fetchWolDocumentOnline } from './jw-online-search';
 import { isLfbStudyLink, resolveLfbStudyLink } from './lfb-reader';
 import type { Database } from 'sql.js';
 import { BIBLE_EDITION_LABELS, ensureBiblePath, type BibleEdition } from './bible-edition';
@@ -255,6 +255,12 @@ export async function resolveJwpubLink(
   const href = params.href.trim();
 
   try {
+    if (href.startsWith('https://wol.jw.org/') || href.startsWith('wol://')) {
+      const online = await fetchWolDocumentOnline(href, params.linkLabel);
+      if (online) return online;
+      return { ok: false, error: 'Documento não encontrado na Biblioteca On-line.' };
+    }
+
     if (href.startsWith('jwpub://b/')) {
       return await resolveBibleLink(
         cacheDir,

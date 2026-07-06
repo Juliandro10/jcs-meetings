@@ -31,12 +31,18 @@ import type {
   ListPreachingPubDocumentsResult,
   PublicTalkExportResult,
   PublicTalkNoteResult,
+  FieldServiceConsiderationsResult,
+  FieldServiceConsiderationContextPreview,
+  FieldServiceNoteResult,
+  FieldServiceSuggestionsResult,
+  WeekMeetingSummaryResult,
   ElderOutlineNoteResult,
   ListPreparedElderOutlinesResult,
   PreparedElderOutline,
   SavePreparedElderOutlineResult,
   ImportElderOutlineJwpubResult,
   ImportElderGuidelineJwpubResult,
+  DeleteInstalledElderOutlineResult,
   ListInstalledElderOutlinesResult,
   ListInstalledElderGuidelinesResult,
   ElderAuthStatusResult,
@@ -67,6 +73,11 @@ import type {
   ResolveSongDigitalLinkResult,
   SetFieldValueParams,
   SongAudioTrack,
+  JwBrowserBounds,
+  JwBrowserDownloadProgressEvent,
+  JwBrowserJwpubInstalledEvent,
+  JwBrowserMode,
+  JwBrowserState,
 } from './types';
 
 contextBridge.exposeInMainWorld('jcs', {
@@ -94,12 +105,44 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:list-installed-elder-outlines'),
   importElderOutlineJwpub: (): Promise<ImportElderOutlineJwpubResult> =>
     ipcRenderer.invoke('jcs:import-elder-outline-jwpub'),
+  deleteInstalledElderOutline: (params: { pub: string }): Promise<DeleteInstalledElderOutlineResult> =>
+    ipcRenderer.invoke('jcs:delete-installed-elder-outline', params),
   getElderGuidelineAvailability: (params: { pubs: string[] }): Promise<Record<string, boolean>> =>
     ipcRenderer.invoke('jcs:elder-guideline-availability', params),
   listInstalledElderGuidelines: (): Promise<ListInstalledElderGuidelinesResult> =>
     ipcRenderer.invoke('jcs:list-installed-elder-guidelines'),
   importElderGuidelineJwpub: (): Promise<ImportElderGuidelineJwpubResult> =>
     ipcRenderer.invoke('jcs:import-elder-guideline-jwpub'),
+  jwBrowserOpen: (params: { mode: JwBrowserMode; bounds: JwBrowserBounds; url?: string }) =>
+    ipcRenderer.invoke('jcs:jw-browser-open', params),
+  jwBrowserClose: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('jcs:jw-browser-close'),
+  jwBrowserResize: (bounds: JwBrowserBounds): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('jcs:jw-browser-resize', bounds),
+  jwBrowserNavigate: (url: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:jw-browser-navigate', url),
+  jwBrowserBack: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('jcs:jw-browser-back'),
+  jwBrowserForward: (): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:jw-browser-forward'),
+  jwBrowserReload: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('jcs:jw-browser-reload'),
+  jwBrowserDefaultUrl: (mode: JwBrowserMode): Promise<string> =>
+    ipcRenderer.invoke('jcs:jw-browser-default-url', mode),
+  onJwBrowserState: (callback: (state: JwBrowserState) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: JwBrowserState) => callback(state);
+    ipcRenderer.on('jcs:jw-browser-state', handler);
+    return () => ipcRenderer.removeListener('jcs:jw-browser-state', handler);
+  },
+  onJwBrowserJwpubInstalled: (callback: (event: JwBrowserJwpubInstalledEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: JwBrowserJwpubInstalledEvent) =>
+      callback(payload);
+    ipcRenderer.on('jcs:jw-browser-jwpub-installed', handler);
+    return () => ipcRenderer.removeListener('jcs:jw-browser-jwpub-installed', handler);
+  },
+  onJwBrowserDownloadProgress: (callback: (event: JwBrowserDownloadProgressEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: JwBrowserDownloadProgressEvent) =>
+      callback(payload);
+    ipcRenderer.on('jcs:jw-browser-download-progress', handler);
+    return () => ipcRenderer.removeListener('jcs:jw-browser-download-progress', handler);
+  },
   getFieldValues: (params: { pub: string; issue: string; documentId: number }): Promise<Record<string, string>> =>
     ipcRenderer.invoke('jw:get-field-values', params),
   setFieldValue: (params: SetFieldValueParams): Promise<{ ok: boolean }> =>
@@ -136,8 +179,27 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:clear-document-prep', params),
   getPublicTalkNote: (weekId: string): Promise<PublicTalkNoteResult> =>
     ipcRenderer.invoke('jcs:get-public-talk-note', weekId),
+  getWeekMeetingSummary: (week: MeetingWeek): Promise<WeekMeetingSummaryResult> =>
+    ipcRenderer.invoke('jcs:get-week-meeting-summary', week),
   setPublicTalkNote: (params: { weekId: string; value: string }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('jcs:set-public-talk-note', params),
+  getFieldServiceNote: (weekId: string): Promise<FieldServiceNoteResult> =>
+    ipcRenderer.invoke('jcs:get-field-service-note', weekId),
+  getFieldServiceSuggestions: (weekId: string): Promise<FieldServiceSuggestionsResult> =>
+    ipcRenderer.invoke('jcs:get-field-service-suggestions', weekId),
+  setFieldServiceNote: (params: { weekId: string; value: string }): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('jcs:set-field-service-note', params),
+  previewFieldServiceContext: (params: {
+    week: MeetingWeek;
+    previousWeek?: MeetingWeek;
+  }): Promise<{ ok: boolean; preview?: FieldServiceConsiderationContextPreview; error?: string }> =>
+    ipcRenderer.invoke('jcs:preview-field-service-context', params),
+  generateFieldServiceConsiderations: (params: {
+    week: MeetingWeek;
+    previousWeek?: MeetingWeek;
+    forceRegenerate?: boolean;
+  }): Promise<FieldServiceConsiderationsResult> =>
+    ipcRenderer.invoke('jcs:generate-field-service-considerations', params),
   exportPublicTalkNote: (params: {
     weekId: string;
     weekLabel: string;
@@ -352,6 +414,9 @@ declare global {
       getElderOutlineAvailability: (params: { pubs: string[] }) => Promise<Record<string, boolean>>;
       listInstalledElderOutlines: () => Promise<ListInstalledElderOutlinesResult>;
       importElderOutlineJwpub: () => Promise<ImportElderOutlineJwpubResult>;
+      deleteInstalledElderOutline: (params: {
+        pub: string;
+      }) => Promise<DeleteInstalledElderOutlineResult>;
       getElderGuidelineAvailability: (params: { pubs: string[] }) => Promise<Record<string, boolean>>;
       listInstalledElderGuidelines: () => Promise<ListInstalledElderGuidelinesResult>;
       importElderGuidelineJwpub: () => Promise<ImportElderGuidelineJwpubResult>;
@@ -394,7 +459,20 @@ declare global {
         documentId: number;
       }) => Promise<{ fields: number; highlights: number; notes: number }>;
       getPublicTalkNote: (weekId: string) => Promise<PublicTalkNoteResult>;
+      getWeekMeetingSummary: (week: MeetingWeek) => Promise<WeekMeetingSummaryResult>;
       setPublicTalkNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;
+      getFieldServiceNote: (weekId: string) => Promise<FieldServiceNoteResult>;
+      getFieldServiceSuggestions: (weekId: string) => Promise<FieldServiceSuggestionsResult>;
+      setFieldServiceNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;
+      previewFieldServiceContext: (params: {
+        week: MeetingWeek;
+        previousWeek?: MeetingWeek;
+      }) => Promise<{ ok: boolean; preview?: FieldServiceConsiderationContextPreview; error?: string }>;
+      generateFieldServiceConsiderations: (params: {
+        week: MeetingWeek;
+        previousWeek?: MeetingWeek;
+        forceRegenerate?: boolean;
+      }) => Promise<FieldServiceConsiderationsResult>;
       exportPublicTalkNote: (params: {
         weekId: string;
         weekLabel: string;
@@ -548,6 +626,21 @@ declare global {
         issue?: string;
         lang?: string;
       }) => Promise<ListPreachingPubDocumentsResult>;
+      jwBrowserOpen: (params: {
+        mode: JwBrowserMode;
+        bounds: JwBrowserBounds;
+        url?: string;
+      }) => Promise<{ ok: boolean; error?: string }>;
+      jwBrowserClose: () => Promise<{ ok: boolean }>;
+      jwBrowserResize: (bounds: JwBrowserBounds) => Promise<{ ok: boolean }>;
+      jwBrowserNavigate: (url: string) => Promise<{ ok: boolean; error?: string }>;
+      jwBrowserBack: () => Promise<{ ok: boolean; error?: string }>;
+      jwBrowserForward: () => Promise<{ ok: boolean; error?: string }>;
+      jwBrowserReload: () => Promise<{ ok: boolean; error?: string }>;
+      jwBrowserDefaultUrl: (mode: JwBrowserMode) => Promise<string>;
+      onJwBrowserState: (callback: (state: JwBrowserState) => void) => () => void;
+      onJwBrowserJwpubInstalled: (callback: (event: JwBrowserJwpubInstalledEvent) => void) => () => void;
+      onJwBrowserDownloadProgress: (callback: (event: JwBrowserDownloadProgressEvent) => void) => () => void;
       onDownloadProgress: (callback: (progress: DownloadProgressEvent) => void) => () => void;
     };
   }
