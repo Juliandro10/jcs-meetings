@@ -122,6 +122,7 @@ public class ChapterActivity extends Activity {
                             final String wrapped =
                                 BibleHtml.wrapChapter(
                                     chapter.bookTitle,
+                                    bookNumber,
                                     chapter.chapterNumber,
                                     chapter.html,
                                     chapter.publicationCss,
