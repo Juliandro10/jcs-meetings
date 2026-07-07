@@ -10,6 +10,8 @@ import { JW_ELDER_DOCS_URLS, type JwElderDocsCatalog } from '@/lib/jw-elder-docs
 
 type JwBrowserPanelProps = {
   mode: JwBrowserMode;
+  /** URL inicial (ex.: texto diário no WOL). */
+  initialUrl?: string;
   onClose?: () => void;
   onJwpubInstalled?: (event: JwBrowserJwpubInstalledEvent) => void;
   className?: string;
@@ -31,6 +33,7 @@ function displayUrl(url: string) {
 
 export function JwBrowserPanel({
   mode,
+  initialUrl,
   onClose,
   onJwpubInstalled,
   className = '',
@@ -69,7 +72,8 @@ export function JwBrowserPanel({
 
     const open = async () => {
       const rect = el.getBoundingClientRect();
-      const startUrl = mode === 'elder' ? JW_ELDER_DOCS_URLS[elderCatalog] : undefined;
+      const startUrl =
+        initialUrl ?? (mode === 'elder' ? JW_ELDER_DOCS_URLS[elderCatalog] : undefined);
       const result = await window.jcs!.jwBrowserOpen({
         mode,
         bounds: {
@@ -122,7 +126,7 @@ export function JwBrowserPanel({
       unsubProgress?.();
       void window.jcs?.jwBrowserClose?.();
     };
-  }, [mode, elderCatalog, onJwpubInstalled, syncBounds]);
+  }, [mode, elderCatalog, initialUrl, onJwpubInstalled, syncBounds]);
 
   const handleNavigate = async () => {
     if (!window.jcs?.jwBrowserNavigate) return;

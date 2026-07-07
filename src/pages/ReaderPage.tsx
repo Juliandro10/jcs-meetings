@@ -6,6 +6,8 @@ import { HighlightToolbar } from '@/components/HighlightToolbar';
 import { PublicationReader, type PublicationReaderHandle } from '@/components/PublicationReader';
 import { readBibleEdition } from '@/lib/bible-edition';
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
+import { DiscourseScriptEditorPage } from '@/pages/DiscourseScriptEditorPage';
+import { isDiscourseScriptNote } from '../../shared/discourse-script';
 import { StudyBookReader } from '@/components/StudyBookReader';
 import type { ReaderOpenTarget } from '@/pages/MeetingsPage';
 import {
@@ -29,6 +31,7 @@ type ReaderPageProps = {
   weekLabel: string;
   bibleReading?: string;
   downloadProgressMap: Record<string, number>;
+  showElder?: boolean;
   onBack: () => void;
   onOpenSearch?: (query?: string) => void;
   onOpenDictionary?: (query?: string) => void;
@@ -46,6 +49,7 @@ export function ReaderPage({
   weekLabel,
   bibleReading,
   downloadProgressMap,
+  showElder = false,
   onBack,
   onOpenSearch,
   onOpenDictionary,
@@ -60,9 +64,12 @@ export function ReaderPage({
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [autoPrepping, setAutoPrepping] = useState(false);
+  const [fullDiscoursePrepping, setFullDiscoursePrepping] = useState(false);
   const [lfbPrepping, setLfbPrepping] = useState(false);
   const [clearingPrep, setClearingPrep] = useState(false);
   const [autoPrepMessage, setAutoPrepMessage] = useState<string | null>(null);
+  const [fullEditorOpen, setFullEditorOpen] = useState(false);
+  const [exportingDiscourse, setExportingDiscourse] = useState<'doc' | 'pdf' | null>(null);
   const [lfbPrepMessage, setLfbPrepMessage] = useState<string | null>(null);
   const [reference, setReference] = useState<ResolveLinkResult | null>(null);
   const [studyBookSession, setStudyBookSession] = useState<StudyBookSession | null>(null);
@@ -491,6 +498,102 @@ export function ReaderPage({
     );
   }, [bibleReading, target, title, weekLabel]);
 
+  const handleFullDiscoursePrep = useCallback(async () => {
+    if (!window.jcs?.fullDiscoursePrep || !target.issue || target.pub !== 'mwb') return;
+
+    setFullDiscoursePrepping(true);
+    setAutoPrepMessage(null);
+
+    const result = await window.jcs.fullDiscoursePrep({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+      weekLabel,
+      bibleReading,
+      publicationTitle: `${title} — ${target.title}`,
+    });
+
+    setFullDiscoursePrepping(false);
+
+    if (!result.ok) {
+      setAutoPrepMessage(result.error ?? 'Falha na preparação completa.');
+      return;
+    }
+
+    await readerRef.current?.reloadDocument();
+
+    const loadedNotes = await window.jcs.getNotes?.({
+      pub: target.pub,
+      issue: target.issue,
+      documentId: target.documentId,
+    });
+    if (loadedNotes?.length) {
+      setNotes(loadedNotes);
+      readerRef.current?.applyNotes(loadedNotes);
+    }
+
+    const noteCount = result.notes?.length ?? 0;
+    const fields = result.fields?.length ?? 0;
+    setAutoPrepMessage(
+      `Preparação completa: ${noteCount} roteiro(s) de tribuna${fields ? ` e ${fields} campo(s) preenchido(s)` : ''}. Edite nas notas da matéria.`,
+    );
+  }, [bibleReading, target, title, weekLabel]);
+
+  const handleExportDiscourse = useCallback(
+    async (format: 'doc' | 'pdf') => {
+      if (!activeNote || !window.jcs?.exportDiscourseScript || !target.issue) return;
+      setExportingDiscourse(format);
+      try {
+        const result = await window.jcs.exportDiscourseScript({
+          title: activeNote.title,
+          weekLabel,
+          format,
+          value: activeNote.body,
+        });
+        if (!result.ok) {
+          setAutoPrepMessage(result.error ?? 'Não foi possível exportar o roteiro.');
+        }
+      } finally {
+        setExportingDiscourse(null);
+      }
+    },
+    [activeNote, target.issue, weekLabel],
+  );
+
+  const handleDiscourseSaved = useCallback(
+    (updated: DocumentNote) => {
+      setNotes((current) => current.map((note) => (note.id === updated.id ? updated : note)));
+      readerRef.current?.applyNotes([updated]);
+    },
+    [],
+  );
+
+  if (fullEditorOpen && activeNote && isDiscourseScriptNote(activeNote) && target.issue) {
+    return (
+      <DiscourseScriptEditorPage
+        note={activeNote}
+        weekLabel={weekLabel}
+        bibleReading={bibleReading}
+        pub={target.pub}
+        issue={target.issue}
+        documentId={target.documentId}
+        onBack={async () => {
+          setFullEditorOpen(false);
+          if (window.jcs?.getNotes && target.issue) {
+            const loaded = await window.jcs.getNotes({
+              pub: target.pub,
+              issue: target.issue,
+              documentId: target.documentId,
+            });
+            setNotes(loaded);
+            readerRef.current?.applyNotes(loaded);
+          }
+        }}
+        onSaved={handleDiscourseSaved}
+      />
+    );
+  }
+
   if (studyBookSession && activeStory) {
     return (
       <>
@@ -623,17 +726,26 @@ export function ReaderPage({
           <ToolbarButton
             label="Limpar preparação desta matéria"
             onClick={() => void handleClearPrep()}
-            disabled={clearingPrep || autoPrepping}
+            disabled={clearingPrep || autoPrepping || fullDiscoursePrepping}
           >
             {clearingPrep ? 'Limpando…' : 'Limpar preparação'}
           </ToolbarButton>
           <ToolbarButton
             label="Preparar automaticamente"
             onClick={() => void handleAutoPrep()}
-            disabled={autoPrepping || clearingPrep}
+            disabled={autoPrepping || clearingPrep || fullDiscoursePrepping}
           >
             {autoPrepping ? 'Preparando…' : 'Preparar automático'}
           </ToolbarButton>
+          {showElder && target.pub === 'mwb' ? (
+            <ToolbarButton
+              label="Preparação completa de tribuna (Tesouros + Vida Cristã)"
+              onClick={() => void handleFullDiscoursePrep()}
+              disabled={fullDiscoursePrepping || autoPrepping || clearingPrep}
+            >
+              {fullDiscoursePrepping ? 'Preparando…' : 'Preparar completo'}
+            </ToolbarButton>
+          ) : null}
           {!panelOpen ? (
             <ToolbarButton
               label="Abrir assistente IA"
@@ -719,6 +831,13 @@ export function ReaderPage({
           onNoteDelete={() => {
             void deleteActiveNote();
           }}
+          onOpenDiscourseEditor={
+            activeNote && isDiscourseScriptNote(activeNote) ? () => setFullEditorOpen(true) : undefined
+          }
+          onExportDiscourse={
+            activeNote && isDiscourseScriptNote(activeNote) ? (format) => void handleExportDiscourse(format) : undefined
+          }
+          exportingDiscourse={exportingDiscourse}
         />
       </div>
 

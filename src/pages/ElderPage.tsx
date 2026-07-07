@@ -21,10 +21,7 @@ export function ElderPage({
     <div className="px-6 py-6">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-start justify-between gap-4">
-          <p className="text-sm text-jw-muted">
-            Ferramentas para anciãos e servos ministeriais. Conteúdo confidencial — use apenas com permissão
-            Elder.
-          </p>
+          <p className="text-sm text-jw-muted">Conteúdo confidencial</p>
           {onLockElder ? (
             <button
               type="button"

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DocumentNote } from '@/lib/note-dom';
+import { isDiscourseScriptNote } from '../../shared/discourse-script';
 
 type NotePanelProps = {
   note: DocumentNote;
@@ -7,12 +8,23 @@ type NotePanelProps = {
   onClose: () => void;
   onDelete: () => void;
   embedded?: boolean;
+  onOpenFullEditor?: () => void;
+  onExportDiscourse?: (format: 'doc' | 'pdf') => void;
+  exportingDiscourse?: 'doc' | 'pdf' | null;
 };
-
-export function NotePanel({ note, onChange, onClose, onDelete, embedded = false }: NotePanelProps) {
+export function NotePanel({
+  note,
+  onChange,
+  onClose,
+  onDelete,
+  embedded = false,
+  onOpenFullEditor,
+  onExportDiscourse,
+  exportingDiscourse = null,
+}: NotePanelProps) {
   const [tagDraft, setTagDraft] = useState('');
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-
+  const isDiscourse = isDiscourseScriptNote(note);
   useEffect(() => {
     bodyRef.current?.focus();
   }, [note.id]);
@@ -63,10 +75,43 @@ export function NotePanel({ note, onChange, onClose, onDelete, embedded = false 
           placeholder="Escreva sua nota…"
           className={[
             'resize-none rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text outline-none focus:border-jw-purple',
-            embedded ? 'min-h-[160px]' : 'min-h-[220px] flex-1',
+            embedded ? (isDiscourse ? 'min-h-[280px]' : 'min-h-[160px]') : 'min-h-[220px] flex-1',
           ].join(' ')}
         />
 
+        {isDiscourse && (onOpenFullEditor || onExportDiscourse) ? (
+          <div className="flex flex-wrap gap-2">
+            {onOpenFullEditor ? (
+              <button
+                type="button"
+                onClick={onOpenFullEditor}
+                className="rounded-lg bg-jw-purple px-3 py-1.5 text-xs font-medium text-white hover:bg-jw-purple-dark"
+              >
+                Abrir no editor
+              </button>
+            ) : null}
+            {onExportDiscourse ? (
+              <>
+                <button
+                  type="button"
+                  disabled={!!exportingDiscourse}
+                  onClick={() => onExportDiscourse('doc')}
+                  className="rounded-lg border border-jw-border px-3 py-1.5 text-xs text-jw-text hover:border-jw-purple disabled:opacity-50"
+                >
+                  {exportingDiscourse === 'doc' ? 'Exportando…' : 'Exportar .doc'}
+                </button>
+                <button
+                  type="button"
+                  disabled={!!exportingDiscourse}
+                  onClick={() => onExportDiscourse('pdf')}
+                  className="rounded-lg border border-jw-border px-3 py-1.5 text-xs text-jw-text hover:border-jw-purple disabled:opacity-50"
+                >
+                  {exportingDiscourse === 'pdf' ? 'Exportando…' : 'Exportar .pdf'}
+                </button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2">
           {note.tags.map((tag) => (
             <button

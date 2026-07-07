@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { MeetingWeek } from '@/lib/meeting-types';
 import { MEETING_PUBLICATIONS } from '@/lib/types';
 import { DownloadProgressBar, getDownloadPercent } from '@/components/DownloadProgressBar';
-import { IconChevronLeft, IconChevronRight, IconCloudDownload, IconMore } from '@/components/Icons';
+import { IconChevronLeft, IconChevronRight, IconCloudDownload, IconMore, IconOutlinePodium } from '@/components/Icons';
 import { AiToolsMenu } from '@/components/AiToolsMenu';
 
 export type ReaderOpenTarget = {
@@ -18,6 +18,8 @@ type MeetingsPageProps = {
   onWeekIndexChange: (index: number) => void;
   onOpenReader: (target: ReaderOpenTarget) => void;
   onOpenPublicTalkNotes: (week: MeetingWeek) => void;
+  onOpenChairmanPrep?: (week: MeetingWeek) => void;
+  showElderChairmanTools?: boolean;
   onDownloadMeetingPubs: () => Promise<void>;
   onDownloadPub: (pub: 'mwb' | 'w', issue: string) => Promise<void>;
   loadingWeeks: boolean;
@@ -34,6 +36,8 @@ export function MeetingsPage({
   onWeekIndexChange,
   onOpenReader,
   onOpenPublicTalkNotes,
+  onOpenChairmanPrep,
+  showElderChairmanTools,
   onDownloadMeetingPubs,
   onDownloadPub,
   loadingWeeks,
@@ -104,6 +108,19 @@ export function MeetingsPage({
           <IconChevronRight className="h-5 w-5" />
         </WeekNavButton>
       </div>
+
+      {showElderChairmanTools && onOpenChairmanPrep ? (
+        <div className="mb-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => onOpenChairmanPrep(week)}
+            className="inline-flex items-center gap-2 rounded-full border border-jw-purple/40 bg-jw-purple/5 px-5 py-2 text-sm font-medium text-jw-purple hover:bg-jw-purple-light/40"
+          >
+            <IconOutlinePodium className="h-4 w-4" />
+            Presidir
+          </button>
+        </div>
+      ) : null}
 
       <MeetingSection title="Vida e Ministério">
         {week.mwbDownloaded && week.mwbDocumentId ? (

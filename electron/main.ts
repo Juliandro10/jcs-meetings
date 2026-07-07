@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { webcrypto } from 'node:crypto';
 import { runAutoPrep } from './auto-prep';
+import { runFullDiscoursePrep } from './full-discourse-prep';
 import { runLfbPrep } from './lfb-prep';
 import { runAiChat } from './ai-assistant';
 import { prepareAiChatParams } from './ai-context';
@@ -91,7 +92,16 @@ import {
   syncDownloadRegistryFromCache,
 } from './download-registry';
 import { standardizeJwpubCacheDir } from './jwpub-cache-normalize';
-import { exportMeetingAtaDocument, exportOutlineDocument, exportPublicTalkNote } from './outline-export';
+import { exportMeetingAtaDocument, exportFullHtmlToPdf, exportOutlineDocument, exportPublicTalkNote, sanitizeExportFileName } from './outline-export';
+import {
+  emptyChairmanPrep,
+  loadChairmanPrep,
+  saveChairmanPrep,
+} from './chairman-prep-store';
+import { parseChairmanDesignationFile } from './chairman-designation-import';
+import { weekTargetMismatch } from './chairman-designation-ai';
+import { generateChairmanPrepContent } from './chairman-prep-generate';
+import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { exportJwlibrary, importJwlibrary } from './jwlibrary-export';
 import { dedupeNotesByTitle, pruneDuplicateDocumentNotes } from './note-dedupe';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
@@ -168,6 +178,7 @@ import type {
   ResolveLinkParams,
   SetFieldValueParams,
   MeetingWeek,
+  ChairmanPrepRecord,
 } from './types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -535,6 +546,12 @@ function registerIpc() {
     runAutoPrep(getCacheDir(), getUserDataDir(), params),
   );
 
+  ipcMain.handle('jcs:full-discourse-prep', async (_event, params: AutoPrepParams) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+    return runFullDiscoursePrep(getCacheDir(), getUserDataDir(), params);
+  });
+
   ipcMain.handle('jcs:lfb-prep', async (_event, params: LfbPrepParams) =>
     runLfbPrep(getCacheDir(), getUserDataDir(), params),
   );
@@ -868,13 +885,47 @@ function registerIpc() {
   );
 
   ipcMain.handle(
+    'jcs:export-discourse-script',
+    async (
+      _event,
+      params: { title: string; weekLabel: string; format: 'doc' | 'pdf'; value: string },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+
+      const safeTitle = params.title.replace(/^ROTEIRO\s*—\s*/i, '').trim() || 'Roteiro de tribuna';
+      const ext = params.format === 'pdf' ? 'pdf' : 'doc';
+      const defaultName = `${sanitizeExportFileName(safeTitle)}.${ext}`;
+      const result = await dialog.showSaveDialog({
+        title: 'Exportar roteiro de tribuna',
+        defaultPath: defaultName,
+        filters: [
+          params.format === 'pdf'
+            ? { name: 'PDF', extensions: ['pdf'] }
+            : { name: 'Documento Word', extensions: ['doc'] },
+        ],
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'Exportação cancelada.' };
+      }
+      return exportPublicTalkNote(
+        result.filePath,
+        params.format,
+        safeTitle,
+        params.weekLabel,
+        params.value,
+      );
+    },
+  );
+
+  ipcMain.handle(
     'jcs:export-public-talk-note',
     async (
       _event,
       params: { weekId: string; weekLabel: string; format: 'doc' | 'pdf'; value: string },
     ) => {
       const ext = params.format === 'pdf' ? 'pdf' : 'doc';
-      const defaultName = `Discurso publico ${params.weekLabel.replace(/[^\d\sa-zA-Z–-]/g, '').trim()}.${ext}`;
+      const defaultName = `Discurso público ${sanitizeExportFileName(params.weekLabel)}.${ext}`;
       const result = await dialog.showSaveDialog({
         title: 'Exportar anotações do discurso público',
         defaultPath: defaultName,
@@ -1108,6 +1159,173 @@ function registerIpc() {
       return exportMeetingAtaDocument(result.filePath, params.format, body);
     },
   );
+
+  ipcMain.handle('jcs:get-chairman-prep', async (_event, weekId: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    try {
+      const existing = await loadChairmanPrep(getUserDataRoot(), weekId);
+      return { ok: true, record: existing ?? undefined };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao carregar folha do presidente';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle('jcs:save-chairman-prep', async (_event, record: ChairmanPrepRecord) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    try {
+      const saved = await saveChairmanPrep(getUserDataRoot(), record);
+      return { ok: true, record: saved };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao salvar folha do presidente';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:import-chairman-designation',
+    async (
+      _event,
+      params: {
+        weekId: string;
+        weekLabel: string;
+        bibleReading: string;
+        dateIso?: string;
+        dateRangeCaps?: string;
+        importKind?: 'file' | 'image';
+      },
+    ) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+
+      const imageOnly = params.importKind === 'image';
+      const result = await dialog.showOpenDialog({
+        title: imageOnly ? 'Importar folha (imagem)' : 'Importar folha de designações',
+        properties: ['openFile'],
+        filters: imageOnly
+          ? [
+              { name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] },
+              { name: 'Todos os arquivos', extensions: ['*'] },
+            ]
+          : [
+              {
+                name: 'Designações',
+                extensions: ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'webp'],
+              },
+              { name: 'PDF', extensions: ['pdf'] },
+              { name: 'Word', extensions: ['doc', 'docx'] },
+              { name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+              { name: 'Todos os arquivos', extensions: ['*'] },
+            ],
+      });
+
+      if (result.canceled || !result.filePaths[0]) {
+        return { ok: false, error: 'Importação cancelada.' };
+      }
+
+      try {
+        const filePath = result.filePaths[0];
+        const fileName = path.basename(filePath);
+        const buffer = await fs.readFile(filePath);
+        const weekTarget = {
+          bibleReading: params.bibleReading,
+          weekLabel: params.weekLabel,
+          dateIso: params.dateIso,
+          dateRangeCaps: params.dateRangeCaps,
+        };
+        const parsed = await parseChairmanDesignationFile(fileName, buffer, weekTarget);
+        if (!parsed.ok || !parsed.document) {
+          return { ok: false, error: parsed.error ?? 'Não foi possível ler a folha.' };
+        }
+
+        const weekMismatch = weekTargetMismatch(weekTarget, parsed.document)
+          ? {
+              expectedBibleReading: params.bibleReading,
+              importedBibleReading: parsed.document.bibleReading,
+              expectedWeekLabel: params.weekLabel,
+              importedMeetingDate: parsed.document.meetingDate,
+            }
+          : undefined;
+
+        return {
+          ok: true,
+          document: parsed.document,
+          fileName,
+          rawText: parsed.rawText,
+          parseMethod: parsed.parseMethod,
+          parseMethodLabel: parsed.parseMethodLabel,
+          usedVision: parsed.usedVision,
+          weeksFound: parsed.weeksFound,
+          weekMismatch,
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao importar folha';
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle('jcs:generate-chairman-prep', async (_event, params: { week: MeetingWeek }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    try {
+      const week = params.week;
+      let record =
+        (await loadChairmanPrep(getUserDataRoot(), week.id)) ??
+        emptyChairmanPrep({
+          weekId: week.id,
+          weekLabel: week.label,
+          bibleReading: week.bibleReading,
+        });
+
+      const generated = await generateChairmanPrepContent(getCacheDir(), week, record);
+      if (!generated.ok || !generated.content) {
+        return { ok: false, error: generated.error ?? 'Não foi possível gerar a folha.' };
+      }
+
+      record = { ...record, content: generated.content };
+      await saveChairmanPrep(getUserDataRoot(), record);
+      return { ok: true, content: generated.content };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao gerar folha do presidente';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle('jcs:export-chairman-prep', async (_event, params: { weekId: string }) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    try {
+      const record = await loadChairmanPrep(getUserDataRoot(), params.weekId);
+      if (!record?.content) {
+        return { ok: false, error: 'Gere ou edite a folha antes de exportar.' };
+      }
+
+      const safeLabel = record.weekLabel.replace(/[^\d\sa-zA-ZÀ-ÿ–-]/g, '').trim().slice(0, 60);
+      const defaultName = `Folha presidente ${safeLabel || record.weekId}.pdf`;
+      const saveResult = await dialog.showSaveDialog({
+        title: 'Exportar folha do presidente',
+        defaultPath: defaultName,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+
+      if (saveResult.canceled || !saveResult.filePath) {
+        return { ok: false, error: 'Exportação cancelada.' };
+      }
+
+      const html = buildChairmanPrepHtml(record);
+      return exportFullHtmlToPdf(saveResult.filePath, html);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao exportar folha';
+      return { ok: false, error: message };
+    }
+  });
 
   ipcMain.handle('jcs:list-circuit-visits', async () => {
     const denied = assertElderUnlocked();

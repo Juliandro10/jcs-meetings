@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BibleAudioPlayer, type BibleAudioTrack } from '@/components/BibleAudioPlayer';
 import { BibleLanguageModal, type NwtLanguageOption } from '@/components/BibleLanguageModal';
 import { IconBookOpen, IconChevronLeft, IconGlobe, IconHeadphones } from '@/components/Icons';
@@ -9,6 +9,11 @@ import {
   writeBibleEdition,
   type BibleEdition,
 } from '@/lib/bible-edition';
+import {
+  readBibleSession,
+  writeBibleSession,
+  type BibleSessionView,
+} from '@/lib/bible-session';
 
 type BibleBookInfo = {
   bookNumber: number;
@@ -43,14 +48,57 @@ function shortBookTitle(title: string) {
     .trim();
 }
 
-export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: Record<string, number> }) {
+function serializeView(view: BibleView, scrollTop: number): BibleSessionView {
+  switch (view.mode) {
+    case 'books':
+      return { mode: 'books' };
+    case 'section':
+      return { mode: 'section' };
+    case 'chapters':
+      return { mode: 'chapters', bookNumber: view.book.bookNumber };
+    case 'chapter':
+      return {
+        mode: 'chapter',
+        bookNumber: view.book.bookNumber,
+        chapterNumber: view.chapterNumber,
+        scrollTop: scrollTop > 0 ? scrollTop : undefined,
+      };
+    case 'document':
+      return {
+        mode: 'document',
+        documentId: view.documentId,
+        title: view.title,
+        scrollTop: scrollTop > 0 ? scrollTop : undefined,
+      };
+  }
+}
+
+function needsSessionRestore(view: BibleSessionView | undefined) {
+  return !!view && view.mode !== 'books';
+}
+
+export function BiblePage({
+  downloadProgressMap = {},
+  active = true,
+}: {
+  downloadProgressMap?: Record<string, number>;
+  /** false quando a aba Bíblia está oculta (keep-alive). */
+  active?: boolean;
+}) {
+  const savedSession = useMemo(() => readBibleSession(), []);
+  const pendingScroll = useRef<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTopRef = useRef(0);
+  const persistTimer = useRef<number | null>(null);
+
   const [edition, setEdition] = useState<BibleEdition>(() => readBibleEdition());
-  const [lang, setLang] = useState('T');
-  const [langLabel, setLangLabel] = useState('Português (Brasil)');
+  const [lang, setLang] = useState(savedSession?.lang ?? 'T');
+  const [langLabel, setLangLabel] = useState(savedSession?.langLabel ?? 'Português (Brasil)');
   const [books, setBooks] = useState<BibleBookInfo[]>([]);
   const [sectionItems, setSectionItems] = useState<BibleNavItem[]>([]);
   const [languages, setLanguages] = useState<NwtLanguageOption[]>([]);
   const [view, setView] = useState<BibleView>({ mode: 'books' });
+  const [restoreDone, setRestoreDone] = useState(!needsSessionRestore(savedSession?.view));
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [loadingSection, setLoadingSection] = useState(false);
   const [loadingChapter, setLoadingChapter] = useState(false);
@@ -60,7 +108,27 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
   const [loadingLangs, setLoadingLangs] = useState(false);
   const [downloadingLang, setDownloadingLang] = useState<string | null>(null);
   const [audioTrack, setAudioTrack] = useState<BibleAudioTrack | null>(null);
-  const [activeTab, setActiveTab] = useState<(typeof BIBLE_TABS)[number]>('LIVROS');
+  const [activeTab, setActiveTab] = useState<(typeof BIBLE_TABS)[number]>(
+    savedSession?.activeTab ?? 'LIVROS',
+  );
+
+  const persistSession = useCallback(() => {
+    writeBibleSession({
+      edition,
+      lang,
+      langLabel,
+      activeTab,
+      view: serializeView(view, scrollTopRef.current),
+    });
+  }, [activeTab, edition, lang, langLabel, view]);
+
+  const schedulePersist = useCallback(() => {
+    if (!restoreDone) return;
+    if (persistTimer.current) window.clearTimeout(persistTimer.current);
+    persistTimer.current = window.setTimeout(() => {
+      persistSession();
+    }, 250);
+  }, [persistSession, restoreDone]);
 
   const reloadBooks = useCallback(async (nextLang: string) => {
     if (!window.jcs?.listBibleBooks) {
@@ -121,7 +189,9 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
   }, [langModalOpen, reloadLanguages]);
 
   useEffect(() => {
+    if (!restoreDone) return;
     if (activeTab === 'LIVROS') {
+      if (view.mode === 'books' || view.mode === 'chapters' || view.mode === 'chapter') return;
       setView({ mode: 'books' });
       setSectionItems([]);
       return;
@@ -131,8 +201,69 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
       setSectionItems([]);
       return;
     }
+    if (view.mode === 'chapter' || view.mode === 'document' || view.mode === 'chapters') return;
     void reloadSection(activeTab, lang);
-  }, [activeTab, edition, lang, reloadSection]);
+  }, [activeTab, edition, lang, reloadSection, restoreDone, view.mode]);
+
+  useEffect(() => {
+    schedulePersist();
+  }, [schedulePersist, view, activeTab, lang, langLabel, edition]);
+
+  useEffect(() => {
+    return () => {
+      if (persistTimer.current) window.clearTimeout(persistTimer.current);
+      if (restoreDone) persistSession();
+    };
+  }, [persistSession, restoreDone]);
+
+  useEffect(() => {
+    if (restoreDone || books.length === 0 || !savedSession) return;
+
+    const restore = async () => {
+      const target = savedSession.view;
+      try {
+        if (target.mode === 'section') {
+          if (savedSession.activeTab !== 'LIVROS') {
+            await reloadSection(savedSession.activeTab, lang);
+          }
+          return;
+        }
+        if (target.mode === 'chapters') {
+          const book = books.find((item) => item.bookNumber === target.bookNumber);
+          if (book) setView({ mode: 'chapters', book });
+          return;
+        }
+        if (target.mode === 'chapter') {
+          const book = books.find((item) => item.bookNumber === target.bookNumber);
+          if (!book) return;
+          pendingScroll.current = target.scrollTop ?? null;
+          await openChapter(book, target.chapterNumber);
+          return;
+        }
+        if (target.mode === 'document') {
+          pendingScroll.current = target.scrollTop ?? null;
+          await openDocument(target.documentId);
+        }
+      } finally {
+        setRestoreDone(true);
+      }
+    };
+
+    void restore();
+  }, [books, lang, reloadSection, restoreDone, savedSession]);
+
+  useEffect(() => {
+    if (pendingScroll.current === null) return;
+    if (view.mode !== 'chapter' && view.mode !== 'document') return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const top = pendingScroll.current;
+    pendingScroll.current = null;
+    requestAnimationFrame(() => {
+      el.scrollTop = top;
+      scrollTopRef.current = top;
+    });
+  }, [view]);
 
   const editionLabel = useMemo(
     () => BIBLE_EDITION_OPTIONS.find((item) => item.id === edition)?.label ?? edition,
@@ -144,6 +275,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
 
   async function openChapter(book: BibleBookInfo, chapterNumber: number) {
     if (!window.jcs?.getBibleChapter) return;
+    scrollTopRef.current = 0;
     setLoadingChapter(true);
     setError(null);
     try {
@@ -322,8 +454,19 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
-        {view.mode === 'books' && activeTab === 'LIVROS' ? (
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-auto px-5 py-4"
+        onScroll={() => {
+          scrollTopRef.current = scrollContainerRef.current?.scrollTop ?? 0;
+          schedulePersist();
+        }}
+      >
+        {!restoreDone ? (
+          <p className="py-12 text-center text-sm text-jw-muted">Continuando de onde parou…</p>
+        ) : null}
+
+        {restoreDone && view.mode === 'books' && activeTab === 'LIVROS' ? (
           loadingBooks ? (
             <p className="py-12 text-center text-sm text-jw-muted">Carregando livros…</p>
           ) : (
@@ -344,7 +487,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
           )
         ) : null}
 
-        {view.mode === 'section' ? (
+        {restoreDone && view.mode === 'section' ? (
           loadingSection ? (
             <p className="py-12 text-center text-sm text-jw-muted">Carregando…</p>
           ) : isBibleTabDisabled(edition, activeTab) ? (
@@ -360,7 +503,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
           )
         ) : null}
 
-        {view.mode === 'chapters' ? (
+        {restoreDone && view.mode === 'chapters' ? (
           <div className="max-w-3xl">
             <button
               type="button"
@@ -388,7 +531,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
           </div>
         ) : null}
 
-        {view.mode === 'chapter' ? (
+        {restoreDone && view.mode === 'chapter' ? (
           <div className="max-w-3xl">
             <button
               type="button"
@@ -411,7 +554,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
           </div>
         ) : null}
 
-        {view.mode === 'document' ? (
+        {restoreDone && view.mode === 'document' ? (
           <div className="max-w-3xl">
             <button
               type="button"
@@ -433,6 +576,7 @@ export function BiblePage({ downloadProgressMap = {} }: { downloadProgressMap?: 
       <BibleAudioPlayer
         track={audioTrack}
         bookTitle={view.mode === 'chapter' ? view.bookTitle : ''}
+        active={active}
         onClose={() => setAudioTrack(null)}
       />
 

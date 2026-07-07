@@ -6,7 +6,6 @@ import { ElderPinGate } from '@/components/ElderPinGate';
 import { GlobalSearchModal } from '@/components/GlobalSearchModal';
 import { DictionaryModal } from '@/components/DictionaryModal';
 import { SelectionActionsProvider } from '@/context/SelectionActionsContext';
-import { SelectiveLoginScreen } from '@/components/SelectiveLoginScreen';
 import { SplashScreen } from '@/components/SplashScreen';
 import { BiblePage } from '@/pages/BiblePage';
 import { ElderSection } from '@/components/ElderSection';
@@ -15,9 +14,10 @@ import { LibraryPage } from '@/pages/LibraryPage';
 import { MeetingsPage, type ReaderOpenTarget } from '@/pages/MeetingsPage';
 import { PersonalStudyPage } from '@/pages/PersonalStudyPage';
 import { PreachingPage } from '@/pages/PreachingPage';
-import { PublicTalkNotesPage } from '@/pages/PublicTalkNotesPage';
+import { ChairmanPrepPage } from '@/pages/ChairmanPrepPage';
 import { ReaderPage } from '@/pages/ReaderPage';
 import { JwBrowserPage } from '@/pages/JwBrowserPage';
+import { hasBibleSession } from '@/lib/bible-session';
 import {
   TeachingKitPublicationReaderPage,
   type TeachingKitReaderTarget,
@@ -29,15 +29,14 @@ import {
   type AppSessionMode,
 } from '@/lib/elder-access';
 
-type LoginState = 'pending' | AppSessionMode;
-
 export default function App() {
   const [ready, setReady] = useState(false);
-  const [sessionMode, setSessionMode] = useState<LoginState>('pending');
+  const [sessionMode, setSessionMode] = useState<AppSessionMode>('common');
   const [elderUnlockOpen, setElderUnlockOpen] = useState(false);
   const [section, setSection] = useState<AppSection>('home');
   const [reader, setReader] = useState<ReaderOpenTarget | null>(null);
   const [publicTalkWeek, setPublicTalkWeek] = useState<MeetingWeek | null>(null);
+  const [chairmanPrepWeek, setChairmanPrepWeek] = useState<MeetingWeek | null>(null);
   const [weeks, setWeeks] = useState<MeetingWeek[]>([]);
   const [weekIndex, setWeekIndex] = useState(0);
   const [loadingWeeks, setLoadingWeeks] = useState(false);
@@ -52,6 +51,9 @@ export default function App() {
   const [dictionaryOpen, setDictionaryOpen] = useState(false);
   const [dictionaryInitialQuery, setDictionaryInitialQuery] = useState('');
   const [researchReader, setResearchReader] = useState<TeachingKitReaderTarget | null>(null);
+  const [wolLaunchUrl, setWolLaunchUrl] = useState<string | null>(null);
+  /** Mantém a Bíblia montada após a 1ª visita (ou se há sessão salva). */
+  const [bibleAlive, setBibleAlive] = useState(() => hasBibleSession());
   const showElder = canShowElderTab(sessionMode === 'elder' ? 'elder' : 'common');
 
   const openSearch = useCallback((query = '') => {
@@ -97,12 +99,14 @@ export default function App() {
     </SelectionActionsProvider>
   );
 
-  const handleLoginChoice = useCallback((mode: AppSessionMode) => {
-    if (mode === 'common') {
-      void window.jcs?.lockElderSession?.();
-    }
-    setSessionMode(mode);
-    setStoredSessionMode(mode);
+  const openDailyTextWol = useCallback((url: string) => {
+    setWolLaunchUrl(url);
+    setSection('jw-research');
+  }, []);
+
+  useEffect(() => {
+    void window.jcs?.lockElderSession?.();
+    setStoredSessionMode('common');
   }, []);
 
   const lockElder = useCallback(async () => {
@@ -119,6 +123,14 @@ export default function App() {
     setElderUnlockOpen(false);
     setSection('elder');
   }, []);
+
+  useEffect(() => {
+    if (section === 'bible') setBibleAlive(true);
+  }, [section]);
+
+  useEffect(() => {
+    if (section !== 'jw-research') setWolLaunchUrl(null);
+  }, [section]);
 
   useEffect(() => {
     if (section === 'elder' && !showElder) setSection('home');
@@ -265,8 +277,12 @@ export default function App() {
     return <SplashScreen onDone={() => setReady(true)} />;
   }
 
-  if (sessionMode === 'pending') {
-    return <SelectiveLoginScreen onChoose={handleLoginChoice} />;
+  if (chairmanPrepWeek) {
+    return wrapWithSelectionTools(
+      <AppShell section="meetings" onSectionChange={setSection} showElder={showElder} onSearchClick={() => openSearch()}>
+        <ChairmanPrepPage week={chairmanPrepWeek} onBack={() => setChairmanPrepWeek(null)} />
+      </AppShell>,
+    );
   }
 
   if (publicTalkWeek) {
@@ -291,6 +307,7 @@ export default function App() {
         weekLabel={week?.label ?? ''}
         bibleReading={week?.bibleReading}
         downloadProgressMap={downloadProgressMap}
+        showElder={showElder}
         onBack={() => setReader(null)}
         onOpenSearch={openSearch}
         onOpenDictionary={openDictionary}
@@ -307,13 +324,14 @@ export default function App() {
         onSectionChange={setSection}
         showElder={showElder}
         onSearchClick={() => openSearch()}
-        contentFill={section === 'jw-research' || section === 'elder'}
+        contentFill={section === 'jw-research' || section === 'elder' || section === 'bible'}
       >
       {section === 'home' ? (
         <HomePage
           currentWeek={currentWeek}
           onNavigate={setSection}
           onOpenMeetings={() => setSection('meetings')}
+          onOpenDailyTextWol={openDailyTextWol}
         />
       ) : null}
       {section === 'meetings' ? (
@@ -331,6 +349,8 @@ export default function App() {
             onDownloadPub={downloadPub}
             onOpenReader={setReader}
             onOpenPublicTalkNotes={setPublicTalkWeek}
+            onOpenChairmanPrep={setChairmanPrepWeek}
+            showElderChairmanTools={showElder}
             loadingWeeks={loadingWeeks}
             refreshingWeeks={refreshingWeeks}
             downloading={downloading}
@@ -359,8 +379,15 @@ export default function App() {
         />
       ) : null}
       {section === 'preaching' ? <PreachingPage /> : null}
-      {section === 'bible' ? <BiblePage downloadProgressMap={downloadProgressMap} /> : null}
-      {section === 'jw-research' ? <JwBrowserPage /> : null}
+      {bibleAlive ? (
+        <div
+          className={section === 'bible' ? 'flex h-full min-h-0 flex-1 flex-col' : 'hidden'}
+          aria-hidden={section !== 'bible'}
+        >
+          <BiblePage active={section === 'bible'} downloadProgressMap={downloadProgressMap} />
+        </div>
+      ) : null}
+      {section === 'jw-research' ? <JwBrowserPage launchUrl={wolLaunchUrl ?? undefined} /> : null}
       {section === 'elder' && showElder ? <ElderSection onLockElder={() => void lockElder()} /> : null}
       {section === 'media' ? <ComingSoon section={section} /> : null}
       </AppShell>

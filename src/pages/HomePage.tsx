@@ -14,9 +14,10 @@ type HomePageProps = {
   currentWeek: MeetingWeek | null;
   onNavigate: (section: AppSection) => void;
   onOpenMeetings: () => void;
+  onOpenDailyTextWol?: (url: string) => void;
 };
 
-export function HomePage({ currentWeek, onNavigate, onOpenMeetings }: HomePageProps) {
+export function HomePage({ currentWeek, onNavigate, onOpenMeetings, onOpenDailyTextWol }: HomePageProps) {
   const [dailyText, setDailyText] = useState<DailyText | null>(null);
   const [loadingDaily, setLoadingDaily] = useState(true);
   const [dailyError, setDailyError] = useState<string | null>(null);
@@ -88,8 +89,7 @@ export function HomePage({ currentWeek, onNavigate, onOpenMeetings }: HomePagePr
     <div className="px-8 py-6">
       <div className="mx-auto max-w-5xl">
         <section className="mb-10 text-center">
-          <h2 className="text-xl font-semibold text-jw-purple-dark">Bem-vindo ao JCS Meetings</h2>
-          <p className="mt-1 text-sm text-jw-muted">Preparação de reuniões com aparência familiar.</p>
+          <h2 className="text-xl font-semibold text-jw-purple-dark">Bem-vindo ao Meetings</h2>
         </section>
 
         <section className="mb-10">
@@ -119,7 +119,7 @@ export function HomePage({ currentWeek, onNavigate, onOpenMeetings }: HomePagePr
                 {dailyText.wolUrl ? (
                   <button
                     type="button"
-                    onClick={() => window.open(dailyText.wolUrl, '_blank')}
+                    onClick={() => onOpenDailyTextWol?.(dailyText.wolUrl!)}
                     className="mt-4 text-sm text-[#2f6fad] hover:underline"
                   >
                     Abrir no WOL

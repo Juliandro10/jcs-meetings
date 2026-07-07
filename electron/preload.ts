@@ -62,6 +62,10 @@ import type {
   ExportCircuitVisitResult,
   ImportElderMeetingPautaResult,
   ParseElderMeetingPautaResult,
+  ChairmanPrepRecord,
+  ChairmanPrepResult,
+  ImportChairmanDesignationResult,
+  GenerateChairmanPrepResult,
   ExportTalkThemeCardParams,
   ExportTalkThemeCardResult,
   GlobalSearchResult,
@@ -165,6 +169,15 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:remove-highlight', params),
   autoPrep: (params: AutoPrepParams): Promise<AutoPrepResult> =>
     ipcRenderer.invoke('jcs:auto-prep', params),
+  fullDiscoursePrep: (params: AutoPrepParams): Promise<AutoPrepResult> =>
+    ipcRenderer.invoke('jcs:full-discourse-prep', params),
+  exportDiscourseScript: (params: {
+    title: string;
+    weekLabel: string;
+    format: 'doc' | 'pdf';
+    value: string;
+  }): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:export-discourse-script', params),
   lfbPrep: (params: LfbPrepParams): Promise<LfbPrepResult> =>
     ipcRenderer.invoke('jcs:lfb-prep', params),
   getNotes: (params: { pub: string; issue: string; documentId: number }) =>
@@ -246,6 +259,23 @@ contextBridge.exposeInMainWorld('jcs', {
     forceAi?: boolean;
   }): Promise<ParseElderMeetingPautaResult> =>
     ipcRenderer.invoke('jcs:parse-elder-meeting-pauta-text', params),
+  getChairmanPrep: (weekId: string): Promise<ChairmanPrepResult> =>
+    ipcRenderer.invoke('jcs:get-chairman-prep', weekId),
+  saveChairmanPrep: (record: ChairmanPrepRecord): Promise<ChairmanPrepResult> =>
+    ipcRenderer.invoke('jcs:save-chairman-prep', record),
+  importChairmanDesignation: (params: {
+    weekId: string;
+    weekLabel: string;
+    bibleReading: string;
+    dateIso?: string;
+    dateRangeCaps?: string;
+    importKind?: 'file' | 'image';
+  }): Promise<ImportChairmanDesignationResult> =>
+    ipcRenderer.invoke('jcs:import-chairman-designation', params),
+  generateChairmanPrep: (params: { week: MeetingWeek }): Promise<GenerateChairmanPrepResult> =>
+    ipcRenderer.invoke('jcs:generate-chairman-prep', params),
+  exportChairmanPrep: (params: { weekId: string }): Promise<PublicTalkExportResult> =>
+    ipcRenderer.invoke('jcs:export-chairman-prep', params),
   exportElderMeetingAta: (params: {
     record: Pick<
       ElderMeetingRecord,
@@ -447,6 +477,13 @@ declare global {
         highlightId: string;
       }) => Promise<DocumentHighlight[]>;
       autoPrep: (params: AutoPrepParams) => Promise<AutoPrepResult>;
+      fullDiscoursePrep: (params: AutoPrepParams) => Promise<AutoPrepResult>;
+      exportDiscourseScript: (params: {
+        title: string;
+        weekLabel: string;
+        format: 'doc' | 'pdf';
+        value: string;
+      }) => Promise<{ ok: boolean; error?: string }>;
       lfbPrep: (params: LfbPrepParams) => Promise<LfbPrepResult>;
       getNotes: (params: { pub: string; issue: string; documentId: number }) => Promise<DocumentNote[]>;
       saveNote: (params: {
@@ -517,6 +554,18 @@ declare global {
         text: string;
         forceAi?: boolean;
       }) => Promise<ParseElderMeetingPautaResult>;
+      getChairmanPrep: (weekId: string) => Promise<ChairmanPrepResult>;
+      saveChairmanPrep: (record: ChairmanPrepRecord) => Promise<ChairmanPrepResult>;
+      importChairmanDesignation: (params: {
+        weekId: string;
+        weekLabel: string;
+        bibleReading: string;
+        dateIso?: string;
+        dateRangeCaps?: string;
+        importKind?: 'file' | 'image';
+      }) => Promise<ImportChairmanDesignationResult>;
+      generateChairmanPrep: (params: { week: MeetingWeek }) => Promise<GenerateChairmanPrepResult>;
+      exportChairmanPrep: (params: { weekId: string }) => Promise<PublicTalkExportResult>;
       exportElderMeetingAta: (params: {
         record: Pick<
           ElderMeetingRecord,

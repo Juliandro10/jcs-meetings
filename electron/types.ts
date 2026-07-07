@@ -789,3 +789,42 @@ export type JwBrowserDownloadProgressEvent = {
   fileName: string;
   percent: number;
 };
+
+export type {
+  ChairmanAssignment,
+  ChairmanAssignmentSection,
+  ChairmanGeneratedContent,
+  ChairmanGeneratedPart,
+  ChairmanPrepRecord,
+  ParsedChairmanDesignation,
+} from '../shared/chairman-prep-types';
+
+export type ChairmanPrepResult = {
+  ok: boolean;
+  record?: import('../shared/chairman-prep-types').ChairmanPrepRecord;
+  error?: string;
+};
+
+export type ImportChairmanDesignationResult = {
+  ok: boolean;
+  document?: import('../shared/chairman-prep-types').ParsedChairmanDesignation;
+  fileName?: string;
+  rawText?: string;
+  parseMethod?: 'text' | 'vision';
+  parseMethodLabel?: string;
+  usedVision?: boolean;
+  weeksFound?: number;
+  weekMismatch?: {
+    expectedBibleReading: string;
+    importedBibleReading?: string;
+    expectedWeekLabel: string;
+    importedMeetingDate?: string;
+  };
+  error?: string;
+};
+
+export type GenerateChairmanPrepResult = {
+  ok: boolean;
+  content?: import('../shared/chairman-prep-types').ChairmanGeneratedContent;
+  error?: string;
+};

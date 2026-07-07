@@ -26,6 +26,9 @@ type SidePanelProps = {
   onNoteChange?: (patch: Partial<Pick<DocumentNote, 'title' | 'body' | 'tags'>>) => void;
   onNoteClose?: () => void;
   onNoteDelete?: () => void;
+  onOpenDiscourseEditor?: () => void;
+  onExportDiscourse?: (format: 'doc' | 'pdf') => void;
+  exportingDiscourse?: 'doc' | 'pdf' | null;
   /** Notas da história lfb — exibidas na aba Referências com o livro aberto. */
   documentNotes?: DocumentNote[];
   onDocumentNoteSelect?: (noteId: string) => void;
@@ -50,6 +53,9 @@ export function SidePanel({
   onNoteChange,
   onNoteClose,
   onNoteDelete,
+  onOpenDiscourseEditor,
+  onExportDiscourse,
+  exportingDiscourse,
   documentNotes,
   onDocumentNoteSelect,
   hideAssistant = false,
@@ -127,6 +133,9 @@ export function SidePanel({
                 onChange={onNoteChange}
                 onClose={onNoteClose}
                 onDelete={onNoteDelete}
+                onOpenFullEditor={onOpenDiscourseEditor}
+                onExportDiscourse={onExportDiscourse}
+                exportingDiscourse={exportingDiscourse}
               />
             ) : null}
 

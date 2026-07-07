@@ -128,7 +128,7 @@ async function fetchTeachingToolboxVideos(lang = 'T'): Promise<TeachingKitItem[]
     });
 }
 
-function parsePreachingTopics(html: string): { introHtml: string; topics: PreachingTopic[] } {
+export function parsePreachingTopics(html: string): { introHtml: string; topics: PreachingTopic[] } {
   const bodyMatch = html.match(/<div class="bodyTxt">([\s\S]*?)<\/div>\s*(?:<div class="pubRefs|<\/body|$)/i);
   const body = bodyMatch?.[1] ?? html;
 

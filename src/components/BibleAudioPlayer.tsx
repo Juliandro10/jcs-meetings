@@ -11,10 +11,11 @@ export type BibleAudioTrack = {
 type BibleAudioPlayerProps = {
   track: BibleAudioTrack | null;
   bookTitle: string;
+  active?: boolean;
   onClose: () => void;
 };
 
-export function BibleAudioPlayer({ track, bookTitle, onClose }: BibleAudioPlayerProps) {
+export function BibleAudioPlayer({ track, bookTitle, active = true, onClose }: BibleAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -26,6 +27,14 @@ export function BibleAudioPlayer({ track, bookTitle, onClose }: BibleAudioPlayer
       void audioRef.current.load();
     }
   }, [track?.url]);
+
+  useEffect(() => {
+    if (active !== false) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    setPlaying(false);
+  }, [active]);
 
   if (!track) return null;
 
