@@ -48,6 +48,8 @@ export function MeetingsPage({
   loadError,
 }: MeetingsPageProps) {
   const [aiOpen, setAiOpen] = useState(false);
+  const [exportingRead, setExportingRead] = useState(false);
+  const [exportReadMessage, setExportReadMessage] = useState<string | null>(null);
 
   const week = weeks[weekIndex];
   const weekLabel = week ? `${week.label}${week.isCurrentWeek ? ' · Esta semana' : ''}` : '—';
@@ -121,6 +123,39 @@ export function MeetingsPage({
           </button>
         </div>
       ) : null}
+
+      <div className="mb-8 flex flex-col items-center gap-2">
+        <button
+          type="button"
+          disabled={exportingRead || !window.jcs?.exportReadWeek}
+          onClick={() => {
+            if (!window.jcs?.exportReadWeek) return;
+            setExportReadMessage(null);
+            setExportingRead(true);
+            void window.jcs
+              .exportReadWeek(week)
+              .then((result) => {
+                if (result.ok) {
+                  setExportReadMessage(
+                    `Exportado (${result.documentCount ?? 0} documento(s)). Copie a pasta JCS para o tablet.`,
+                  );
+                } else {
+                  setExportReadMessage(result.error ?? 'Não foi possível exportar.');
+                }
+              })
+              .catch((err) => {
+                setExportReadMessage(err instanceof Error ? err.message : 'Erro ao exportar.');
+              })
+              .finally(() => setExportingRead(false));
+          }}
+          className="inline-flex items-center gap-2 rounded-full border border-jw-border bg-white px-5 py-2 text-sm font-medium text-jw-text shadow-sm hover:border-jw-purple/40 hover:text-jw-purple disabled:opacity-50"
+        >
+          {exportingRead ? 'Exportando…' : 'Exportar para tablet (JCS Read)'}
+        </button>
+        {exportReadMessage ? (
+          <p className="max-w-md text-center text-xs text-jw-muted">{exportReadMessage}</p>
+        ) : null}
+      </div>
 
       <MeetingSection title="Vida e Ministério">
         {week.mwbDownloaded && week.mwbDocumentId ? (

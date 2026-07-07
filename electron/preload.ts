@@ -38,6 +38,7 @@ import type {
   FieldServiceNoteResult,
   FieldServiceSuggestionsResult,
   WeekMeetingSummaryResult,
+  JcsReadExportResult,
   ElderOutlineNoteResult,
   ListPreparedElderOutlinesResult,
   PreparedElderOutline,
@@ -196,6 +197,14 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:get-public-talk-note', weekId),
   getWeekMeetingSummary: (week: MeetingWeek): Promise<WeekMeetingSummaryResult> =>
     ipcRenderer.invoke('jcs:get-week-meeting-summary', week),
+  exportReadWeek: (
+    week: MeetingWeek,
+    options?: { preferLastFolder?: boolean },
+  ): Promise<JcsReadExportResult> =>
+    ipcRenderer.invoke('jcs:export-read-week', {
+      week,
+      preferLastFolder: options?.preferLastFolder ?? false,
+    }),
   setPublicTalkNote: (params: { weekId: string; value: string }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('jcs:set-public-talk-note', params),
   getFieldServiceNote: (weekId: string): Promise<FieldServiceNoteResult> =>
@@ -505,6 +514,10 @@ declare global {
       }) => Promise<{ fields: number; highlights: number; notes: number }>;
       getPublicTalkNote: (weekId: string) => Promise<PublicTalkNoteResult>;
       getWeekMeetingSummary: (week: MeetingWeek) => Promise<WeekMeetingSummaryResult>;
+      exportReadWeek: (
+        week: MeetingWeek,
+        options?: { preferLastFolder?: boolean },
+      ) => Promise<JcsReadExportResult>;
       setPublicTalkNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;
       getFieldServiceNote: (weekId: string) => Promise<FieldServiceNoteResult>;
       getFieldServiceSuggestions: (weekId: string) => Promise<FieldServiceSuggestionsResult>;

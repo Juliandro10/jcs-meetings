@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TNME Bíblia</string>
+    <string name="chapter_title">Capítulo</string>
+    <string name="pick_jwpub">Escolher Bíblia (.jwpub)</string>
+    <string name="jwpub_missing">Nenhuma Bíblia selecionada.\n\nBaixe o arquivo .jwpub no jw.org (Edição de Estudo recomendada: nwtsty_T.jwpub) e toque em Escolher Bíblia.</string>
+    <string name="jwpub_current">Arquivo: %1$s</string>
+    <string name="jwpub_ready">%1$s · %2$s</string>
+    <string name="jwpub_selected">Bíblia configurada.</string>
+    <string name="jwpub_copy_failed">Não foi possível copiar o arquivo .jwpub.</string>
+    <string name="jwpub_open_failed">Não foi possível abrir a Bíblia.</string>
+    <string name="pick_jwpub_first">Escolha o arquivo .jwpub primeiro.</string>
+    <string name="chapter_label">Capítulo %1$d</string>
+    <string name="invalid_reference">Referência bíblica inválida.</string>
+    <string name="chapter_load_failed">Erro ao carregar capítulo.</string>
+    <string name="section_hebrew">ESCRITURAS HEBRAICO-ARAMAICAS</string>
+    <string name="section_greek">ESCRITURAS GREGAS CRISTÃS</string>
+    <string name="pick_chapter">Escolha um capítulo</string>
+</resources>

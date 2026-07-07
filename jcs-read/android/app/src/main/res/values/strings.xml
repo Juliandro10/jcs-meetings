@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JCS Read</string>
+    <string name="week_detail_title">Semana</string>
+    <string name="read_title">Leitura</string>
+    <string name="empty_weeks">Nenhuma semana encontrada.\n\nToque em Escolher pasta e navegue até a pasta JCS exportada do PC (deve conter catalog.json ou a pasta weeks).</string>
+    <string name="empty_documents">Nenhum documento nesta semana.</string>
+    <string name="storage_hint">Toque em Escolher pasta para apontar onde estão os arquivos exportados do JCS Meetings.</string>
+    <string name="storage_current">Pasta: %1$s</string>
+    <string name="reload">Atualizar</string>
+    <string name="pick_folder">Escolher pasta</string>
+    <string name="pick_folder_hint">Escolha a pasta JCS com os arquivos exportados.</string>
+    <string name="folder_browser_title">Escolher pasta</string>
+    <string name="folder_up">Subir</string>
+    <string name="folder_select">Usar esta pasta</string>
+    <string name="folder_system_picker">Seletor do Android (Drive, Downloads…)</string>
+    <string name="folder_selected">Pasta definida</string>
+    <string name="invalid_jcs_folder">Esta pasta não parece um export JCS (falta catalog.json ou weeks).</string>
+</resources>

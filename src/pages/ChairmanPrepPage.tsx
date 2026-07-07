@@ -65,6 +65,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
   const [pendingImport, setPendingImport] = useState<ImportChairmanDesignationResult | null>(null);
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingRead, setExportingRead] = useState(false);
   const saveTimer = useRef<number | null>(null);
 
   const scheduleSave = useCallback((next: ChairmanPrepRecord) => {
@@ -239,6 +240,25 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
     }
   };
 
+  const handleExportRead = async () => {
+    if (!window.jcs?.exportReadWeek || !window.jcs?.saveChairmanPrep) return;
+    setExportingRead(true);
+    setMessage(null);
+    try {
+      await window.jcs.saveChairmanPrep(record);
+      const result = await window.jcs.exportReadWeek(week, { preferLastFolder: true });
+      if (result.ok) {
+        setMessage(
+          `Reunião exportada (${result.documentCount ?? 0} documento(s)). Copie a pasta JCS para o tablet.`,
+        );
+      } else {
+        setMessage(result.error ?? 'Não foi possível exportar para o tablet.');
+      }
+    } finally {
+      setExportingRead(false);
+    }
+  };
+
   let currentSection: ChairmanAssignment['section'] | null = null;
 
   if (loading) {
@@ -328,6 +348,14 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
           className="rounded-lg border border-jw-border px-4 py-2 text-sm text-jw-text hover:bg-jw-bg disabled:opacity-50"
         >
           {exporting ? 'Exportando…' : 'Exportar PDF'}
+        </button>
+        <button
+          type="button"
+          disabled={exportingRead || !window.jcs?.exportReadWeek}
+          onClick={() => void handleExportRead()}
+          className="rounded-lg border border-jw-purple/40 bg-jw-purple/5 px-4 py-2 text-sm font-medium text-jw-purple hover:bg-jw-purple-light/40 disabled:opacity-50"
+        >
+          {exportingRead ? 'Exportando…' : 'Exportar reunião para tablet'}
         </button>
       </div>
 

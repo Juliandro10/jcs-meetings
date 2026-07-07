@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="JcsTheme" parent="android:Theme.Holo.Light.NoActionBar">
+        <item name="android:windowBackground">@color/jcs_bg</item>
+        <item name="android:colorPrimary">@color/jcs_purple</item>
+        <item name="android:colorPrimaryDark">@color/jcs_purple_dark</item>
+        <item name="android:textColorPrimary">@color/jcs_text</item>
+    </style>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="jcs_purple">#6D28D9</color>
+    <color name="jcs_purple_dark">#4C1D95</color>
+    <color name="jcs_bg">#F3F4F6</color>
+    <color name="jcs_text">#1F2937</color>
+    <color name="jcs_muted">#6B7280</color>
+    <color name="jcs_white">#FFFFFF</color>
+</resources>

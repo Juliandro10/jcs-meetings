@@ -828,3 +828,5 @@ export type GenerateChairmanPrepResult = {
   content?: import('../shared/chairman-prep-types').ChairmanGeneratedContent;
   error?: string;
 };
+
+export type { JcsReadExportResult } from '../shared/jcs-read-types';

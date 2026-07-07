@@ -102,6 +102,11 @@ import { parseChairmanDesignationFile } from './chairman-designation-import';
 import { weekTargetMismatch } from './chairman-designation-ai';
 import { generateChairmanPrepContent } from './chairman-prep-generate';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
+import { exportWeekForJcsRead } from './jcs-read-export';
+import {
+  loadJcsReadExportRoot,
+  saveJcsReadExportRoot,
+} from './jcs-read-export-config';
 import { exportJwlibrary, importJwlibrary } from './jwlibrary-export';
 import { dedupeNotesByTitle, pruneDuplicateDocumentNotes } from './note-dedupe';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
@@ -622,6 +627,54 @@ function registerIpc() {
       return { ok: false, error: message };
     }
   });
+
+  ipcMain.handle(
+    'jcs:export-read-week',
+    async (
+      _event,
+      params: { week: MeetingWeek; preferLastFolder?: boolean },
+    ) => {
+      try {
+        const defaultPath = path.join(app.getPath('documents'), 'JCS');
+        const lastRoot = await loadJcsReadExportRoot(getUserDataRoot(), defaultPath);
+        let exportRoot: string | undefined;
+
+        if (params.preferLastFolder && lastRoot) {
+          try {
+            await fs.access(lastRoot);
+            exportRoot = lastRoot;
+          } catch {
+            exportRoot = undefined;
+          }
+        }
+
+        if (!exportRoot) {
+          const pick = await dialog.showOpenDialog({
+            title: 'Pasta JCS — copie esta pasta para o tablet (JCS Read)',
+            defaultPath: lastRoot,
+            properties: ['openDirectory', 'createDirectory'],
+          });
+          if (pick.canceled || !pick.filePaths[0]) {
+            return { ok: false, error: 'Exportação cancelada.' };
+          }
+          exportRoot = pick.filePaths[0];
+        }
+
+        await saveJcsReadExportRoot(getUserDataRoot(), exportRoot);
+
+        return exportWeekForJcsRead({
+          exportRoot,
+          cacheDir: getCacheDir(),
+          userDataRoot: getUserDataRoot(),
+          userDataDir: getUserDataDir(),
+          week: params.week,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao exportar para tablet';
+        return { ok: false, error: message };
+      }
+    },
+  );
 
   ipcMain.handle(
     'jcs:set-public-talk-note',

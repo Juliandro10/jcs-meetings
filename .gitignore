@@ -16,3 +16,17 @@ temp-*
 temp-*/
 scripts/jwpub-work/
 scripts/*-page-snippet.html
+
+# JCS Read (Android)
+jcs-read/android/local.properties
+jcs-read/android/.gradle/
+jcs-read/android/app/build/
+jcs-read/android/build/
+jcs-read/release/
+
+# TNME Bíblia (Android)
+tnme-biblia/android/local.properties
+tnme-biblia/android/.gradle/
+tnme-biblia/android/app/build/
+tnme-biblia/android/build/
+tnme-biblia/release/

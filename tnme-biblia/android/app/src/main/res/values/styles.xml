@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="TnmeTheme" parent="android:Theme.Holo.NoActionBar">
+        <item name="android:windowBackground">@color/tnme_bg</item>
+        <item name="android:colorPrimary">@color/tnme_purple</item>
+        <item name="android:colorPrimaryDark">@color/tnme_purple_dark</item>
+        <item name="android:textColorPrimary">@color/tnme_text</item>
+    </style>
+</resources>

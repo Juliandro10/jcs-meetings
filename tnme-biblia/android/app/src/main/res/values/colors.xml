@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tnme_purple">#7C3AED</color>
+    <color name="tnme_purple_dark">#4A315C</color>
+    <color name="tnme_purple_darker">#3D2849</color>
+    <color name="tnme_bg">#000000</color>
+    <color name="tnme_text">#FFFFFF</color>
+    <color name="tnme_muted">#9CA3AF</color>
+    <color name="tnme_white">#FFFFFF</color>
+    <color name="tnme_tile_a">#464658</color>
+    <color name="tnme_tile_b">#626276</color>
+    <color name="tnme_chapter_bg">#4A315C</color>
+    <color name="tnme_chapter_bg_alt">#3D2849</color>
+</resources>
