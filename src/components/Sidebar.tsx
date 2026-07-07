@@ -3,7 +3,6 @@ import type { AppSection } from '@/lib/types';
 import { SECTIONS } from '@/lib/types';
 import {
   IconBible,
-  IconDiamond,
   IconElder,
   IconGlobe,
   IconHome,
@@ -11,6 +10,7 @@ import {
   IconMedia,
   IconMeetings,
   IconMenu,
+  IconPersonalStudy,
   IconPreaching,
 } from '@/components/Icons';
 
@@ -21,7 +21,7 @@ const ICONS: Record<AppSection, typeof IconHome> = {
   media: IconMedia,
   meetings: IconMeetings,
   preaching: IconPreaching,
-  'personal-study': IconDiamond,
+  'personal-study': IconPersonalStudy,
   'jw-research': IconGlobe,
   elder: IconElder,
 };

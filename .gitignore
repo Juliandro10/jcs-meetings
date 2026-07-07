@@ -10,3 +10,9 @@ build/app.release.env
 .DS_Store
 Thumbs.db
 scripts/lfb-doc-*.txt
+
+# Scratch / probe (local only)
+temp-*
+temp-*/
+scripts/jwpub-work/
+scripts/*-page-snippet.html

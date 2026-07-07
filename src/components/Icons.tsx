@@ -1,4 +1,7 @@
-import type { SVGProps } from 'react';
+import type { ImgHTMLAttributes, SVGProps } from 'react';
+import libraryBooksSrc from '@/assets/icons/library-books.png';
+import meetingsPodiumSrc from '@/assets/icons/meetings-podium.png';
+import preachingBriefcaseSrc from '@/assets/icons/preaching-briefcase.png';
 
 type IconProps = SVGProps<SVGSVGElement>;
 
@@ -18,22 +21,42 @@ export function IconHome(props: IconProps) {
   );
 }
 
-export function IconBible(props: IconProps) {
+/** Livro aberto — PNG do ícone enviado pelo usuário (fundo transparente). */
+export function IconBible({
+  className,
+  style,
+  strokeWidth: _strokeWidth,
+  ...props
+}: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path d="M6 4h9a3 3 0 0 1 3 3v14a3 3 0 0 0-3-3H6V4Z" />
-      <path d="M6 18h9a3 3 0 0 1 3 3" />
-    </svg>
+    <img
+      src="/icons/bible-open.png"
+      alt=""
+      aria-hidden
+      draggable={false}
+      className={className}
+      style={{ filter: 'invert(1)', ...style }}
+      {...(props as ImgHTMLAttributes<HTMLImageElement>)}
+    />
   );
 }
 
-export function IconLibrary(props: IconProps) {
+export function IconLibrary({
+  className,
+  style,
+  strokeWidth: _strokeWidth,
+  ...props
+}: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path d="M5 7h4v12H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z" />
-      <path d="M10 6h4v13h-4V6Z" />
-      <path d="M15 5h4a1 1 0 0 1 1 1v13h-5V5Z" />
-    </svg>
+    <img
+      src={libraryBooksSrc}
+      alt=""
+      aria-hidden
+      draggable={false}
+      className={className}
+      style={style}
+      {...(props as ImgHTMLAttributes<HTMLImageElement>)}
+    />
   );
 }
 
@@ -46,14 +69,22 @@ export function IconMedia(props: IconProps) {
   );
 }
 
-export function IconMeetings(props: IconProps) {
+export function IconMeetings({
+  className,
+  style,
+  strokeWidth: _strokeWidth,
+  ...props
+}: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <circle cx="9" cy="8" r="2.5" />
-      <circle cx="16" cy="9" r="2" />
-      <path d="M4 19c1.5-3 4-4.5 5-4.5s3.5 1.5 5 4.5" strokeLinecap="round" />
-      <path d="M14 19c.8-2 2.2-3 3-3s2.8 1.2 3.5 3" strokeLinecap="round" />
-    </svg>
+    <img
+      src={meetingsPodiumSrc}
+      alt=""
+      aria-hidden
+      draggable={false}
+      className={className}
+      style={style}
+      {...(props as ImgHTMLAttributes<HTMLImageElement>)}
+    />
   );
 }
 
@@ -62,6 +93,26 @@ export function IconDiamond(props: IconProps) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
       <path d="M12 3 4 9l8 12 8-12-8-6Z" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/** Diamante colorido — PNG enviado pelo usuário (Estudo pessoal / sidebar). */
+export function IconPersonalStudy({
+  className,
+  style,
+  strokeWidth: _strokeWidth,
+  ...props
+}: IconProps) {
+  return (
+    <img
+      src="/icons/personal-study-diamond.png"
+      alt=""
+      aria-hidden
+      draggable={false}
+      className={className}
+      style={style}
+      {...(props as ImgHTMLAttributes<HTMLImageElement>)}
+    />
   );
 }
 
@@ -158,15 +209,22 @@ export function IconBookOpen(props: IconProps) {
   );
 }
 
-export function IconPreaching(props: IconProps) {
+export function IconPreaching({
+  className,
+  style,
+  strokeWidth: _strokeWidth,
+  ...props
+}: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path d="M4 10v8a1 1 0 0 0 1 1h2" />
-      <path d="M20 9v9a1 1 0 0 1-1 1h-2" />
-      <rect x="7" y="5" width="10" height="12" rx="2" />
-      <path d="M12 5V3" strokeLinecap="round" />
-      <path d="M9 3h6" strokeLinecap="round" />
-    </svg>
+    <img
+      src={preachingBriefcaseSrc}
+      alt=""
+      aria-hidden
+      draggable={false}
+      className={className}
+      style={{ filter: 'invert(1)', ...style }}
+      {...(props as ImgHTMLAttributes<HTMLImageElement>)}
+    />
   );
 }
 
