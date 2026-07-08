@@ -284,13 +284,23 @@ export function alignChairmanAssignmentsWithMwb(
   assignments: ChairmanAssignment[],
   mwbParts: MwbPartRef[],
 ): ChairmanAssignment[] {
+  const manualTitles = new Map(
+    assignments
+      .filter((assignment) => assignment.partTitleManual)
+      .map((assignment) => [assignment.id, assignment.partTitle] as const),
+  );
+
   let out = assignments.map((assignment) => ({ ...assignment }));
 
   for (const section of ALIGN_SECTIONS) {
     out = applySectionAlign(out, section, mwbParts);
   }
 
-  return out;
+  return out.map((assignment) => {
+    const manualTitle = manualTitles.get(assignment.id);
+    if (!manualTitle) return assignment;
+    return { ...assignment, partTitle: manualTitle, partTitleManual: true };
+  });
 }
 
 export function resolveCanonicalPartTitle(

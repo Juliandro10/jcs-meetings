@@ -17,6 +17,7 @@ export function parsedDesignationToAssignments(
     partTitle: entry.partTitle.trim(),
     durationMin: entry.durationMin,
     assignees: entry.assignees.map((name) => name.trim()).filter(Boolean),
+    partTitleManual: entry.partTitleManual,
   }));
 }
 
@@ -31,6 +32,7 @@ export function mergeDesignationIntoPrep(
     meetingDate: parsed.meetingDate?.trim() || record.meetingDate,
     bibleReading: parsed.bibleReading?.trim() || record.bibleReading,
     openingSong: parsed.openingSong?.trim() || record.openingSong,
+    middleSong: parsed.middleSong?.trim() || record.middleSong,
     closingSong: parsed.closingSong?.trim() || record.closingSong,
     chairmanName: parsed.chairmanName?.trim() || record.chairmanName,
     openingPrayer: parsed.openingPrayer?.trim() || record.openingPrayer,

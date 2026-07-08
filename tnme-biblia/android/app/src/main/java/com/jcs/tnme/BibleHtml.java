@@ -121,7 +121,7 @@ public final class BibleHtml {
 
         StringBuilder sb = new StringBuilder();
         sb.append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"/>");
-        sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
+        sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no\"/>");
         sb.append("<style>");
         sb.append("html{font-size:18px;-webkit-text-size-adjust:100%;}");
         sb.append("@media (min-width:540px){html{font-size:21px;}}");

@@ -7,7 +7,6 @@ import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
@@ -70,20 +69,20 @@ public class ChapterActivity extends Activity {
         topBar.setShowBooksButton(true);
         topBar.setShowMenuButton(true);
 
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
+        ReadingWebViewHelper.configure(webView, true);
 
         webView.setWebViewClient(
             new WebViewClient() {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     progress.setVisibility(View.GONE);
+                }
+
+                @Override
+                public void onScaleChanged(WebView view, float oldScale, float newScale) {
+                    if (Math.abs(newScale - oldScale) > 0.001f) {
+                        view.setInitialScale(0);
+                    }
                 }
 
                 @Override
@@ -111,6 +110,14 @@ public class ChapterActivity extends Activity {
         }
 
         applyIntent(getIntent());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            ReadingWebViewHelper.applyTextZoom(webView);
+        }
     }
 
     private void applyIntent(Intent intent) {

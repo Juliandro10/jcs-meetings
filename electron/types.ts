@@ -545,6 +545,37 @@ export type JwLibraryImportResult = {
   error?: string;
 };
 
+export type JcsMeetingsBackupOptions = {
+  includePublications?: boolean;
+  includeDictionary?: boolean;
+};
+
+export type JcsMeetingsBackupStats = {
+  prepFields: number;
+  prepHighlights: number;
+  prepNotes: number;
+  preparedElderOutlines: number;
+  chairmanPrepWeeks: number;
+  elderMeetings: number;
+  circuitVisits: number;
+  publications: number;
+  playlistItems: number;
+  dictionaryFiles: number;
+};
+
+export type JcsMeetingsBackupResult = {
+  ok: boolean;
+  filePath?: string;
+  stats?: JcsMeetingsBackupStats;
+  error?: string;
+};
+
+export type JcsMeetingsRestoreResult = {
+  ok: boolean;
+  stats?: JcsMeetingsBackupStats;
+  error?: string;
+};
+
 export type BibleBookInfo = {
   bookNumber: number;
   title: string;

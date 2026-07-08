@@ -47,6 +47,20 @@ export function parseStoryNumbersFromLabel(label?: string) {
 
 export const LFB_STUDY_FIELD_IDS = ['study-q1', 'study-q2', 'study-q3'] as const;
 
+export function buildLfbStudyFieldsHtml() {
+  const fields = LFB_STUDY_FIELD_IDS.map(
+    (fieldId, index) => `
+<label class="jcs-lfb-study-label" for="${fieldId}">${index + 1}. ${LFB_STUDY_QUESTIONS[index]}</label>
+<textarea id="${fieldId}" class="jcs-editable-field jcs-lfb-study-field" rows="1" data-pid="${fieldId}"></textarea>`,
+  ).join('\n');
+
+  return `
+<section class="jcs-lfb-study-prep">
+  <h4 class="jcs-lfb-study-heading">Perguntas do estudo de congregação</h4>
+  ${fields}
+</section>`;
+}
+
 export function extractLfbBlocks(html: string) {
   const blocks: Array<{ blockId: string; text: string }> = [];
   const blockRe = /<(p|li|h[1-6])[^>]*\bdata-pid="(\d+)"[^>]*>([\s\S]*?)<\/\1>/gi;

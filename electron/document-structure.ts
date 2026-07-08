@@ -37,6 +37,8 @@ export type DocumentStructure = {
   parts: MeetingPart[];
   fields: DocumentField[];
   bibleReadingHref?: string;
+  /** Trecho da parte 3 (Leitura da Bíblia) — designado na apostila. */
+  studentBibleReading?: { href: string; label: string };
   joiasFieldId?: string;
   treasuresFieldId?: string;
   cbsStudy?: {
@@ -252,26 +254,116 @@ function isMeetingPart(text: string) {
   );
 }
 
-function extractBibleReadingHref(html: string) {
-  const links = [...html.matchAll(/href="(jwpub:\/\/b\/[^"]+)"/gi)].map((m) => m[1]);
+function extractBibleLinkSpan(href: string) {
+  const range = href.match(/(\d+):(\d+):(\d+)-(\d+):(\d+):(\d+)/);
+  if (!range) return 0;
+  return (
+    Number(range[4]) * 1_000_000 +
+    Number(range[5]) * 1000 +
+    Number(range[6]) -
+    (Number(range[1]) * 1_000_000 + Number(range[2]) * 1000 + Number(range[3]))
+  );
+}
+
+export type BibleLinkRef = {
+  href: string;
+  span: number;
+  label: string;
+};
+
+/** Todos os links bíblicos do HTML da apostila. */
+export function extractBibleLinksFromHtml(html: string): BibleLinkRef[] {
+  const seen = new Set<string>();
+  const links: BibleLinkRef[] = [];
+  const re =
+    /<a\b[^>]*\b(?:data-href|href)=(['"])(jwpub:\/\/b\/[^'"]+)\1[^>]*>([\s\S]*?)<\/a>/gi;
+
+  for (const match of html.matchAll(re)) {
+    const href = match[2];
+    if (!href || seen.has(href)) continue;
+    seen.add(href);
+    links.push({
+      href,
+      span: extractBibleLinkSpan(href),
+      label: stripHtml(match[3]),
+    });
+  }
+  return links;
+}
+
+function htmlSliceForPart(
+  html: string,
+  blockId: string,
+  nextBlockId?: string,
+): string {
+  const startMarker = `data-pid="${blockId}"`;
+  const start = html.indexOf(startMarker);
+  if (start < 0) return '';
+  const end = nextBlockId
+    ? html.indexOf(`data-pid="${nextBlockId}"`, start + startMarker.length)
+    : html.length;
+  return html.slice(start, end > start ? end : html.length);
+}
+
+/** Leitura da semana — maior trecho (base da reunião). */
+function extractWeeklyBibleReadingHref(html: string) {
+  const links = extractBibleLinksFromHtml(html);
   if (links.length === 0) return undefined;
 
-  let best = links[0];
-  let bestSpan = 0;
-  for (const href of links) {
-    const range = href.match(/(\d+):(\d+):(\d+)-(\d+):(\d+):(\d+)/);
-    if (!range) continue;
-    const span =
-      Number(range[4]) * 1_000_000 +
-      Number(range[5]) * 1000 +
-      Number(range[6]) -
-      (Number(range[1]) * 1_000_000 + Number(range[2]) * 1000 + Number(range[3]));
-    if (span > bestSpan) {
-      bestSpan = span;
-      best = href;
+  let best = links[0]!.href;
+  let bestSpan = links[0]!.span;
+  for (const link of links) {
+    if (link.span > bestSpan) {
+      bestSpan = link.span;
+      best = link.href;
     }
   }
   return best;
+}
+
+/** Parte 3 — trecho designado na apostila para o estudante ler (3–4 min). */
+export function extractStudentBibleReading(
+  html: string,
+  parts: MeetingPart[],
+): { href: string; label: string } | undefined {
+  const readingIndex = parts.findIndex((part) => part.kind === 'reading');
+  if (readingIndex < 0) return undefined;
+
+  const readingPart = parts[readingIndex]!;
+  const nextPart = parts[readingIndex + 1];
+  const slice = htmlSliceForPart(html, readingPart.blockId, nextPart?.blockId);
+  const weeklyHref = extractWeeklyBibleReadingHref(html);
+
+  const sliceLinks = extractBibleLinksFromHtml(slice).filter((link) => link.span >= 0);
+  if (sliceLinks.length > 0) {
+    const sorted = [...sliceLinks].sort((a, b) => a.span - b.span);
+    const candidate =
+      sorted.find((link) => link.href !== weeklyHref) ??
+      sorted[0];
+    if (candidate) {
+      return {
+        href: candidate.href,
+        label: candidate.label || readingPart.noteAnchorText,
+      };
+    }
+  }
+
+  const all = extractBibleLinksFromHtml(html);
+  const weeklySpan = weeklyHref ? extractBibleLinkSpan(weeklyHref) : Number.MAX_SAFE_INTEGER;
+  const smaller = all
+    .filter((link) => link.href !== weeklyHref && link.span > 0 && link.span < weeklySpan)
+    .sort((a, b) => a.span - b.span);
+  const fallback = smaller[0];
+  if (!fallback) return undefined;
+
+  return {
+    href: fallback.href,
+    label: fallback.label || readingPart.noteAnchorText,
+  };
+}
+
+function extractBibleReadingHref(html: string) {
+  return extractWeeklyBibleReadingHref(html);
 }
 
 export function extractDocumentStructure(html: string): DocumentStructure {
@@ -380,6 +472,7 @@ export function extractDocumentStructure(html: string): DocumentStructure {
     parts,
     fields,
     bibleReadingHref: extractBibleReadingHref(html),
+    studentBibleReading: extractStudentBibleReading(html, parts),
     joiasFieldId,
     treasuresFieldId,
     cbsStudy: extractCbsStudyFromHtml(html),

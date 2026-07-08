@@ -30,3 +30,10 @@ tnme-biblia/android/.gradle/
 tnme-biblia/android/app/build/
 tnme-biblia/android/build/
 tnme-biblia/release/
+
+# TNME Cânticos (Android)
+tnme-cantico/android/local.properties
+tnme-cantico/android/.gradle/
+tnme-cantico/android/app/build/
+tnme-cantico/android/build/
+tnme-cantico/release/

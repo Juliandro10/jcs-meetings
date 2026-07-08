@@ -32,4 +32,10 @@
     <string name="search_too_short">Digite ao menos 2 caracteres.</string>
     <string name="search_results_count">%1$d resultado(s)</string>
     <string name="search_reference_hit">Referência bíblica</string>
+    <string name="settings_text_size_heading">Tamanho do texto</string>
+    <string name="settings_text_size_help">Ajuste a leitura dos capítulos. O zoom por gesto está desligado.</string>
+    <string name="text_size_small">Pequeno</string>
+    <string name="text_size_normal">Normal</string>
+    <string name="text_size_large">Grande</string>
+    <string name="text_size_xlarge">Muito grande</string>
 </resources>

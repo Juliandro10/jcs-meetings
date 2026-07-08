@@ -49,7 +49,11 @@ public final class WeekDetailListAdapter extends BaseAdapter {
                 public int compare(JcsStorage.DocumentEntry a, JcsStorage.DocumentEntry b) {
                     String kindA = DocumentUi.resolveKind(a);
                     String kindB = DocumentUi.resolveKind(b);
-                    int order = DocumentUi.sectionOrder(kindA) - DocumentUi.sectionOrder(kindB);
+                    String sectionA = DocumentUi.sectionKeyForKind(kindA);
+                    String sectionB = DocumentUi.sectionKeyForKind(kindB);
+                    int order = DocumentUi.sectionOrder(sectionA) - DocumentUi.sectionOrder(sectionB);
+                    if (order != 0) return order;
+                    order = DocumentUi.documentOrder(kindA) - DocumentUi.documentOrder(kindB);
                     if (order != 0) return order;
                     String titleA = a.title != null ? a.title : "";
                     String titleB = b.title != null ? b.title : "";
@@ -60,19 +64,12 @@ public final class WeekDetailListAdapter extends BaseAdapter {
         String lastSection = null;
         for (JcsStorage.DocumentEntry doc : sorted) {
             String kind = DocumentUi.resolveKind(doc);
-            String sectionKey;
-            if ("mwb".equals(kind)) {
-                sectionKey = "mwb";
-            } else if ("w".equals(kind)) {
-                sectionKey = "w";
-            } else {
-                sectionKey = "other";
-            }
+            String sectionKey = DocumentUi.sectionKeyForKind(kind);
 
             if (!sectionKey.equals(lastSection)) {
                 Row header = new Row();
                 header.type = TYPE_HEADER;
-                header.sectionTitle = DocumentUi.sectionTitleForKind(context, kind);
+                header.sectionTitle = DocumentUi.sectionTitleForKey(context, sectionKey);
                 rows.add(header);
                 lastSection = sectionKey;
             }

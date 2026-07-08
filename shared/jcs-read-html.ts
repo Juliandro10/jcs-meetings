@@ -136,6 +136,49 @@ html, body {
   padding: 0 2px;
 }
 .jcs-outline-body ul, .jcs-outline-body ol { margin: 0 0 10px 1.2em; padding: 0; }
+.jcs-prepared-part {
+  margin: 0 0 28px;
+  padding-bottom: 20px;
+  border-bottom: 2px dashed #d1d5db;
+}
+.jcs-prepared-part:last-child { border-bottom: none; }
+.jcs-prepared-part h2 {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 17px;
+  color: #6d28d9;
+  margin: 0 0 12px;
+}
+.jcs-cbs-story {
+  margin: 0 0 32px;
+  padding-bottom: 24px;
+  border-bottom: 3px solid #e5e7eb;
+}
+.jcs-cbs-story:last-child { border-bottom: none; }
+.jcs-cbs-story-title {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 18px;
+  color: #4c1d95;
+  margin: 0 0 14px;
+}
+.jcs-lfb-study-prep {
+  margin-top: 20px;
+  padding: 12px;
+  background: #f5f3ff;
+  border-left: 4px solid #7c3aed;
+}
+.jcs-lfb-study-heading {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 15px;
+  margin: 0 0 10px;
+  color: #4c1d95;
+}
+.jcs-lfb-study-label {
+  display: block;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 14px;
+  margin: 10px 0 4px;
+  color: #374151;
+}
 `;
 
 export function highlightSwatch(color: string) {
@@ -198,18 +241,11 @@ export function buildJcsReadRichNoteHtml(params: {
   return buildJcsReadPlainHtml(params);
 }
 
-export function buildJcsReadDocumentHtml(params: {
-  title: string;
-  subtitle?: string;
-  bodyHtml: string;
-  publicationCss?: string;
-  notes?: JcsReadNote[];
-}) {
-  const notesHtml =
-    params.notes && params.notes.length > 0
-      ? `<section class="jcs-notes-block">
+export function buildJcsReadNotesSection(notes: JcsReadNote[]) {
+  if (notes.length === 0) return '';
+  return `<section class="jcs-notes-block">
   <h2>Notas</h2>
-  ${params.notes
+  ${notes
     .map(
       (note) => `<article class="jcs-note-card">
     <h3>${escapeHtml(note.title || 'Nota')}</h3>
@@ -218,14 +254,23 @@ export function buildJcsReadDocumentHtml(params: {
   </article>`,
     )
     .join('\n')}
-</section>`
-      : '';
+</section>`;
+}
+
+export function buildJcsReadDocumentHtml(params: {
+  title: string;
+  subtitle?: string;
+  bodyHtml: string;
+  publicationCss?: string;
+  notes?: JcsReadNote[];
+}) {
+  const notesHtml = params.notes && params.notes.length > 0 ? buildJcsReadNotesSection(params.notes) : '';
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
   <title>${escapeHtml(params.title)}</title>
   <style>
 ${JCS_READ_BASE_CSS}
@@ -263,7 +308,7 @@ export function buildJcsReadPlainHtml(params: {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
   <title>${escapeHtml(params.title)}</title>
   <style>${JCS_READ_BASE_CSS}</style>
 </head>

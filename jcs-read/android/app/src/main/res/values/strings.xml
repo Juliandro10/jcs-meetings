@@ -1,30 +1,72 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">JCS Read</string>
-    <string name="meetings_title">Reuniões</string>
-    <string name="meetings_subtitle">Português (Brasil)</string>
-    <string name="week_detail_title">Semana</string>
-    <string name="read_title">Leitura</string>
-    <string name="back">Voltar</string>
-    <string name="menu_more">Mais opções</string>
-    <string name="section_mwb">Vida e Ministério</string>
-    <string name="section_watchtower">Estudo de A Sentinela</string>
-    <string name="section_other">Outras publicações</string>
-    <string name="empty_weeks">Nenhuma semana encontrada.\n\nToque em ⋮ e escolha ZIP (recomendado) para importar o jcs-read.zip, ou Pasta para um diretório descompactado.</string>
-    <string name="empty_documents">Nenhum documento nesta semana.</string>
-    <string name="storage_hint">Escolha o jcs-read.zip exportado do PC (Drive, Downloads…) ou aponte para uma pasta local.</string>
-    <string name="storage_current">Origem: %1$s</string>
-    <string name="reload">Atualizar</string>
-    <string name="pick_folder">Pasta</string>
-    <string name="pick_zip">ZIP</string>
-    <string name="pick_folder_hint">Escolha a pasta JCS com os arquivos exportados.</string>
-    <string name="pick_zip_hint">Escolha o arquivo jcs-read.zip</string>
-    <string name="zip_import_ok">Pacote ZIP importado</string>
-    <string name="zip_import_failed">Não foi possível ler o ZIP. Use o jcs-read.zip exportado pelo JCS Meetings.</string>
-    <string name="folder_browser_title">Escolher pasta</string>
-    <string name="folder_up">Subir</string>
-    <string name="folder_select">Usar esta pasta</string>
-    <string name="folder_system_picker">Seletor do Android (Drive, Downloads…)</string>
-    <string name="folder_selected">Pasta definida</string>
-    <string name="invalid_jcs_folder">Esta pasta não parece um export JCS (falta catalog.json ou weeks).</string>
-</resources>
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <string name="app_name">JCS Read</string>
+
+    <string name="meetings_title">Reuniões</string>
+
+    <string name="meetings_subtitle">Português (Brasil)</string>
+
+    <string name="week_detail_title">Semana</string>
+
+    <string name="read_title">Leitura</string>
+
+    <string name="back">Voltar</string>
+
+    <string name="menu_more">Mais opções</string>
+
+    <string name="section_mwb">Vida e Ministério</string>
+
+    <string name="section_cbs">Estudo bíblico de congregação</string>
+
+    <string name="section_watchtower">Estudo de A Sentinela</string>
+
+    <string name="section_other">Outras publicações</string>
+
+    <string name="doc_prepared_parts">Partes preparadas</string>
+
+    <string name="empty_weeks">Nenhuma semana encontrada.\n\nToque em ⋮ e escolha ZIP (recomendado) para importar o jcs-read.zip, ou Pasta para um diretório descompactado.</string>
+
+    <string name="empty_documents">Nenhum documento nesta semana.</string>
+
+    <string name="storage_hint">Escolha o jcs-read.zip exportado do PC (Drive, Downloads…) ou aponte para uma pasta local.</string>
+
+    <string name="storage_current">Origem: %1$s</string>
+
+    <string name="reload">Atualizar</string>
+
+    <string name="pick_folder">Pasta</string>
+
+    <string name="pick_zip">ZIP</string>
+
+    <string name="pick_folder_hint">Escolha a pasta JCS com os arquivos exportados.</string>
+
+    <string name="pick_zip_hint">Escolha o arquivo jcs-read.zip</string>
+
+    <string name="zip_import_ok">Pacote ZIP importado</string>
+
+    <string name="zip_import_failed">Não foi possível ler o ZIP. Use o jcs-read.zip exportado pelo JCS Meetings.</string>
+
+    <string name="folder_browser_title">Escolher pasta</string>
+
+    <string name="folder_up">Subir</string>
+
+    <string name="folder_select">Usar esta pasta</string>
+
+    <string name="folder_system_picker">Seletor do Android (Drive, Downloads…)</string>
+
+    <string name="folder_selected">Pasta definida</string>
+
+    <string name="invalid_jcs_folder">Esta pasta não parece um export JCS (falta catalog.json ou weeks).</string>
+
+    <string name="text_size_small">Pequeno</string>
+    <string name="text_size_normal">Normal</string>
+    <string name="text_size_large">Grande</string>
+    <string name="text_size_xlarge">Muito grande</string>
+
+    <string name="bible_app_missing">Instale o TNME Bíblia para abrir referências bíblicas.</string>
+    <string name="cantico_app_missing">Instale o TNME Cânticos para abrir cânticos.</string>
+
+</resources>
+

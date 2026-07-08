@@ -2,7 +2,14 @@
 
 export const JCS_READ_FORMAT = 1 as const;
 
-export type JcsReadDocumentKind = 'mwb' | 'w' | 'chairman' | 'public-talk' | 'discourse-outline';
+export type JcsReadDocumentKind =
+  | 'mwb'
+  | 'prepared-parts'
+  | 'cbs'
+  | 'w'
+  | 'chairman'
+  | 'public-talk'
+  | 'discourse-outline';
 
 export type JcsReadWeekDocument = {
   id: string;
@@ -42,5 +49,6 @@ export type JcsReadExportResult = {
   zipPath?: string;
   weekId?: string;
   documentCount?: number;
+  warnings?: string[];
   error?: string;
 };

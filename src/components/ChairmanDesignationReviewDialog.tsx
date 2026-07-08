@@ -175,7 +175,7 @@ export function ChairmanDesignationReviewDialog({
                   <input
                     type="text"
                     value={item.partTitle}
-                    onChange={(e) => patchAssignment(index, { partTitle: e.target.value })}
+                    onChange={(e) => patchAssignment(index, { partTitle: e.target.value, partTitleManual: true })}
                     className="rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
                   />
                 </label>

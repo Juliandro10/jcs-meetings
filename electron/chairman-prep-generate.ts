@@ -40,7 +40,7 @@ function partConsiderationHint(part: MeetingPart, documentText: string) {
   )?.[0];
   if (!block) return '';
 
-  if (part.kind === 'reading') return 'Leitura bíblica da semana.';
+  if (part.kind === 'reading') return 'Trecho designado na apostila para a leitura do estudante.';
   if (part.kind === 'ministry' || part.kind === 'life') {
     const consider = block.match(/consider(?:e|ação)[:\s]+([\s\S]{0,400})/i)?.[1]?.trim();
     if (consider) return consider.slice(0, 400);

@@ -1,4 +1,11 @@
 import type { ChairmanAssignment, ChairmanPrepRecord } from '../shared/chairman-prep-types';
+import { chairmanBibleReadingLinkHref } from '../shared/chairman-bible-links';
+import {
+  chairmanSongLinkHref,
+  chairmanSongLinkLabel,
+  isSongAssignment,
+  type ChairmanSongRef,
+} from '../shared/chairman-song-links';
 import { ensureOpeningPreview } from '../shared/chairman-opening-preview';
 import { isStudentAssignment } from '../shared/chairman-student-part';
 
@@ -46,6 +53,48 @@ function nl2br(value: string) {
   return escapeHtml(value).replace(/\n/g, '<br>');
 }
 
+function isBibleReadingPart(title: string) {
+  return /leitura\s+da\s+b[ií]blia/i.test(title);
+}
+
+function buildSongLinkAnchor(ref: ChairmanSongRef) {
+  const href = chairmanSongLinkHref(ref);
+  const label = escapeHtml(chairmanSongLinkLabel(ref));
+  return `<a href="${href}" class="song-ref-link">${label}</a>`;
+}
+
+function buildSongMetaLine(prefix: string, ref: ChairmanSongRef | undefined, fallback?: string) {
+  if (ref) {
+    return `${escapeHtml(prefix)}: ${buildSongLinkAnchor(ref)}`;
+  }
+  if (fallback?.trim()) {
+    return `${escapeHtml(prefix)}: ${escapeHtml(fallback)}`;
+  }
+  return '';
+}
+
+function buildSongPassageBlock(ref: ChairmanSongRef) {
+  return `<div class="song-passage">
+  <p class="song-passage-label"><strong>Cântico:</strong> ${buildSongLinkAnchor(ref)}</p>
+</div>`;
+}
+
+function buildMiddleSongSection(ref: ChairmanSongRef) {
+  return `<section class="part song-middle-part">
+  <div class="part-head">
+    <h3>Cântico</h3>
+  </div>
+  ${buildSongPassageBlock(ref)}
+</section>`;
+}
+
+function musicaAssignmentsHaveSong(record: ChairmanPrepRecord) {
+  return record.assignments.some(
+    (assignment) =>
+      isSongAssignment(assignment) && record.songLinks?.byAssignmentId?.[assignment.id] != null,
+  );
+}
+
 export function buildChairmanPrepHtml(
   record: ChairmanPrepRecord,
   options?: { tablet?: boolean },
@@ -54,15 +103,22 @@ export function buildChairmanPrepHtml(
   const content = record.content;
   const headerDate = record.meetingDate || record.weekLabel;
   const reading = record.bibleReading;
+  const readingTnme = record.bibleReadingHref
+    ? chairmanBibleReadingLinkHref(record.bibleReadingHref)
+    : null;
+  const readingMeta = readingTnme
+    ? `<a href="${readingTnme}" class="bible-reading-header-link">${escapeHtml(reading)}</a>`
+    : escapeHtml(reading);
   const chairman = record.chairmanName || 'Presidente';
 
   const sections: string[] = [];
 
   sections.push(`<header class="doc-header">
     <h1>Folha do presidente — Reunião do meio de semana</h1>
-    <p class="meta">${escapeHtml(headerDate)} · ${escapeHtml(reading)}</p>
+    <p class="meta">${escapeHtml(headerDate)} · <span class="meta-kicker">Leitura da semana:</span> ${readingMeta}</p>
     <p class="meta">Presidente: <strong>${escapeHtml(chairman)}</strong>${record.congregation ? ` · ${escapeHtml(record.congregation)}` : ''}</p>
     ${record.openingPrayer ? `<p class="meta">Oração inicial: ${escapeHtml(record.openingPrayer)}</p>` : ''}
+    ${buildSongMetaLine('Cântico inicial', record.songLinks?.opening, record.openingSong) ? `<p class="meta">${buildSongMetaLine('Cântico inicial', record.songLinks?.opening, record.openingSong)}</p>` : ''}
   </header>`);
 
   if (content) {
@@ -98,7 +154,19 @@ export function buildChairmanPrepHtml(
   }
 
   let currentSection: ChairmanAssignment['section'] | null = null;
+  let middleSongShown = false;
   for (const assignment of record.assignments) {
+    if (
+      currentSection === 'ministerio' &&
+      assignment.section !== 'ministerio' &&
+      !middleSongShown &&
+      !musicaAssignmentsHaveSong(record) &&
+      record.songLinks?.middle
+    ) {
+      sections.push(buildMiddleSongSection(record.songLinks.middle));
+      middleSongShown = true;
+    }
+
     if (assignment.section !== currentSection) {
       currentSection = assignment.section;
       if (['tesouros', 'ministerio', 'vida'].includes(currentSection)) {
@@ -112,11 +180,23 @@ export function buildChairmanPrepHtml(
     const names = assignment.assignees.length ? assignment.assignees.join(' · ') : '—';
     const duration = assignment.durationMin ? ` (${assignment.durationMin} min)` : '';
 
+    const studentReadingHtml =
+      record.studentBibleReadingPassageHtml ?? record.bibleReadingPassageHtml;
+    const bibleReadingBlock =
+      isBibleReadingPart(assignment.partTitle) && studentReadingHtml ? studentReadingHtml : '';
+
+    const songRef = isSongAssignment(assignment)
+      ? record.songLinks?.byAssignmentId?.[assignment.id]
+      : undefined;
+    const songBlock = songRef ? buildSongPassageBlock(songRef) : '';
+
     sections.push(`<section class="part">
       <div class="part-head">
         <h3>${escapeHtml(assignment.partTitle)}${escapeHtml(duration)}</h3>
         <span class="assignee">${escapeHtml(names)}</span>
       </div>
+      ${songBlock}
+      ${bibleReadingBlock}
       ${partContent?.lessonRef || partContent?.lessonSummary ? `<div class="lesson-box">
         ${partContent.lessonRef ? `<p class="lesson-ref"><strong>Lição:</strong> ${escapeHtml(partContent.lessonRef)}</p>` : ''}
         ${partContent.lessonSummary ? `<p class="lesson-summary"><strong>Pontos principais:</strong> ${nl2br(partContent.lessonSummary)}</p>` : ''}
@@ -148,6 +228,15 @@ export function buildChairmanPrepHtml(
 
   if (record.closingPrayer) {
     sections.push(`<p class="meta closing-prayer">Oração final: ${escapeHtml(record.closingPrayer)}</p>`);
+  }
+
+  const closingSongLine = buildSongMetaLine(
+    'Cântico final',
+    record.songLinks?.closing,
+    record.closingSong,
+  );
+  if (closingSongLine) {
+    sections.push(`<p class="meta closing-song">${closingSongLine}</p>`);
   }
 
   sections.push(`<section class="block announcements">
@@ -183,6 +272,36 @@ export function buildChairmanPrepHtml(
       margin-top: 1.2em;
     }
     .meta { font-size: ${tablet ? '14px' : '10pt'}; color: #6b7280; margin: 0.2em 0; }
+    .meta-kicker { color: #9ca3af; font-weight: 500; }
+    .meta a, .bible-reading-ref-link, .song-ref-link {
+      color: #1d4ed8;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .meta a:active, .bible-reading-ref-link:active, .song-ref-link:active {
+      color: #1e3a8a;
+    }
+    .song-passage {
+      margin: 0.45em 0 0.55em;
+      padding: 0.45em 0.65em;
+      background: #faf5ff;
+      border-left: 3px solid #7c3aed;
+      border-radius: 4px;
+      font-size: ${tablet ? '16px' : '10.5pt'};
+      page-break-inside: avoid;
+    }
+    .song-passage-label { margin: 0; color: #5b21b6; }
+    .bible-reading-passage {
+      margin: 0.55em 0 0.65em;
+      padding: 0.55em 0.7em;
+      background: #f0fdf4;
+      border-left: 3px solid #16a34a;
+      border-radius: 4px;
+      font-size: ${tablet ? '16px' : '10.5pt'};
+      page-break-inside: avoid;
+    }
+    .bible-reading-announce { margin: 0 0 0.35em; color: #166534; }
+    .bible-reading-verses { margin: 0; color: #15803d; font-size: ${tablet ? '15px' : '10pt'}; }
     .block { margin-bottom: 1em; }
     .opening-block .opening-intro { margin-bottom: 0.85em; }
     .opening-highlight {

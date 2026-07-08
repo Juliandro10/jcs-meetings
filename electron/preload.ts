@@ -20,6 +20,9 @@ import type {
   GetDocumentHtmlResult,
   JwLibraryExportResult,
   JwLibraryImportResult,
+  JcsMeetingsBackupOptions,
+  JcsMeetingsBackupResult,
+  JcsMeetingsRestoreResult,
   LfbPrepParams,
   LfbPrepResult,
   ListElderOutlineDocumentsResult,
@@ -355,6 +358,10 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:export-talk-theme-card', params),
   exportJwlibrary: (): Promise<JwLibraryExportResult> => ipcRenderer.invoke('jcs:export-jwlibrary'),
   importJwlibrary: (): Promise<JwLibraryImportResult> => ipcRenderer.invoke('jcs:import-jwlibrary'),
+  exportMeetingsBackup: (options?: JcsMeetingsBackupOptions): Promise<JcsMeetingsBackupResult> =>
+    ipcRenderer.invoke('jcs:export-meetings-backup', options),
+  importMeetingsBackup: (): Promise<JcsMeetingsRestoreResult> =>
+    ipcRenderer.invoke('jcs:import-meetings-backup'),
   listBibleBooks: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }): Promise<BibleBookInfo[]> =>
     ipcRenderer.invoke('jcs:list-bible-books', params),
   getBibleChapter: (params: {
@@ -636,6 +643,8 @@ declare global {
       exportTalkThemeCard: (params: ExportTalkThemeCardParams) => Promise<ExportTalkThemeCardResult>;
       exportJwlibrary: () => Promise<JwLibraryExportResult>;
       importJwlibrary: () => Promise<JwLibraryImportResult>;
+      exportMeetingsBackup: (options?: JcsMeetingsBackupOptions) => Promise<JcsMeetingsBackupResult>;
+      importMeetingsBackup: () => Promise<JcsMeetingsRestoreResult>;
       listBibleBooks: (params?: { lang?: string; edition?: 'nwt' | 'nwtsty' }) => Promise<BibleBookInfo[]>;
       getBibleChapter: (params: {
         bookNumber: number;

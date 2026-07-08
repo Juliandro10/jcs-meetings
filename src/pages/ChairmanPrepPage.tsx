@@ -123,12 +123,39 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
           prev.content.openingPreview,
         );
         const nextPreview = { ...preview, ...patch };
+        const hints = resolveOpeningPartHints(prev.assignments);
+        let assignments = prev.assignments;
+        if (patch.treasuresPartTitle !== undefined || patch.lifeChristianPartTitle !== undefined) {
+          assignments = prev.assignments.map((assignment) => {
+            if (
+              patch.treasuresPartTitle !== undefined &&
+              hints.treasuresDiscourse?.id === assignment.id
+            ) {
+              return {
+                ...assignment,
+                partTitle: patch.treasuresPartTitle,
+                partTitleManual: true,
+              };
+            }
+            if (
+              patch.lifeChristianPartTitle !== undefined &&
+              hints.lifeChristian?.id === assignment.id
+            ) {
+              return {
+                ...assignment,
+                partTitle: patch.lifeChristianPartTitle,
+                partTitleManual: true,
+              };
+            }
+            return assignment;
+          });
+        }
         const nextContent = {
           ...prev.content,
           openingPreview: nextPreview,
           openingSummary: composeOpeningSummary(nextPreview),
         };
-        const next = { ...prev, content: nextContent };
+        const next = { ...prev, assignments, content: nextContent };
         scheduleSave(next);
         return next;
       });
@@ -167,7 +194,13 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
     ) => {
       setRecord((prev) => {
         const assignments = prev.assignments.map((assignment) =>
-          assignment.id === assignmentId ? { ...assignment, ...patch } : assignment,
+          assignment.id === assignmentId
+            ? {
+                ...assignment,
+                ...patch,
+                ...(patch.partTitle !== undefined ? { partTitleManual: true } : {}),
+              }
+            : assignment,
         );
         let next: ChairmanPrepRecord = { ...prev, assignments };
 
@@ -348,7 +381,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
       const result = await window.jcs.exportReadWeek(week, { preferLastFolder: true });
       if (result.ok) {
         setMessage(
-          `Reunião exportada (${result.documentCount ?? 0} documento(s)). Envie jcs-read.zip ao tablet (Drive ou USB).`,
+          `Reunião exportada (${result.documentCount ?? 0} documento(s)). Envie jcs-read.zip ao tablet.${result.warnings?.length ? ` ${result.warnings.join(' ')}` : ''}`,
         );
       } else {
         setMessage(result.error ?? 'Não foi possível exportar para o tablet.');
@@ -777,6 +810,16 @@ function MeetingMetaEditor({
             value={record.openingSong ?? ''}
             onChange={(e) => onPatch({ openingSong: e.target.value })}
             className={fieldClassName()}
+          />
+        </label>
+        <label className="block text-xs text-jw-muted">
+          Cântico do meio
+          <input
+            type="text"
+            value={record.middleSong ?? ''}
+            onChange={(e) => onPatch({ middleSong: e.target.value })}
+            className={fieldClassName()}
+            placeholder="Após o ministério"
           />
         </label>
         <label className="block text-xs text-jw-muted">

@@ -1,3 +1,4 @@
+import { DISCOURSE_SCRIPT_TAG } from '../shared/discourse-script';
 import { resolveNoteTitle, type DocumentStructure } from './document-structure';
 import {
   getNotes,
@@ -35,13 +36,22 @@ function canonicalPartTitle(structure: DocumentStructure, note: NoteLike): strin
   return title;
 }
 
+function noteTagBucket(note: NoteLike): string {
+  if (note.tags?.includes(DISCOURSE_SCRIPT_TAG)) return 'discourse-script';
+  return 'prep';
+}
+
+function dedupeGroupKey(structure: DocumentStructure, note: NoteLike): string {
+  return `${canonicalPartTitle(structure, note)}|${noteTagBucket(note)}`;
+}
+
 function noteScore(structure: DocumentStructure, note: NoteLike, canonical: string): number {
   let score = (note.body?.length ?? 0) * 2;
   const part = structure.parts.find((item) => item.title.trim().toLowerCase() === canonical);
   if (part && note.blockId === part.blockId) score += 500;
   const block = structure.blocks.find((item) => item.blockId === note.blockId);
   if (block && /^\d+\.\s/.test(block.text.trim())) score += 300;
-  if (note.tags?.includes('auto-prep')) score += 50;
+  if (note.tags?.includes('auto-prep') && !note.tags?.includes(DISCOURSE_SCRIPT_TAG)) score += 50;
   score += Date.parse(note.updatedAt || '') / 1_000_000_000_000;
   return score;
 }
@@ -53,7 +63,7 @@ export function dedupeNotesForDocument<T extends NoteLike>(
   const groups = new Map<string, T[]>();
 
   for (const note of notes) {
-    const key = canonicalPartTitle(structure, note);
+    const key = dedupeGroupKey(structure, note);
     const group = groups.get(key) ?? [];
     group.push(note);
     groups.set(key, group);

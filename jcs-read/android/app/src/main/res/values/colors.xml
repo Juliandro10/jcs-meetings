@@ -1,18 +1,38 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="jcs_bg">#000000</color>
-    <color name="jcs_surface">#1E1A28</color>
-    <color name="jcs_card">#2A2438</color>
-    <color name="jcs_card_pressed">#353047</color>
-    <color name="jcs_purple">#9B8AC4</color>
-    <color name="jcs_purple_bright">#C4B5E8</color>
-    <color name="jcs_purple_dark">#2A2438</color>
-    <color name="jcs_text">#F3F4F6</color>
-    <color name="jcs_muted">#A1A1AA</color>
-    <color name="jcs_white">#FFFFFF</color>
-    <color name="jcs_divider">#3F3F46</color>
-    <color name="jcs_thumb_mwb">#5C4D78</color>
-    <color name="jcs_thumb_w">#4A6B8A</color>
-    <color name="jcs_thumb_other">#4B5563</color>
-    <color name="jcs_accent_blue">#7EB8DA</color>
-</resources>
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <color name="jcs_bg">#000000</color>
+
+    <color name="jcs_surface">#1E1A28</color>
+
+    <color name="jcs_card">#2A2438</color>
+
+    <color name="jcs_card_pressed">#353047</color>
+
+    <color name="jcs_purple">#9B8AC4</color>
+
+    <color name="jcs_purple_bright">#C4B5E8</color>
+
+    <color name="jcs_purple_dark">#2A2438</color>
+
+    <color name="jcs_text">#F3F4F6</color>
+
+    <color name="jcs_muted">#A1A1AA</color>
+
+    <color name="jcs_white">#FFFFFF</color>
+
+    <color name="jcs_divider">#3F3F46</color>
+
+    <color name="jcs_thumb_mwb">#5C4D78</color>
+
+    <color name="jcs_thumb_w">#4A6B8A</color>
+
+    <color name="jcs_thumb_cbs">#6B5C4A</color>
+
+    <color name="jcs_thumb_other">#4B5563</color>
+
+    <color name="jcs_accent_blue">#7EB8DA</color>
+
+</resources>
+

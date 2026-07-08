@@ -1,4 +1,5 @@
 import { findBlockElement, getBlockId } from '@/lib/highlight-dom';
+import { isDiscourseScriptNote } from '../../shared/discourse-script';
 
 export type DocumentNote = {
   id: string;
@@ -82,17 +83,18 @@ function blockTopWithinColumn(block: HTMLElement, column: HTMLElement): number {
 
 /** Fallback visual dedupe when prep antigo ainda tem entradas repetidas. */
 export function dedupeNotesForMarkers(root: HTMLElement, notes: DocumentNote[]): DocumentNote[] {
-  const byTitle = new Map<string, DocumentNote[]>();
+  const byKey = new Map<string, DocumentNote[]>();
 
   for (const note of notes) {
-    const key = note.title.trim().toLowerCase();
-    const group = byTitle.get(key) ?? [];
+    const titleKey = note.title.trim().toLowerCase();
+    const key = isDiscourseScriptNote(note) ? `roteiro:${titleKey}` : `prep:${titleKey}`;
+    const group = byKey.get(key) ?? [];
     group.push(note);
-    byTitle.set(key, group);
+    byKey.set(key, group);
   }
 
   const deduped: DocumentNote[] = [];
-  for (const group of byTitle.values()) {
+  for (const group of byKey.values()) {
     if (group.length === 1) {
       deduped.push(group[0]);
       continue;

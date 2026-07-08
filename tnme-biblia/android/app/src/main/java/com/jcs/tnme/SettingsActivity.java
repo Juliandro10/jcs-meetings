@@ -18,6 +18,7 @@ public class SettingsActivity extends Activity {
 
     private TextView statusView;
     private TextView helpView;
+    private TextView textSizeLabel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,7 +27,10 @@ public class SettingsActivity extends Activity {
 
         statusView = (TextView) findViewById(R.id.settingsStatus);
         helpView = (TextView) findViewById(R.id.settingsHelp);
+        textSizeLabel = (TextView) findViewById(R.id.textSizeLabel);
         Button pickButton = (Button) findViewById(R.id.settingsPickButton);
+        Button textSmallerButton = (Button) findViewById(R.id.textSmallerButton);
+        Button textLargerButton = (Button) findViewById(R.id.textLargerButton);
 
         TnmeTopBar topBar =
             TnmeTopBar.bind(
@@ -68,8 +72,30 @@ public class SettingsActivity extends Activity {
                 }
             });
 
+        textSmallerButton.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    BiblePrefs.adjustTextZoomIndex(SettingsActivity.this, -1);
+                    refreshTextSizeLabel();
+                }
+            });
+        textLargerButton.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    BiblePrefs.adjustTextZoomIndex(SettingsActivity.this, 1);
+                    refreshTextSizeLabel();
+                }
+            });
+
         requestStorageIfNeeded();
         refreshStatus();
+        refreshTextSizeLabel();
+    }
+
+    private void refreshTextSizeLabel() {
+        textSizeLabel.setText(BiblePrefs.getTextZoomLabel(this));
     }
 
     @Override

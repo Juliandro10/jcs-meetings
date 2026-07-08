@@ -1,3 +1,5 @@
+import type { ChairmanSongLinks } from './chairman-song-links';
+
 export type ChairmanAssignmentSection =
   | 'abertura'
   | 'tesouros'
@@ -13,6 +15,8 @@ export type ChairmanAssignment = {
   durationMin?: number;
   assignees: string[];
   mwbPartHint?: string;
+  /** Título editado pelo usuário — não sobrescrever com a apostila MWB. */
+  partTitleManual?: boolean;
 };
 
 export type ChairmanGeneratedPart = {
@@ -55,6 +59,8 @@ export type ChairmanPrepRecord = {
   openingPrayer?: string;
   closingPrayer?: string;
   openingSong?: string;
+  /** Cântico após o ministério (meio da reunião). */
+  middleSong?: string;
   closingSong?: string;
   importedAt?: string;
   sourceFileName?: string;
@@ -62,6 +68,15 @@ export type ChairmanPrepRecord = {
   content?: ChairmanGeneratedContent;
   /** Anúncios da reunião (escritos pelo presidente) */
   announcements?: string;
+  /** Leitura da semana (capítulos base) — link no cabeçalho. */
+  bibleReadingHref?: string;
+  /** Parte 3 — trecho designado na apostila para o estudante. */
+  studentBibleReadingHref?: string;
+  studentBibleReadingPassageHtml?: string;
+  /** @deprecated Use studentBibleReadingPassageHtml */
+  bibleReadingPassageHtml?: string;
+  /** Cânticos inicial, intermediários e final com links para o TNME Cânticos. */
+  songLinks?: ChairmanSongLinks;
   updatedAt: string;
 };
 
@@ -70,6 +85,8 @@ export type ParsedChairmanDesignation = {
   meetingDate?: string;
   bibleReading?: string;
   openingSong?: string;
+  /** Cântico após o ministério (meio da reunião). */
+  middleSong?: string;
   closingSong?: string;
   chairmanName?: string;
   openingPrayer?: string;
@@ -79,5 +96,6 @@ export type ParsedChairmanDesignation = {
     partTitle: string;
     durationMin?: number;
     assignees: string[];
+    partTitleManual?: boolean;
   }>;
 };

@@ -1,94 +1,188 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/jcs_bg"
-    android:orientation="vertical">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/jcs_surface"
-        android:gravity="center_vertical"
-        android:minHeight="56dp"
-        android:orientation="horizontal"
-        android:paddingLeft="16dp"
-        android:paddingRight="8dp">
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp">
-
-            <TextView
-                android:id="@+id/title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/meetings_title"
-                android:textColor="@color/jcs_white"
-                android:textSize="22sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/subtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="@string/meetings_subtitle"
-                android:textColor="@color/jcs_muted"
-                android:textSize="13sp" />
-        </LinearLayout>
-
-        <ImageButton
-            android:id="@+id/menuButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:contentDescription="@string/menu_more"
-            android:src="@android:drawable/ic_menu_more" />
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/folderView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingLeft="16dp"
-        android:paddingTop="10dp"
-        android:paddingRight="16dp"
-        android:paddingBottom="6dp"
-        android:text="@string/storage_hint"
-        android:textColor="@color/jcs_muted"
-        android:textIsSelectable="true"
-        android:textSize="12sp" />
-
-    <ListView
-        android:id="@+id/weekList"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:divider="@android:color/transparent"
-        android:dividerHeight="0dp"
-        android:listSelector="@android:color/transparent"
-        android:paddingLeft="12dp"
-        android:paddingTop="4dp"
-        android:paddingRight="12dp"
-        android:paddingBottom="16dp"
-        android:scrollbars="none" />
-
-    <TextView
-        android:id="@+id/emptyView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:lineSpacingExtra="4dp"
-        android:padding="32dp"
-        android:text="@string/empty_weeks"
-        android:textColor="@color/jcs_muted"
-        android:textSize="15sp"
-        android:visibility="gone" />
-</LinearLayout>
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
+    android:layout_width="match_parent"
+
+    android:layout_height="match_parent"
+
+    android:background="@color/jcs_bg"
+
+    android:orientation="vertical">
+
+
+
+    <LinearLayout
+
+        android:layout_width="match_parent"
+
+        android:layout_height="wrap_content"
+
+        android:background="@color/jcs_surface"
+
+        android:gravity="center_vertical"
+
+        android:minHeight="56dp"
+
+        android:orientation="horizontal"
+
+        android:paddingLeft="16dp"
+
+        android:paddingRight="8dp">
+
+
+
+        <LinearLayout
+
+            android:layout_width="0dp"
+
+            android:layout_height="wrap_content"
+
+            android:layout_weight="1"
+
+            android:orientation="vertical"
+
+            android:paddingTop="10dp"
+
+            android:paddingBottom="10dp">
+
+
+
+            <TextView
+
+                android:id="@+id/title"
+
+                android:layout_width="wrap_content"
+
+                android:layout_height="wrap_content"
+
+                android:text="@string/meetings_title"
+
+                android:textColor="@color/jcs_white"
+
+                android:textSize="22sp"
+
+                android:textStyle="bold" />
+
+
+
+            <TextView
+
+                android:id="@+id/subtitle"
+
+                android:layout_width="wrap_content"
+
+                android:layout_height="wrap_content"
+
+                android:layout_marginTop="2dp"
+
+                android:text="@string/meetings_subtitle"
+
+                android:textColor="@color/jcs_muted"
+
+                android:textSize="13sp" />
+
+        </LinearLayout>
+
+
+
+        <ImageButton
+
+            android:id="@+id/menuButton"
+
+            android:layout_width="48dp"
+
+            android:layout_height="48dp"
+
+            android:background="@android:color/transparent"
+
+            android:contentDescription="@string/menu_more"
+
+            android:src="@android:drawable/ic_menu_more" />
+
+    </LinearLayout>
+
+
+
+    <TextView
+
+        android:id="@+id/folderView"
+
+        android:layout_width="match_parent"
+
+        android:layout_height="wrap_content"
+
+        android:paddingLeft="16dp"
+
+        android:paddingTop="10dp"
+
+        android:paddingRight="16dp"
+
+        android:paddingBottom="6dp"
+
+        android:text="@string/storage_hint"
+
+        android:textColor="@color/jcs_muted"
+
+        android:textIsSelectable="true"
+
+        android:textSize="12sp" />
+
+
+
+    <ListView
+
+        android:id="@+id/weekList"
+
+        android:layout_width="match_parent"
+
+        android:layout_height="0dp"
+
+        android:layout_weight="1"
+
+        android:clipToPadding="false"
+
+        android:divider="@android:color/transparent"
+
+        android:dividerHeight="0dp"
+
+        android:listSelector="@android:color/transparent"
+
+        android:paddingLeft="12dp"
+
+        android:paddingTop="4dp"
+
+        android:paddingRight="12dp"
+
+        android:paddingBottom="16dp"
+
+        android:scrollbars="none" />
+
+
+
+    <TextView
+
+        android:id="@+id/emptyView"
+
+        android:layout_width="match_parent"
+
+        android:layout_height="0dp"
+
+        android:layout_weight="1"
+
+        android:gravity="center"
+
+        android:lineSpacingExtra="4dp"
+
+        android:padding="32dp"
+
+        android:text="@string/empty_weeks"
+
+        android:textColor="@color/jcs_muted"
+
+        android:textSize="15sp"
+
+        android:visibility="gone" />
+
+</LinearLayout>
+

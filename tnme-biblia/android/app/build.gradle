@@ -10,8 +10,8 @@ android {
         applicationId "com.jcs.tnme"
         minSdk 19
         targetSdk 34
-        versionCode 11
-        versionName "0.2.6"
+        versionCode 13
+        versionName "0.2.8"
     }
 
     buildTypes {

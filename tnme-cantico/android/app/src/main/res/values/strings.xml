@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="publication_short">Cante de Coração</string>
+    <string name="language_label">Português (Brasil)</string>
+    <string name="tab_number">Número</string>
+    <string name="tab_title">Título</string>
+    <string name="app_name">TNME Cânticos</string>
+    <string name="song_title">Cântico</string>
+    <string name="song_title_number">Cântico %1$d</string>
+    <string name="pick_jwpub">Escolher Cante de Coração (.jwpub)</string>
+    <string name="jwpub_missing">Nenhum songbook selecionado.\n\nToque em ⋮ (menu) → Configurações para escolher o arquivo sjj_T.jwpub baixado no jw.org.</string>
+    <string name="jwpub_current">Arquivo: %1$s</string>
+    <string name="jwpub_ready">%1$s · %2$s</string>
+    <string name="jwpub_selected">Songbook configurado.</string>
+    <string name="jwpub_copy_failed">Não foi possível copiar o arquivo .jwpub.</string>
+    <string name="jwpub_open_failed">Não foi possível abrir o songbook.</string>
+    <string name="pick_jwpub_first">Escolha o arquivo .jwpub primeiro.</string>
+    <string name="invalid_reference">Referência de cântico inválida.</string>
+    <string name="song_load_failed">Erro ao carregar cântico.</string>
+    <string name="song_not_found">Cântico não encontrado.</string>
+    <string name="bible_app_missing">Instale o TNME Bíblia para abrir referências bíblicas.</string>
+    <string name="back">Voltar</string>
+    <string name="search">Buscar</string>
+    <string name="menu">Menu</string>
+    <string name="books_grid">Cânticos</string>
+    <string name="settings_title">Configurações</string>
+    <string name="settings_bible_heading">Cante de Coração (.jwpub)</string>
+    <string name="settings_help">Baixe o arquivo sjj_T.jwpub no jw.org e toque no botão abaixo.</string>
+    <string name="jwpub_missing_short">Nenhum songbook selecionado.</string>
+    <string name="search_hint">Número ou palavra (ex.: 65 ou confiantes)</string>
+    <string name="search_help">Digite o número do cântico (65) ou palavras da letra.</string>
+    <string name="search_running">Buscando nos cânticos…</string>
+    <string name="search_empty">Nenhum resultado encontrado.</string>
+    <string name="search_failed">Não foi possível concluir a busca.</string>
+    <string name="search_too_short">Digite ao menos 1 caractere.</string>
+    <string name="search_results_count">%1$d resultado(s)</string>
+    <string name="search_number_hit">Número do cântico</string>
+    <string name="settings_text_size_heading">Tamanho do texto</string>
+    <string name="settings_text_size_help">Ajuste a leitura dos cânticos. O zoom por gesto está desligado.</string>
+    <string name="text_size_small">Pequeno</string>
+    <string name="text_size_normal">Normal</string>
+    <string name="text_size_large">Grande</string>
+    <string name="text_size_xlarge">Muito grande</string>
+</resources>

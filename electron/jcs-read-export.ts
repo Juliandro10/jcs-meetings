@@ -2,10 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { parseDiscourseThemeFromNote, sanitizeJcsReadFileSlug } from '../shared/jcs-read-discourse';
+import { DISCOURSE_SCRIPT_TAG } from '../shared/discourse-script';
+import { prepareDiscourseBodyHtml } from '../shared/discourse-manuscript-html';
 import {
   buildJcsReadDocumentHtml,
   buildJcsReadOutlineHtml,
   buildJcsReadRichNoteHtml,
+  isRichOutlineContent,
   outlineValueToBodyHtml,
 } from '../shared/jcs-read-html';
 import type {
@@ -17,14 +20,17 @@ import type {
 import { JCS_READ_FORMAT } from '../shared/jcs-read-types';
 import { writeJcsReadZip } from './jcs-read-zip';
 import { alignChairmanPrepRecordWithMwb } from './chairman-mwb-align';
+import { enrichChairmanPrepBibleReading } from './chairman-prep-enrich';
 import { loadChairmanPrep } from './chairman-prep-store';
 import { resolvePreparedDiscourseOutline } from './jcs-read-discourse-resolve';
+import { buildCbsStudyExportHtml } from './jcs-read-lfb-export';
 import {
   bakePreparedDocumentHtml,
   rewriteMediaUrlsForExport,
   sanitizeMediaFileName,
 } from './jcs-read-bake';
-import { getPreparedDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
+import { extractCbsStudyFromHtml } from './lfb-reader';
+import { getDocumentHtml, getPreparedDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
 import { readJwpubMedia } from './jwpub-bundle';
 import type { MeetingWeek } from './types';
 import {
@@ -33,12 +39,25 @@ import {
   getHighlights,
   getNotes,
   getPublicTalkNote,
+  type PrepNote,
 } from './user-prep-store';
 
 const CATALOG_FILE = 'catalog.json';
 
 function weekFolderName(week: MeetingWeek) {
   return week.id.replace(/[^\w-]/g, '_');
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function isDiscourseScriptNote(note: PrepNote) {
+  return note.tags?.includes(DISCOURSE_SCRIPT_TAG) ?? false;
 }
 
 async function ensureDir(dir: string) {
@@ -84,6 +103,7 @@ async function exportPublicationDocument(params: {
   subtitle: string;
   assetsDir: string;
   outFile: string;
+  includeNote?: (note: PrepNote) => boolean;
 }) {
   const jwpubPath = await resolveCachedPubPath(params.cacheDir, params.pub, params.issue);
   if (!jwpubPath) {
@@ -103,7 +123,8 @@ async function exportPublicationDocument(params: {
     params.issue,
     params.documentId,
   );
-  const notes = await getNotes(params.userDataDir, params.pub, params.issue, params.documentId);
+  const allNotes = await getNotes(params.userDataDir, params.pub, params.issue, params.documentId);
+  const notes = params.includeNote ? allNotes.filter(params.includeNote) : allNotes;
 
   let bodyHtml = bakePreparedDocumentHtml({
     html: prepared.html,
@@ -135,6 +156,45 @@ async function exportPublicationDocument(params: {
   });
 
   await writeTextFile(params.outFile, html);
+}
+
+async function exportPreparedPartsDocument(params: {
+  userDataDir: string;
+  pub: 'mwb';
+  issue: string;
+  documentId: number;
+  weekLabel: string;
+  outFile: string;
+}) {
+  const allNotes = await getNotes(
+    params.userDataDir,
+    params.pub,
+    params.issue,
+    params.documentId,
+  );
+  const notes = allNotes.filter(isDiscourseScriptNote);
+  if (notes.length === 0) return false;
+
+  const bodyHtml = notes
+    .map((note) => {
+      const rich = isRichOutlineContent(note.body)
+        ? outlineValueToBodyHtml(note.body)
+        : `<p>${escapeHtml(note.body).replace(/\n/g, '<br>')}</p>`;
+      return `<section class="jcs-prepared-part">
+  <h2>${escapeHtml(note.title || 'Roteiro')}</h2>
+  <div class="jcs-outline-body">${prepareDiscourseBodyHtml(rich)}</div>
+</section>`;
+    })
+    .join('\n');
+
+  const html = buildJcsReadDocumentHtml({
+    title: 'Partes preparadas',
+    subtitle: params.weekLabel,
+    bodyHtml,
+  });
+
+  await writeTextFile(params.outFile, html);
+  return true;
 }
 
 async function upsertCatalog(exportRoot: string, week: MeetingWeek, folder: string) {
@@ -186,6 +246,7 @@ export async function exportWeekForJcsRead(params: {
 
     const documents: JcsReadWeekDocument[] = [];
     const exportedAt = new Date().toISOString();
+    const warnings: string[] = [];
 
     if (params.week.mwbDownloaded && params.week.mwbDocumentId && params.week.mwbIssue) {
       await exportPublicationDocument({
@@ -198,13 +259,62 @@ export async function exportWeekForJcsRead(params: {
         subtitle: `${params.week.label} · ${params.week.bibleReading}`,
         assetsDir,
         outFile: path.join(weekDir, 'mwb.html'),
+        includeNote: (note) => !isDiscourseScriptNote(note),
       });
       documents.push({
         id: 'mwb',
         kind: 'mwb',
-        title: 'Apostila VM',
+        title: params.week.label,
         file: 'mwb.html',
       });
+
+      const hasPreparedParts = await exportPreparedPartsDocument({
+        userDataDir: params.userDataDir,
+        pub: 'mwb',
+        issue: params.week.mwbIssue,
+        documentId: params.week.mwbDocumentId,
+        weekLabel: params.week.label,
+        outFile: path.join(weekDir, 'prepared-parts.html'),
+      });
+      if (hasPreparedParts) {
+        documents.push({
+          id: 'prepared-parts',
+          kind: 'prepared-parts',
+          title: 'Partes preparadas',
+          file: 'prepared-parts.html',
+        });
+      }
+
+      try {
+        const mwbPath = await resolveCachedPubPath(params.cacheDir, 'mwb', params.week.mwbIssue);
+        if (mwbPath) {
+          const mwbHtml = await getDocumentHtml(mwbPath, params.week.mwbDocumentId);
+          const cbsStudy = extractCbsStudyFromHtml(mwbHtml);
+          if (cbsStudy?.href) {
+            const cbsHtml = await buildCbsStudyExportHtml({
+              cacheDir: params.cacheDir,
+              userDataDir: params.userDataDir,
+              href: cbsStudy.href,
+              linkLabel: cbsStudy.linkLabel,
+              weekLabel: params.week.label,
+              assetsDir,
+            });
+            if (cbsHtml) {
+              await writeTextFile(path.join(weekDir, 'cbs.html'), cbsHtml);
+              documents.push({
+                id: 'cbs',
+                kind: 'cbs',
+                title: cbsStudy.linkLabel || 'Estudo de congregação',
+                file: 'cbs.html',
+              });
+            } else {
+              warnings.push('Estudo de congregação: baixe o livro lfb e prepare as histórias.');
+            }
+          }
+        }
+      } catch {
+        warnings.push('Não foi possível exportar o estudo de congregação desta semana.');
+      }
     }
 
     if (params.week.wDownloaded && params.week.wDocumentId && params.week.wIssue) {
@@ -271,7 +381,7 @@ export async function exportWeekForJcsRead(params: {
     }
 
     const chairmanRaw = await loadChairmanPrep(params.userDataRoot, params.week.id);
-    const chairman = chairmanRaw
+    let chairman = chairmanRaw
       ? await alignChairmanPrepRecordWithMwb(
           params.cacheDir,
           params.userDataRoot,
@@ -280,6 +390,7 @@ export async function exportWeekForJcsRead(params: {
         )
       : null;
     if (chairman?.content) {
+      chairman = await enrichChairmanPrepBibleReading(params.cacheDir, params.week, chairman);
       const html = buildChairmanPrepHtml(chairman, { tablet: true });
       await writeTextFile(path.join(weekDir, 'chairman.html'), html);
       documents.push({
@@ -318,6 +429,7 @@ export async function exportWeekForJcsRead(params: {
       zipPath,
       weekId: params.week.id,
       documentCount: documents.length,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro ao exportar para tablet';

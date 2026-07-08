@@ -22,7 +22,10 @@ export function PersonalStudyPage({
   dictionaryDownloading = false,
 }: PersonalStudyPageProps) {
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'export' | 'import' | null>(null);
+  const [fullBackupStatus, setFullBackupStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'export' | 'import' | 'full-export' | 'full-import' | null>(null);
+  const [includePublications, setIncludePublications] = useState(true);
+  const [includeDictionary, setIncludeDictionary] = useState(false);
   const [playlistsOpen, setPlaylistsOpen] = useState(true);
   const [researchOpen, setResearchOpen] = useState(true);
   const [dictionaryOpen, setDictionaryOpen] = useState(true);
@@ -90,6 +93,87 @@ export function PersonalStudyPage({
     }
   }
 
+  function formatFullBackupStats(stats: NonNullable<Awaited<ReturnType<NonNullable<typeof window.jcs>['exportMeetingsBackup']>>['stats']>) {
+    return [
+      `${stats.prepFields} campos`,
+      `${stats.prepHighlights} grifos`,
+      `${stats.prepNotes} notas`,
+      `${stats.preparedElderOutlines} esboços preparados`,
+      `${stats.chairmanPrepWeeks} folhas de presidente`,
+      `${stats.elderMeetings} reuniões de anciãos`,
+      `${stats.circuitVisits} visitas de circuito`,
+      stats.publications > 0 ? `${stats.publications} publicações` : null,
+      stats.playlistItems > 0 ? `${stats.playlistItems} itens de playlist` : null,
+      stats.dictionaryFiles > 0 ? `${stats.dictionaryFiles} arquivos do dicionário` : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  async function handleFullExport() {
+    if (!window.jcs?.exportMeetingsBackup) {
+      alert('Backup completo disponível apenas no app Electron.');
+      return;
+    }
+    setBusy('full-export');
+    setFullBackupStatus(null);
+    try {
+      const result = await window.jcs.exportMeetingsBackup({
+        includePublications,
+        includeDictionary,
+      });
+      if (!result.ok) {
+        setFullBackupStatus(result.error ?? 'Não foi possível exportar o backup completo.');
+        return;
+      }
+      setFullBackupStatus(
+        result.stats
+          ? `Backup completo salvo: ${formatFullBackupStats(result.stats)}.`
+          : 'Backup completo exportado com sucesso.',
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro inesperado ao exportar backup completo.';
+      setFullBackupStatus(message);
+      window.alert(message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleFullImport() {
+    if (!window.jcs?.importMeetingsBackup) {
+      alert('Restauração disponível apenas no app Electron.');
+      return;
+    }
+    if (
+      !window.confirm(
+        'Restaurar um backup .jcs-backup vai mesclar preparação, esboços, folhas de presidente, reuniões de anciãos e publicações baixadas (se estiverem no arquivo).\n\nRecomendado fechar matérias abertas antes. Continuar?',
+      )
+    ) {
+      return;
+    }
+    setBusy('full-import');
+    setFullBackupStatus(null);
+    try {
+      const result = await window.jcs.importMeetingsBackup();
+      if (!result.ok) {
+        setFullBackupStatus(result.error ?? 'Não foi possível restaurar o backup completo.');
+        return;
+      }
+      const message = result.stats
+        ? `Backup restaurado: ${formatFullBackupStats(result.stats)}.`
+        : 'Backup completo restaurado com sucesso.';
+      setFullBackupStatus(message);
+      window.alert(message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro inesperado ao restaurar backup completo.';
+      setFullBackupStatus(message);
+      window.alert(message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="px-8 py-6">
       <StudySection title="Notas e etiquetas" />
@@ -133,6 +217,57 @@ export function PersonalStudyPage({
       ) : null}
 
       <div className="mt-10 rounded-xl border border-jw-border bg-jw-surface p-4">
+        <h3 className="text-sm font-semibold text-jw-text">Backup completo JCS Meetings</h3>
+        <p className="mt-1 text-sm text-jw-muted">
+          Preparação, esboços, folhas de presidente, reuniões de anciãos, playlists e publicações baixadas.
+          Use este backup para migrar ou proteger todo o trabalho no JCS Meetings.
+        </p>
+        <div className="mt-3 space-y-2 text-sm text-jw-text">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includePublications}
+              onChange={(event) => setIncludePublications(event.target.checked)}
+              disabled={busy !== null}
+            />
+            Incluir publicações baixadas (.jwpub)
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeDictionary}
+              onChange={(event) => setIncludeDictionary(event.target.checked)}
+              disabled={busy !== null}
+            />
+            Incluir dicionário offline (pode aumentar muito o tamanho)
+          </label>
+        </div>
+        {fullBackupStatus ? (
+          <p
+            className={[
+              'mt-3 rounded-lg border px-3 py-2 text-sm',
+              fullBackupStatus.includes('Não') ||
+              fullBackupStatus.includes('Erro') ||
+              fullBackupStatus.includes('cancelada') ||
+              fullBackupStatus.includes('inválido')
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+            ].join(' ')}
+          >
+            {fullBackupStatus}
+          </p>
+        ) : null}
+        <div className="mt-3 flex gap-2">
+          <GhostButton disabled={busy !== null} onClick={() => void handleFullExport()}>
+            {busy === 'full-export' ? 'Exportando…' : 'Exportar backup completo'}
+          </GhostButton>
+          <GhostButton disabled={busy !== null} onClick={() => void handleFullImport()}>
+            {busy === 'full-import' ? 'Restaurando…' : 'Restaurar backup completo'}
+          </GhostButton>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-xl border border-jw-border bg-jw-surface p-4">
         <h3 className="text-sm font-semibold text-jw-text">Backup JW Library</h3>
         <p className="mt-1 text-sm text-jw-muted">
           Exportar ou importar arquivo `.jwlibrary` com campos, grifos e notas da preparação.

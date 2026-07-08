@@ -1,18 +1,170 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
     android:layout_width="match_parent"
+
     android:layout_height="match_parent"
-    android:background="@color/jcs_bg">
 
-    <WebView
-        android:id="@+id/webView"
+    android:background="@color/jcs_bg"
+
+    android:orientation="vertical">
+
+
+
+    <LinearLayout
+
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
 
-    <ProgressBar
-        android:id="@+id/progress"
-        style="?android:attr/progressBarStyleLarge"
-        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center" />
-</FrameLayout>
+
+        android:background="@color/jcs_surface"
+
+        android:gravity="center_vertical"
+
+        android:minHeight="48dp"
+
+        android:orientation="horizontal"
+
+        android:paddingLeft="4dp"
+
+        android:paddingRight="8dp">
+
+
+
+        <ImageButton
+
+            android:id="@+id/backButton"
+
+            android:layout_width="48dp"
+
+            android:layout_height="48dp"
+
+            android:background="@android:color/transparent"
+
+            android:contentDescription="@string/back"
+
+            android:src="@android:drawable/ic_menu_revert" />
+
+
+
+        <TextView
+
+            android:id="@+id/readTitle"
+
+            android:layout_width="0dp"
+
+            android:layout_height="wrap_content"
+
+            android:layout_weight="1"
+
+            android:ellipsize="end"
+
+            android:maxLines="2"
+
+            android:textColor="@color/jcs_white"
+
+            android:textSize="16sp"
+
+            android:textStyle="bold" />
+
+
+
+        <Button
+
+            android:id="@+id/textSmallerButton"
+
+            android:layout_width="40dp"
+
+            android:layout_height="40dp"
+
+            android:layout_marginRight="4dp"
+
+            android:background="@android:color/transparent"
+
+            android:text="A−"
+
+            android:textAllCaps="false"
+
+            android:textColor="@color/jcs_purple_bright"
+
+            android:textSize="16sp" />
+
+
+
+        <TextView
+
+            android:id="@+id/textSizeLabel"
+
+            android:layout_width="wrap_content"
+
+            android:layout_height="wrap_content"
+
+            android:minWidth="52dp"
+
+            android:gravity="center"
+
+            android:textColor="@color/jcs_muted"
+
+            android:textSize="11sp" />
+
+
+
+        <Button
+
+            android:id="@+id/textLargerButton"
+
+            android:layout_width="40dp"
+
+            android:layout_height="40dp"
+
+            android:background="@android:color/transparent"
+
+            android:text="A+"
+
+            android:textAllCaps="false"
+
+            android:textColor="@color/jcs_purple_bright"
+
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+
+
+    <FrameLayout
+
+        android:layout_width="match_parent"
+
+        android:layout_height="0dp"
+
+        android:layout_weight="1">
+
+
+
+        <com.jcs.read.NoZoomWebView
+
+            android:id="@+id/webView"
+
+            android:layout_width="match_parent"
+
+            android:layout_height="match_parent" />
+
+
+
+        <ProgressBar
+
+            android:id="@+id/progress"
+
+            style="?android:attr/progressBarStyleLarge"
+
+            android:layout_width="wrap_content"
+
+            android:layout_height="wrap_content"
+
+            android:layout_gravity="center" />
+
+    </FrameLayout>
+
+</LinearLayout>
+

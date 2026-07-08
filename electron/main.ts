@@ -105,11 +105,13 @@ import { generateChairmanPrepContent } from './chairman-prep-generate';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { exportWeekForJcsRead } from './jcs-read-export';
 import { alignChairmanPrepRecordWithMwb, alignDesignationDocumentWithMwb } from './chairman-mwb-align';
+import { enrichChairmanPrepBibleReading } from './chairman-prep-enrich';
 import {
   loadJcsReadExportRoot,
   saveJcsReadExportRoot,
 } from './jcs-read-export-config';
 import { exportJwlibrary, importJwlibrary } from './jwlibrary-export';
+import { exportJcsMeetingsBackup, importJcsMeetingsBackup } from './jcs-meetings-backup';
 import { dedupeNotesByTitle, pruneDuplicateDocumentNotes } from './note-dedupe';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
 import { resolveJwpubLink } from './jw-link-resolver';
@@ -1410,6 +1412,7 @@ function registerIpc() {
       }
 
       record = { ...record, content: generated.content };
+      record = await enrichChairmanPrepBibleReading(getCacheDir(), week, record);
       await saveChairmanPrep(getUserDataRoot(), record);
       return { ok: true, content: generated.content };
     } catch (err) {
@@ -1437,6 +1440,7 @@ function registerIpc() {
           params.weekId,
           record,
         );
+        record = await enrichChairmanPrepBibleReading(getCacheDir(), week, record);
       }
 
       const safeLabel = record.weekLabel.replace(/[^\d\sa-zA-ZÀ-ÿ–-]/g, '').trim().slice(0, 60);
@@ -1646,6 +1650,45 @@ function registerIpc() {
       return { ok: false, error: 'Importação cancelada.' };
     }
     return importJwlibrary(getCacheDir(), getUserDataDir(), result.filePaths[0]);
+  });
+
+  ipcMain.handle(
+    'jcs:export-meetings-backup',
+    async (_event, options?: { includePublications?: boolean; includeDictionary?: boolean }) => {
+      const defaultName = `JCSMeetingsFullBackup_${new Date().toISOString().slice(0, 10)}.jcs-backup`;
+      const result = await dialog.showSaveDialog({
+        title: 'Exportar backup completo JCS Meetings',
+        defaultPath: defaultName,
+        filters: [{ name: 'JCS Meetings Backup', extensions: ['jcs-backup'] }],
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'Exportação cancelada.' };
+      }
+      return exportJcsMeetingsBackup(getUserDataRoot(), getCacheDir(), result.filePath, {
+        includePublications: options?.includePublications !== false,
+        includeDictionary: options?.includeDictionary === true,
+      });
+    },
+  );
+
+  ipcMain.handle('jcs:import-meetings-backup', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Restaurar backup completo JCS Meetings',
+      filters: [{ name: 'JCS Meetings Backup', extensions: ['jcs-backup'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || !result.filePaths[0]) {
+      return { ok: false, error: 'Importação cancelada.' };
+    }
+    const restore = await importJcsMeetingsBackup(
+      getUserDataRoot(),
+      getCacheDir(),
+      result.filePaths[0],
+    );
+    if (restore.ok) {
+      clearPubPathIndexCache();
+    }
+    return restore;
   });
 
   ipcMain.handle(

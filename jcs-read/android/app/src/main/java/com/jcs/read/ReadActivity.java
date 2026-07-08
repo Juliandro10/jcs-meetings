@@ -2,20 +2,23 @@ package com.jcs.read;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.PorterDuff;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 public class ReadActivity extends Activity {
     private WebView webView;
+    private TextView textSizeLabel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -24,32 +27,61 @@ public class ReadActivity extends Activity {
 
         final ProgressBar progress = (ProgressBar) findViewById(R.id.progress);
         webView = (WebView) findViewById(R.id.webView);
+        textSizeLabel = (TextView) findViewById(R.id.textSizeLabel);
+        TextView readTitle = (TextView) findViewById(R.id.readTitle);
+        ImageButton backButton = (ImageButton) findViewById(R.id.backButton);
+        Button textSmallerButton = (Button) findViewById(R.id.textSmallerButton);
+        Button textLargerButton = (Button) findViewById(R.id.textLargerButton);
+
+        backButton.setColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_ATOP);
+        backButton.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    finish();
+                }
+            });
 
         String title = getIntent().getStringExtra("title");
         String weekFolder = getIntent().getStringExtra("weekFolder");
         String htmlFile = getIntent().getStringExtra("htmlFile");
         if (title != null) {
+            readTitle.setText(title);
             setTitle(title);
         }
 
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(false);
-        settings.setBuiltInZoomControls(true);
-        settings.setDisplayZoomControls(false);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-            settings.setAllowFileAccessFromFileURLs(true);
-            settings.setAllowUniversalAccessFromFileURLs(true);
-        }
+        textSmallerButton.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    JcsPrefs.adjustTextZoomIndex(ReadActivity.this, -1);
+                    refreshTextSizeUi();
+                }
+            });
+        textLargerButton.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    JcsPrefs.adjustTextZoomIndex(ReadActivity.this, 1);
+                    refreshTextSizeUi();
+                }
+            });
+        refreshTextSizeUi();
+
+        ReadingWebViewHelper.configure(webView, false);
 
         webView.setWebViewClient(
             new WebViewClient() {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     progress.setVisibility(View.GONE);
+                }
+
+                @Override
+                public void onScaleChanged(WebView view, float oldScale, float newScale) {
+                    if (Math.abs(newScale - oldScale) > 0.001f) {
+                        view.setInitialScale(0);
+                    }
                 }
 
                 @Override
@@ -69,9 +101,25 @@ public class ReadActivity extends Activity {
             });
 
         if (weekFolder != null && htmlFile != null) {
-            HtmlLoader.loadWeekDocument(this, weekFolder, htmlFile, webView);
+            HtmlLoader.loadWeekDocument(this, weekFolder, htmlFile, webView, progress);
         } else {
             showMissing(progress);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            ReadingWebViewHelper.applyTextZoom(webView);
+            refreshTextSizeUi();
+        }
+    }
+
+    private void refreshTextSizeUi() {
+        textSizeLabel.setText(JcsPrefs.getTextZoomLabel(this));
+        if (webView != null) {
+            ReadingWebViewHelper.applyTextZoom(webView);
         }
     }
 
@@ -82,23 +130,45 @@ public class ReadActivity extends Activity {
     }
 
     private boolean handleLink(String url) {
-        if (!BibleLinkHelper.isBibleLink(url)) {
-            return false;
+        if (BibleLinkHelper.isBibleLink(url)) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.setPackage("com.jcs.tnme");
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                startActivity(intent);
+                return true;
+            } catch (Exception e) {
+                Toast.makeText(
+                        this,
+                        getString(R.string.bible_app_missing),
+                        Toast.LENGTH_LONG)
+                    .show();
+                return true;
+            }
         }
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            intent.setPackage("com.jcs.tnme");
-            intent.addCategory(Intent.CATEGORY_BROWSABLE);
-            startActivity(intent);
-            return true;
-        } catch (Exception e) {
-            Toast.makeText(
-                    this,
-                    "Instale o TNME Bíblia para abrir referências bíblicas.",
-                    Toast.LENGTH_LONG)
-                .show();
-            return true;
+
+        if (SongLinkHelper.isSongLink(url)) {
+            String tnmeUri = SongLinkHelper.toTnmeUri(url);
+            if (tnmeUri == null) {
+                return false;
+            }
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tnmeUri));
+                intent.setPackage("com.jcs.tnme.cantico");
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                startActivity(intent);
+                return true;
+            } catch (Exception e) {
+                Toast.makeText(
+                        this,
+                        getString(R.string.cantico_app_missing),
+                        Toast.LENGTH_LONG)
+                    .show();
+                return true;
+            }
         }
+
+        return false;
     }
 
     @Override

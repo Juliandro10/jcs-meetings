@@ -136,8 +136,10 @@ export function MeetingsPage({
               .exportReadWeek(week)
               .then((result) => {
                 if (result.ok) {
+                  const warning =
+                    result.warnings?.length ? ` ${result.warnings.join(' ')}` : '';
                   setExportReadMessage(
-                    `Exportado (${result.documentCount ?? 0} documento(s)). Envie jcs-read.zip ao tablet (Drive ou USB).`,
+                    `Exportado (${result.documentCount ?? 0} documento(s)): apostila, partes preparadas (se houver), estudo de congregação (se houver) e sentinela. Envie jcs-read.zip ao tablet.${warning}`,
                   );
                 } else {
                   setExportReadMessage(result.error ?? 'Não foi possível exportar.');
