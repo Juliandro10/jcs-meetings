@@ -16,15 +16,18 @@ function isCbsPart(title: string) {
   return /estudo bíblico|congregação|congregacao|\bebc\b|\bcbs\b/i.test(title);
 }
 
-function isTreasuresDiscourse(title: string) {
+function isTreasuresDiscourse(assignment: ChairmanAssignment) {
+  const title = assignment.partTitle;
   if (/joias|leitura|gemas/i.test(title)) return false;
-  return /^\s*1[\.)]\s/.test(title.trim()) || /discurso|tesouros/i.test(title);
+  if (/^\s*1[\.)]\s/.test(title.trim())) return true;
+  if (assignment.section === 'tesouros' && assignment.durationMin === 10) return true;
+  return /discurso|tesouros/i.test(title);
 }
 
 export function resolveOpeningPartHints(assignments: ChairmanAssignment[]) {
   const tesouros = assignments.filter((a) => a.section === 'tesouros');
   const treasuresDiscourse =
-    tesouros.find((a) => isTreasuresDiscourse(a.partTitle)) ??
+    tesouros.find((a) => isTreasuresDiscourse(a)) ??
     tesouros.find((a) => !/joias|leitura|gemas/i.test(a.partTitle)) ??
     tesouros[0];
 
@@ -88,9 +91,12 @@ export function ensureOpeningPreview(
   existing?: ChairmanOpeningPreview,
 ): ChairmanOpeningPreview {
   if (existing?.treasuresHighlight || existing?.lifeChristianHighlight) {
+    const fromAssignments = emptyOpeningPreview(assignments);
     return {
-      ...emptyOpeningPreview(assignments),
+      ...fromAssignments,
       ...existing,
+      treasuresPartTitle: fromAssignments.treasuresPartTitle,
+      lifeChristianPartTitle: fromAssignments.lifeChristianPartTitle,
     };
   }
   if (!openingSummary.trim()) {

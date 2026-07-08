@@ -13,6 +13,8 @@ type ChairmanDesignationReviewDialogProps = {
     importedMeetingDate?: string;
   };
   weeksFound?: number;
+  titlesAlignedFromMwb?: boolean;
+  mwbAlignSkippedReason?: string;
   onConfirm: (document: ParsedChairmanDesignation) => void;
   onCancel: () => void;
 };
@@ -43,6 +45,8 @@ export function ChairmanDesignationReviewDialog({
   usedVision,
   weekMismatch,
   weeksFound,
+  titlesAlignedFromMwb,
+  mwbAlignSkippedReason,
   onConfirm,
   onCancel,
 }: ChairmanDesignationReviewDialogProps) {
@@ -106,6 +110,17 @@ export function ChairmanDesignationReviewDialog({
             <div className="mt-3 rounded-lg border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950/40 dark:text-emerald-100">
               Folha com {weeksFound} semanas — extraído o bloco de{' '}
               <strong>{doc.meetingDate ?? doc.bibleReading ?? 'semana selecionada'}</strong>.
+            </div>
+          ) : null}
+
+          {titlesAlignedFromMwb ? (
+            <div className="mt-3 rounded-lg border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950/40 dark:text-emerald-100">
+              Títulos das partes corrigidos pela <strong>apostila da semana</strong>. Confira
+              designados e durações; ajuste se necessário.
+            </div>
+          ) : mwbAlignSkippedReason ? (
+            <div className="mt-3 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100">
+              {mwbAlignSkippedReason}
             </div>
           ) : null}
         </div>

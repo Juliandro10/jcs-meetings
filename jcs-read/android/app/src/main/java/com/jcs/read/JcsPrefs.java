@@ -12,6 +12,7 @@ public final class JcsPrefs {
     private static final String KEY_MODE = "root_mode";
     private static final String KEY_FILE_PATH = "root_file_path";
     private static final String KEY_TREE_URI = "root_tree_uri";
+    private static final String KEY_SOURCE_LABEL = "root_source_label";
 
     public static final String MODE_FILE = "file";
     public static final String MODE_TREE = "tree";
@@ -31,6 +32,17 @@ public final class JcsPrefs {
             .edit()
             .putString(KEY_MODE, MODE_FILE)
             .putString(KEY_FILE_PATH, folder.getAbsolutePath())
+            .putString(KEY_SOURCE_LABEL, folder.getAbsolutePath())
+            .remove(KEY_TREE_URI)
+            .apply();
+    }
+
+    public static void setFileRootFromZip(Context context, File folder, String zipDisplayName) {
+        prefs(context)
+            .edit()
+            .putString(KEY_MODE, MODE_FILE)
+            .putString(KEY_FILE_PATH, folder.getAbsolutePath())
+            .putString(KEY_SOURCE_LABEL, "ZIP: " + zipDisplayName)
             .remove(KEY_TREE_URI)
             .apply();
     }
@@ -40,6 +52,7 @@ public final class JcsPrefs {
             .edit()
             .putString(KEY_MODE, MODE_TREE)
             .putString(KEY_TREE_URI, treeUri.toString())
+            .putString(KEY_SOURCE_LABEL, treeUri.toString())
             .remove(KEY_FILE_PATH)
             .apply();
     }
@@ -63,6 +76,8 @@ public final class JcsPrefs {
     }
 
     public static String getRootLabel(Context context) {
+        String label = prefs(context).getString(KEY_SOURCE_LABEL, null);
+        if (label != null && label.length() > 0) return label;
         if (MODE_TREE.equals(getMode(context))) {
             Uri uri = getTreeRoot(context);
             return uri != null ? uri.toString() : "Pasta não definida";

@@ -111,3 +111,14 @@ export async function saveChairmanPrep(userDataRoot: string, record: ChairmanPre
   await fs.writeFile(file, JSON.stringify(payload, null, 2), 'utf8');
   return payload;
 }
+
+export async function deleteChairmanPrep(userDataRoot: string, weekId: string): Promise<boolean> {
+  try {
+    await fs.unlink(prepPath(userDataRoot, weekId));
+    return true;
+  } catch (err) {
+    const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : '';
+    if (code === 'ENOENT') return true;
+    throw err;
+  }
+}

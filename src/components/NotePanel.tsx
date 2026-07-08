@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DocumentNote } from '@/lib/note-dom';
+import { outlineContentToHtml } from '@/lib/rich-outline-html';
 import { isDiscourseScriptNote } from '../../shared/discourse-script';
+import {
+  prepareDiscourseBodyHtml,
+} from '../../shared/discourse-manuscript-html';
 
 type NotePanelProps = {
   note: DocumentNote;
@@ -25,9 +29,13 @@ export function NotePanel({
   const [tagDraft, setTagDraft] = useState('');
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const isDiscourse = isDiscourseScriptNote(note);
+  const discoursePreviewHtml = useMemo(() => {
+    if (!isDiscourse) return '';
+    return prepareDiscourseBodyHtml(outlineContentToHtml(note.body));
+  }, [isDiscourse, note.body]);
   useEffect(() => {
-    bodyRef.current?.focus();
-  }, [note.id]);
+    if (!isDiscourse) bodyRef.current?.focus();
+  }, [isDiscourse, note.id]);
 
   const addTag = () => {
     const value = tagDraft.trim();
@@ -68,16 +76,33 @@ export function NotePanel({
       </div>
 
       <div className={`flex flex-col gap-3 p-4 ${embedded ? '' : 'min-h-0 flex-1'}`}>
-        <textarea
-          ref={bodyRef}
-          value={note.body}
-          onChange={(event) => onChange({ body: event.target.value })}
-          placeholder="Escreva sua nota…"
-          className={[
-            'resize-none rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text outline-none focus:border-jw-purple',
-            embedded ? (isDiscourse ? 'min-h-[280px]' : 'min-h-[160px]') : 'min-h-[220px] flex-1',
-          ].join(' ')}
-        />
+        {isDiscourse ? (
+          <div
+            className={[
+              'discourse-script-preview overflow-auto rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm leading-relaxed text-jw-text',
+              embedded ? 'min-h-[280px] max-h-[420px]' : 'min-h-[220px] flex-1',
+            ].join(' ')}
+            dangerouslySetInnerHTML={{ __html: discoursePreviewHtml }}
+          />
+        ) : (
+          <textarea
+            ref={bodyRef}
+            value={note.body}
+            onChange={(event) => onChange({ body: event.target.value })}
+            placeholder="Escreva sua nota…"
+            className={[
+              'resize-none rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text outline-none focus:border-jw-purple',
+              embedded ? 'min-h-[160px]' : 'min-h-[220px] flex-1',
+            ].join(' ')}
+          />
+        )}
+
+        {isDiscourse ? (
+          <p className="text-xs text-jw-muted">
+            Prévia do manuscrito (grifos alternados). Edite em{' '}
+            <span className="font-medium text-jw-text">Abrir no editor</span>.
+          </p>
+        ) : null}
 
         {isDiscourse && (onOpenFullEditor || onExportDiscourse) ? (
           <div className="flex flex-wrap gap-2">

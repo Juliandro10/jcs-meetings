@@ -25,6 +25,14 @@
             android:textStyle="bold" />
 
         <Button
+            android:id="@+id/pickZipButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginRight="6dp"
+            android:text="@string/pick_zip"
+            android:textAllCaps="false" />
+
+        <Button
             android:id="@+id/pickFolderButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

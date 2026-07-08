@@ -96,6 +96,7 @@ import { exportMeetingAtaDocument, exportFullHtmlToPdf, exportOutlineDocument, e
 import {
   emptyChairmanPrep,
   loadChairmanPrep,
+  deleteChairmanPrep,
   saveChairmanPrep,
 } from './chairman-prep-store';
 import { parseChairmanDesignationFile } from './chairman-designation-import';
@@ -103,6 +104,7 @@ import { weekTargetMismatch } from './chairman-designation-ai';
 import { generateChairmanPrepContent } from './chairman-prep-generate';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { exportWeekForJcsRead } from './jcs-read-export';
+import { alignChairmanPrepRecordWithMwb, alignDesignationDocumentWithMwb } from './chairman-mwb-align';
 import {
   loadJcsReadExportRoot,
   saveJcsReadExportRoot,
@@ -650,7 +652,7 @@ function registerIpc() {
 
         if (!exportRoot) {
           const pick = await dialog.showOpenDialog({
-            title: 'Pasta JCS — copie esta pasta para o tablet (JCS Read)',
+            title: 'Pasta JCS — gera jcs-read.zip para o tablet (JCS Read)',
             defaultPath: lastRoot,
             properties: ['openDirectory', 'createDirectory'],
           });
@@ -1218,7 +1220,28 @@ function registerIpc() {
     if (denied) return denied;
 
     try {
-      const existing = await loadChairmanPrep(getUserDataRoot(), weekId);
+      let existing = await loadChairmanPrep(getUserDataRoot(), weekId);
+      if (existing) {
+        const weeksResult = await loadMeetingWeeks(getCacheDir(), getUserDataRoot());
+        const week = weeksResult.weeks.find((item) => item.id === weekId);
+        if (week) {
+          const aligned = await alignChairmanPrepRecordWithMwb(
+            getCacheDir(),
+            getUserDataRoot(),
+            weekId,
+            existing,
+          );
+          if (
+            aligned.assignments.some(
+              (item, index) => item.partTitle !== existing!.assignments[index]?.partTitle,
+            )
+          ) {
+            existing = await saveChairmanPrep(getUserDataRoot(), aligned);
+          } else {
+            existing = aligned;
+          }
+        }
+      }
       return { ok: true, record: existing ?? undefined };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao carregar folha do presidente';
@@ -1231,10 +1254,33 @@ function registerIpc() {
     if (denied) return denied;
 
     try {
-      const saved = await saveChairmanPrep(getUserDataRoot(), record);
+      const weeksResult = await loadMeetingWeeks(getCacheDir(), getUserDataRoot());
+      const week = weeksResult.weeks.find((item) => item.id === record.weekId);
+      const aligned = week
+        ? await alignChairmanPrepRecordWithMwb(
+            getCacheDir(),
+            getUserDataRoot(),
+            record.weekId,
+            record,
+          )
+        : record;
+      const saved = await saveChairmanPrep(getUserDataRoot(), aligned);
       return { ok: true, record: saved };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao salvar folha do presidente';
+      return { ok: false, error: message };
+    }
+  });
+
+  ipcMain.handle('jcs:delete-chairman-prep', async (_event, weekId: string) => {
+    const denied = assertElderUnlocked();
+    if (denied) return denied;
+
+    try {
+      await deleteChairmanPrep(getUserDataRoot(), weekId);
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao apagar folha do presidente';
       return { ok: false, error: message };
     }
   });
@@ -1250,6 +1296,9 @@ function registerIpc() {
         dateIso?: string;
         dateRangeCaps?: string;
         importKind?: 'file' | 'image';
+        mwbDownloaded?: boolean;
+        mwbDocumentId?: number;
+        mwbIssue?: string;
       },
     ) => {
       const denied = assertElderUnlocked();
@@ -1295,18 +1344,30 @@ function registerIpc() {
           return { ok: false, error: parsed.error ?? 'Não foi possível ler a folha.' };
         }
 
-        const weekMismatch = weekTargetMismatch(weekTarget, parsed.document)
+        const aligned = await alignDesignationDocumentWithMwb(
+          getCacheDir(),
+          getUserDataRoot(),
+          params.weekId,
+          parsed.document,
+        );
+        const document = aligned.document;
+
+        const weekMismatch = weekTargetMismatch(weekTarget, document)
           ? {
               expectedBibleReading: params.bibleReading,
-              importedBibleReading: parsed.document.bibleReading,
+              importedBibleReading: document.bibleReading,
               expectedWeekLabel: params.weekLabel,
-              importedMeetingDate: parsed.document.meetingDate,
+              importedMeetingDate: document.meetingDate,
             }
           : undefined;
 
         return {
           ok: true,
-          document: parsed.document,
+          document,
+          titlesAlignedFromMwb: aligned.titlesAlignedFromMwb,
+          mwbAlignSkippedReason: aligned.titlesAlignedFromMwb
+            ? undefined
+            : 'Baixe a apostila desta semana para corrigir os títulos automaticamente.',
           fileName,
           rawText: parsed.rawText,
           parseMethod: parsed.parseMethod,
@@ -1336,6 +1397,13 @@ function registerIpc() {
           bibleReading: week.bibleReading,
         });
 
+      record = await alignChairmanPrepRecordWithMwb(
+        getCacheDir(),
+        getUserDataRoot(),
+        week.id,
+        record,
+      );
+
       const generated = await generateChairmanPrepContent(getCacheDir(), week, record);
       if (!generated.ok || !generated.content) {
         return { ok: false, error: generated.error ?? 'Não foi possível gerar a folha.' };
@@ -1355,9 +1423,20 @@ function registerIpc() {
     if (denied) return denied;
 
     try {
-      const record = await loadChairmanPrep(getUserDataRoot(), params.weekId);
+      let record = await loadChairmanPrep(getUserDataRoot(), params.weekId);
       if (!record?.content) {
         return { ok: false, error: 'Gere ou edite a folha antes de exportar.' };
+      }
+
+      const weeksResult = await loadMeetingWeeks(getCacheDir(), getUserDataRoot());
+      const week = weeksResult.weeks.find((item) => item.id === params.weekId);
+      if (week) {
+        record = await alignChairmanPrepRecordWithMwb(
+          getCacheDir(),
+          getUserDataRoot(),
+          params.weekId,
+          record,
+        );
       }
 
       const safeLabel = record.weekLabel.replace(/[^\d\sa-zA-ZÀ-ÿ–-]/g, '').trim().slice(0, 60);

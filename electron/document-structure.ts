@@ -191,6 +191,7 @@ export function resolveSectionHeaderHighlight(
 function detectKind(text: string, section: string): MeetingPartKind {
   const lower = text.toLowerCase();
   const sectionLower = section.toLowerCase();
+  if (/tente o seguinte|faça o desafio/i.test(lower)) return 'other';
   if (lower.includes('joias espirituais') && lower.includes('?')) return 'joias';
   if (lower.includes('joias espirituais')) return 'joias';
   if (sectionLower.includes('minist')) return 'ministry';
@@ -202,7 +203,9 @@ function detectKind(text: string, section: string): MeetingPartKind {
   if (lower.includes('leitura da bíblia') && /^\(\d+\s*min\)/i.test(text)) return 'reading';
   if (lower.includes('necessidades locais')) return 'local';
   if (lower.includes('estudo bíblico de congregação') || lower.includes('estudo biblico')) return 'cbs';
-  if (/ — /.test(text) && /\b[A-Za-zÁ-ú]{2,4}\.\s*\d/.test(text)) return 'treasures';
+  if (/ — /.test(text) && /\b[A-Za-zÁ-ú]{2,4}\.\s*\d/.test(text) && !/^\d+\.\s/.test(text.trim())) {
+    return 'other';
+  }
   return 'other';
 }
 
@@ -338,7 +341,12 @@ export function extractDocumentStructure(html: string): DocumentStructure {
     const kind = detectKind(block.text, section);
     if (/^\d+\.\s/.test(block.text) && kind === 'joias' && !block.text.includes('?')) continue;
 
-    const title = partTitle(block.text, lastNumberedPartTitle);
+    let title = partTitle(block.text, lastNumberedPartTitle);
+    if (kind === 'reading') {
+      title = '3. Leitura da Bíblia';
+    } else if (kind === 'joias') {
+      title = '2. Joias espirituais';
+    }
     if (/^\d+\.\s/.test(block.text)) {
       lastNumberedPartTitle = title;
     }

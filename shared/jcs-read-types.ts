@@ -39,6 +39,7 @@ export type JcsReadCatalog = {
 export type JcsReadExportResult = {
   ok: boolean;
   folderPath?: string;
+  zipPath?: string;
   weekId?: string;
   documentCount?: number;
   error?: string;

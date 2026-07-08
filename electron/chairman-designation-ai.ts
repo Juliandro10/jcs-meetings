@@ -51,6 +51,7 @@ Regras:
 - Preserve ordem; uma entrada por parte com designado.
 - assignees = nomes à direita; duplas no ministério = dois nomes.
 - Português do Brasil; não invente partes.
+- Para partTitle: copie o número e o texto visíveis na folha; o app corrige o título exato pela apostila baixada.
 - NUNCA misture designações de semanas diferentes.`;
 
 export type { ChairmanDesignationWeekTarget };

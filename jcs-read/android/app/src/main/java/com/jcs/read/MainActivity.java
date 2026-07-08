@@ -3,6 +3,7 @@ package com.jcs.read;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
@@ -16,9 +17,12 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.io.File;
+
 public class MainActivity extends Activity {
     private static final int REQUEST_FOLDER = 1001;
     private static final int REQUEST_STORAGE = 1002;
+    private static final int REQUEST_ZIP = 1003;
 
     private ListView weekList;
     private TextView emptyView;
@@ -36,6 +40,7 @@ public class MainActivity extends Activity {
         folderView = (TextView) findViewById(R.id.folderView);
         Button reloadButton = (Button) findViewById(R.id.reloadButton);
         Button pickFolderButton = (Button) findViewById(R.id.pickFolderButton);
+        Button pickZipButton = (Button) findViewById(R.id.pickZipButton);
 
         adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, new ArrayList<String>());
         weekList.setAdapter(adapter);
@@ -69,6 +74,14 @@ public class MainActivity extends Activity {
                 }
             });
 
+        pickZipButton.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    openZipPicker();
+                }
+            });
+
         updateFolderLabel();
         requestStorageIfNeeded();
         reloadWeeks();
@@ -87,6 +100,20 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_FOLDER && resultCode == RESULT_OK) {
             updateFolderLabel();
             reloadWeeks();
+            return;
+        }
+        if (requestCode == REQUEST_ZIP && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                File imported = JcsZipHelper.importZip(this, uri);
+                if (imported != null) {
+                    Toast.makeText(this, R.string.zip_import_ok, Toast.LENGTH_SHORT).show();
+                    updateFolderLabel();
+                    reloadWeeks();
+                } else {
+                    Toast.makeText(this, R.string.zip_import_failed, Toast.LENGTH_LONG).show();
+                }
+            }
         }
     }
 
@@ -108,6 +135,20 @@ public class MainActivity extends Activity {
     private void openFolderPicker() {
         requestStorageIfNeeded();
         startActivityForResult(new Intent(this, FolderBrowserActivity.class), REQUEST_FOLDER);
+    }
+
+    private void openZipPicker() {
+        requestStorageIfNeeded();
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("application/zip");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        Intent chooser = Intent.createChooser(intent, getString(R.string.pick_zip_hint));
+        try {
+            startActivityForResult(chooser, REQUEST_ZIP);
+        } catch (Exception e) {
+            intent.setType("*/*");
+            startActivityForResult(Intent.createChooser(intent, getString(R.string.pick_zip_hint)), REQUEST_ZIP);
+        }
     }
 
     private void updateFolderLabel() {
@@ -133,7 +174,7 @@ public class MainActivity extends Activity {
         weekList.setVisibility(empty ? View.GONE : View.VISIBLE);
 
         if (empty && !JcsPrefs.hasCustomRoot(this)) {
-            Toast.makeText(this, R.string.pick_folder_hint, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, R.string.pick_zip_hint, Toast.LENGTH_LONG).show();
         }
     }
 }

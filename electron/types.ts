@@ -820,6 +820,8 @@ export type ImportChairmanDesignationResult = {
     expectedWeekLabel: string;
     importedMeetingDate?: string;
   };
+  titlesAlignedFromMwb?: boolean;
+  mwbAlignSkippedReason?: string;
   error?: string;
 };
 

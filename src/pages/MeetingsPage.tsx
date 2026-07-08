@@ -137,7 +137,7 @@ export function MeetingsPage({
               .then((result) => {
                 if (result.ok) {
                   setExportReadMessage(
-                    `Exportado (${result.documentCount ?? 0} documento(s)). Copie a pasta JCS para o tablet.`,
+                    `Exportado (${result.documentCount ?? 0} documento(s)). Envie jcs-read.zip ao tablet (Drive ou USB).`,
                   );
                 } else {
                   setExportReadMessage(result.error ?? 'Não foi possível exportar.');

@@ -46,7 +46,11 @@ function nl2br(value: string) {
   return escapeHtml(value).replace(/\n/g, '<br>');
 }
 
-export function buildChairmanPrepHtml(record: ChairmanPrepRecord) {
+export function buildChairmanPrepHtml(
+  record: ChairmanPrepRecord,
+  options?: { tablet?: boolean },
+) {
+  const tablet = options?.tablet ?? false;
   const content = record.content;
   const headerDate = record.meetingDate || record.weekLabel;
   const reading = record.bibleReading;
@@ -156,28 +160,29 @@ export function buildChairmanPrepHtml(record: ChairmanPrepRecord) {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  ${tablet ? '<meta name="viewport" content="width=device-width, initial-scale=1">' : ''}
   <title>Folha do presidente — ${escapeHtml(record.weekLabel)}</title>
   <style>
     body {
       font-family: 'Segoe UI', Calibri, sans-serif;
-      font-size: 11pt;
-      line-height: 1.5;
-      margin: 1.6cm 1.8cm;
+      font-size: ${tablet ? '18px' : '11pt'};
+      line-height: ${tablet ? '1.55' : '1.5'};
+      margin: ${tablet ? '12px 14px' : '1.6cm 1.8cm'};
       color: #1f2937;
     }
     .doc-header { margin-bottom: 1.2em; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.8em; }
-    h1 { font-size: 16pt; margin: 0 0 0.35em; color: #111827; }
-    h2 { font-size: 12pt; margin: 1em 0 0.5em; color: #374151; }
+    h1 { font-size: ${tablet ? '22px' : '16pt'}; margin: 0 0 0.35em; color: #111827; }
+    h2 { font-size: ${tablet ? '17px' : '12pt'}; margin: 1em 0 0.5em; color: #374151; }
     h2.section-banner {
       color: #fff;
       padding: 0.35em 0.65em;
       border-radius: 4px;
-      font-size: 10pt;
+      font-size: ${tablet ? '14px' : '10pt'};
       text-transform: uppercase;
       letter-spacing: 0.04em;
       margin-top: 1.2em;
     }
-    .meta { font-size: 10pt; color: #6b7280; margin: 0.2em 0; }
+    .meta { font-size: ${tablet ? '14px' : '10pt'}; color: #6b7280; margin: 0.2em 0; }
     .block { margin-bottom: 1em; }
     .opening-block .opening-intro { margin-bottom: 0.85em; }
     .opening-highlight {
@@ -195,7 +200,7 @@ export function buildChairmanPrepHtml(record: ChairmanPrepRecord) {
       background: #fff1f2;
     }
     .opening-highlight h3 {
-      font-size: 10pt;
+      font-size: ${tablet ? '14px' : '10pt'};
       margin: 0 0 0.25em;
       text-transform: uppercase;
       letter-spacing: 0.03em;
@@ -203,7 +208,7 @@ export function buildChairmanPrepHtml(record: ChairmanPrepRecord) {
     .opening-highlight.treasures h3 { color: #1d4ed8; }
     .opening-highlight.life h3 { color: #9f1239; }
     .opening-part-title {
-      font-size: 10pt;
+      font-size: ${tablet ? '16px' : '10pt'};
       font-weight: 600;
       margin: 0 0 0.35em;
       color: #374151;
@@ -216,9 +221,9 @@ export function buildChairmanPrepHtml(record: ChairmanPrepRecord) {
       page-break-inside: avoid;
     }
     .part-head { display: flex; justify-content: space-between; gap: 1em; align-items: flex-start; }
-    .part h3 { font-size: 11pt; margin: 0; flex: 1; }
+    .part h3 { font-size: ${tablet ? '17px' : '11pt'}; margin: 0; flex: 1; }
     .assignee {
-      font-size: 9.5pt;
+      font-size: ${tablet ? '13px' : '9.5pt'};
       font-weight: 600;
       color: #6d28d9;
       white-space: nowrap;
@@ -226,13 +231,13 @@ export function buildChairmanPrepHtml(record: ChairmanPrepRecord) {
       padding: 0.15em 0.5em;
       border-radius: 999px;
     }
-    .highlight { margin: 0.45em 0 0; font-size: 10.5pt; }
+    .highlight { margin: 0.45em 0 0; font-size: ${tablet ? '16px' : '10.5pt'}; }
     .lesson-box {
       margin: 0.5em 0;
       padding: 0.45em 0.65em;
       background: #fffbeb;
       border-left: 3px solid #b45309;
-      font-size: 10.5pt;
+      font-size: ${tablet ? '16px' : '10.5pt'};
     }
     .lesson-ref { margin: 0 0 0.35em; font-weight: 600; color: #92400e; }
     .private-note {
@@ -240,7 +245,7 @@ export function buildChairmanPrepHtml(record: ChairmanPrepRecord) {
       padding: 0.4em 0.55em;
       background: #f3f4f6;
       border: 1px dashed #9ca3af;
-      font-size: 10pt;
+      font-size: ${tablet ? '15px' : '10pt'};
     }
     .transition { margin: 0.35em 0 0; }
     .question ol { margin: 0.4em 0 0 1.2em; }

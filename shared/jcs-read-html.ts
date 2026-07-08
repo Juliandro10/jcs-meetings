@@ -1,8 +1,12 @@
+import { DISCOURSE_SCRIPT_TAG } from './discourse-script';
+import { prepareDiscourseBodyHtml } from './discourse-manuscript-html';
+
 export type JcsReadNote = {
   id: string;
   title: string;
   body: string;
   anchorText: string;
+  tags?: string[];
 };
 
 const HIGHLIGHT_SWATCH: Record<string, string> = {
@@ -156,6 +160,17 @@ export function outlineValueToBodyHtml(value: string) {
   return isRichOutlineContent(trimmed) ? trimmed : plainOutlineToHtml(trimmed);
 }
 
+function noteBodyToHtml(body: string, tags?: string[]) {
+  const isDiscourse = tags?.includes(DISCOURSE_SCRIPT_TAG) ?? false;
+  if (isDiscourse) {
+    return `<div class="jcs-outline-body">${prepareDiscourseBodyHtml(outlineValueToBodyHtml(body))}</div>`;
+  }
+  if (isRichOutlineContent(body)) {
+    return `<div class="jcs-outline-body">${outlineValueToBodyHtml(body)}</div>`;
+  }
+  return `<p>${nl2br(body)}</p>`;
+}
+
 export function buildJcsReadOutlineHtml(params: {
   title: string;
   subtitle?: string;
@@ -199,7 +214,7 @@ export function buildJcsReadDocumentHtml(params: {
       (note) => `<article class="jcs-note-card">
     <h3>${escapeHtml(note.title || 'Nota')}</h3>
     ${note.anchorText ? `<p class="jcs-note-quote">"${escapeHtml(note.anchorText)}"</p>` : ''}
-    <p>${nl2br(note.body)}</p>
+    ${noteBodyToHtml(note.body, note.tags)}
   </article>`,
     )
     .join('\n')}

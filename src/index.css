@@ -386,3 +386,17 @@ body {
   font-style: italic;
   margin-top: 1.5em;
 }
+
+.discourse-script-preview p {
+  margin: 0 0 0.75rem;
+}
+
+.discourse-script-preview p:last-child {
+  margin-bottom: 0;
+}
+
+.discourse-script-preview .discourse-hl-text {
+  background-color: #00ffff;
+  border-radius: 2px;
+  padding: 0 1px;
+}

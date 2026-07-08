@@ -272,6 +272,8 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:get-chairman-prep', weekId),
   saveChairmanPrep: (record: ChairmanPrepRecord): Promise<ChairmanPrepResult> =>
     ipcRenderer.invoke('jcs:save-chairman-prep', record),
+  deleteChairmanPrep: (weekId: string): Promise<ChairmanPrepResult> =>
+    ipcRenderer.invoke('jcs:delete-chairman-prep', weekId),
   importChairmanDesignation: (params: {
     weekId: string;
     weekLabel: string;
@@ -279,6 +281,9 @@ contextBridge.exposeInMainWorld('jcs', {
     dateIso?: string;
     dateRangeCaps?: string;
     importKind?: 'file' | 'image';
+    mwbDownloaded?: boolean;
+    mwbDocumentId?: number;
+    mwbIssue?: string;
   }): Promise<ImportChairmanDesignationResult> =>
     ipcRenderer.invoke('jcs:import-chairman-designation', params),
   generateChairmanPrep: (params: { week: MeetingWeek }): Promise<GenerateChairmanPrepResult> =>
@@ -569,6 +574,7 @@ declare global {
       }) => Promise<ParseElderMeetingPautaResult>;
       getChairmanPrep: (weekId: string) => Promise<ChairmanPrepResult>;
       saveChairmanPrep: (record: ChairmanPrepRecord) => Promise<ChairmanPrepResult>;
+      deleteChairmanPrep: (weekId: string) => Promise<ChairmanPrepResult>;
       importChairmanDesignation: (params: {
         weekId: string;
         weekLabel: string;

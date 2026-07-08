@@ -313,6 +313,7 @@ export const JW_CHAIRMAN_PREP_RULES = [
   '- Frases completas, tom respeitoso e animador; 2–4 frases por transição.',
   '- NÃO substitua o discurso de quem tem parte; só o que o presidente fala entre as partes.',
   '- NÃO invente designações, nomes ou matéria que não estejam no contexto.',
+  '- NÃO altere nem reescreva títulos das partes — eles vêm da apostila; você só escreve transições e destaques.',
   '',
   '### Comentários iniciais (~1 min) — OBRIGATÓRIO',
   '- openingPreview.intro: saudação breve (1-2 frases), opcional.',

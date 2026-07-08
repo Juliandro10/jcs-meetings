@@ -66,6 +66,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingRead, setExportingRead] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const saveTimer = useRef<number | null>(null);
 
   const scheduleSave = useCallback((next: ChairmanPrepRecord) => {
@@ -181,6 +182,9 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
         dateIso: week.dateIso,
         dateRangeCaps: week.dateRangeCaps,
         importKind,
+        mwbDownloaded: week.mwbDownloaded,
+        mwbDocumentId: week.mwbDocumentId,
+        mwbIssue: week.mwbIssue,
       });
       if (!result.ok || !result.document) {
         setMessage(result.error ?? 'Não foi possível importar a folha.');
@@ -198,13 +202,48 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
 
   const confirmImport = (document: ImportChairmanDesignationResult['document']) => {
     if (!document) return;
-    const merged = mergeDesignationIntoPrep(record, document, {
+    const merged = mergeDesignationIntoPrep(emptyRecord(week), document, {
       fileName: pendingImport?.fileName,
     });
     setRecord(merged);
     scheduleSave(merged);
     setPendingImport(null);
     setMessage(`Designações importadas: ${merged.assignments.length} parte(s).`);
+  };
+
+  const handleClearPrep = async () => {
+    if (!window.jcs?.deleteChairmanPrep) return;
+    const hasData =
+      record.assignments.length > 0 || Boolean(record.content) || Boolean(record.chairmanName);
+    if (!hasData) {
+      setRecord(emptyRecord(week));
+      setMessage('Nada para apagar nesta semana.');
+      return;
+    }
+
+    const ok = window.confirm(
+      'Apagar a folha desta semana?\n\nRemove designações importadas, texto gerado pela IA e anúncios. Você precisará importar de novo.',
+    );
+    if (!ok) return;
+
+    setClearing(true);
+    setMessage(null);
+    try {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const result = await window.jcs.deleteChairmanPrep(week.id);
+      if (!result.ok) {
+        setMessage(result.error ?? 'Não foi possível apagar a folha.');
+        return;
+      }
+      setRecord(emptyRecord(week));
+      setPendingImport(null);
+      setMessage('Folha apagada. Importe a folha de designações para começar de novo.');
+    } finally {
+      setClearing(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -249,7 +288,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
       const result = await window.jcs.exportReadWeek(week, { preferLastFolder: true });
       if (result.ok) {
         setMessage(
-          `Reunião exportada (${result.documentCount ?? 0} documento(s)). Copie a pasta JCS para o tablet.`,
+          `Reunião exportada (${result.documentCount ?? 0} documento(s)). Envie jcs-read.zip ao tablet (Drive ou USB).`,
         );
       } else {
         setMessage(result.error ?? 'Não foi possível exportar para o tablet.');
@@ -313,6 +352,16 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
             busy={importing === 'image'}
             onClick={() => void handleImport('image')}
           />
+          {(record.assignments.length > 0 || record.content || record.chairmanName) && (
+            <button
+              type="button"
+              disabled={clearing || importing != null}
+              onClick={() => void handleClearPrep()}
+              className="rounded-lg border border-rose-300/70 px-4 py-2 text-sm font-medium text-rose-800 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-800/60 dark:text-rose-200 dark:hover:bg-rose-950/40"
+            >
+              {clearing ? 'Apagando…' : 'Apagar folha e recomeçar'}
+            </button>
+          )}
         </div>
         {record.chairmanName ? (
           <p className="mt-3 text-sm text-jw-text">
@@ -543,6 +592,8 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
           usedVision={pendingImport.usedVision}
           weekMismatch={pendingImport.weekMismatch}
           weeksFound={pendingImport.weeksFound}
+          titlesAlignedFromMwb={pendingImport.titlesAlignedFromMwb}
+          mwbAlignSkippedReason={pendingImport.mwbAlignSkippedReason}
           onConfirm={confirmImport}
           onCancel={() => setPendingImport(null)}
         />

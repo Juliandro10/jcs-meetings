@@ -15,6 +15,8 @@ import type {
   JcsReadWeekManifest,
 } from '../shared/jcs-read-types';
 import { JCS_READ_FORMAT } from '../shared/jcs-read-types';
+import { writeJcsReadZip } from './jcs-read-zip';
+import { alignChairmanPrepRecordWithMwb } from './chairman-mwb-align';
 import { loadChairmanPrep } from './chairman-prep-store';
 import { resolvePreparedDiscourseOutline } from './jcs-read-discourse-resolve';
 import {
@@ -128,6 +130,7 @@ async function exportPublicationDocument(params: {
       title: note.title,
       body: note.body,
       anchorText: note.anchorText,
+      tags: note.tags,
     })),
   });
 
@@ -267,9 +270,17 @@ export async function exportWeekForJcsRead(params: {
       }
     }
 
-    const chairman = await loadChairmanPrep(params.userDataRoot, params.week.id);
+    const chairmanRaw = await loadChairmanPrep(params.userDataRoot, params.week.id);
+    const chairman = chairmanRaw
+      ? await alignChairmanPrepRecordWithMwb(
+          params.cacheDir,
+          params.userDataRoot,
+          params.week.id,
+          chairmanRaw,
+        )
+      : null;
     if (chairman?.content) {
-      const html = buildChairmanPrepHtml(chairman);
+      const html = buildChairmanPrepHtml(chairman, { tablet: true });
       await writeTextFile(path.join(weekDir, 'chairman.html'), html);
       documents.push({
         id: 'chairman',
@@ -299,9 +310,12 @@ export async function exportWeekForJcsRead(params: {
     await writeTextFile(path.join(weekDir, 'week.json'), JSON.stringify(weekManifest, null, 2));
     await upsertCatalog(params.exportRoot, params.week, folder);
 
+    const zipPath = await writeJcsReadZip(params.exportRoot);
+
     return {
       ok: true,
       folderPath: weekDir,
+      zipPath,
       weekId: params.week.id,
       documentCount: documents.length,
     };
