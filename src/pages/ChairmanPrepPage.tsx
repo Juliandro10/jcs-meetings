@@ -3,6 +3,7 @@ import type { MeetingWeek } from '@/lib/meeting-types';
 import type {
   ChairmanAssignment,
   ChairmanGeneratedContent,
+  ChairmanGeneratedPart,
   ChairmanOpeningPreview,
   ChairmanPrepRecord,
 } from '../../shared/chairman-prep-types';
@@ -13,6 +14,7 @@ import { mergeDesignationIntoPrep } from '../../shared/chairman-prep-merge';
 import {
   composeOpeningSummary,
   ensureOpeningPreview,
+  resolveOpeningPartHints,
 } from '../../shared/chairman-opening-preview';
 import { isStudentAssignment } from '../../shared/chairman-student-part';
 
@@ -45,6 +47,17 @@ function sectionTitle(section: ChairmanAssignment['section']) {
     default:
       return null;
   }
+}
+
+function formatAssignees(assignees: string[]) {
+  return assignees.join(' · ');
+}
+
+function parseAssignees(value: string) {
+  return value
+    .split(/[·,]/)
+    .map((name) => name.trim())
+    .filter(Boolean);
 }
 
 function emptyRecord(week: MeetingWeek): ChairmanPrepRecord {
@@ -129,6 +142,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
       patch: {
         transition?: string;
         highlight?: string;
+        lessonRef?: string;
         lessonSummary?: string;
         privateSuggestion?: string;
       },
@@ -139,6 +153,51 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
           part.assignmentId === assignmentId ? { ...part, ...patch } : part,
         );
         const next = { ...prev, content: { ...prev.content, parts } };
+        scheduleSave(next);
+        return next;
+      });
+    },
+    [scheduleSave],
+  );
+
+  const patchAssignment = useCallback(
+    (
+      assignmentId: string,
+      patch: Partial<Pick<ChairmanAssignment, 'partTitle' | 'durationMin' | 'assignees'>>,
+    ) => {
+      setRecord((prev) => {
+        const assignments = prev.assignments.map((assignment) =>
+          assignment.id === assignmentId ? { ...assignment, ...patch } : assignment,
+        );
+        let next: ChairmanPrepRecord = { ...prev, assignments };
+
+        if (prev.content && patch.partTitle !== undefined) {
+          const hints = resolveOpeningPartHints(assignments);
+          const preview = ensureOpeningPreview(
+            prev.content.openingSummary,
+            assignments,
+            prev.content.openingPreview,
+          );
+          const previewPatch: Partial<ChairmanOpeningPreview> = {};
+          if (hints.treasuresDiscourse?.id === assignmentId) {
+            previewPatch.treasuresPartTitle = patch.partTitle;
+          }
+          if (hints.lifeChristian?.id === assignmentId) {
+            previewPatch.lifeChristianPartTitle = patch.partTitle;
+          }
+          if (Object.keys(previewPatch).length > 0) {
+            const nextPreview = { ...preview, ...previewPatch };
+            next = {
+              ...next,
+              content: {
+                ...prev.content,
+                openingPreview: nextPreview,
+                openingSummary: composeOpeningSummary(nextPreview),
+              },
+            };
+          }
+        }
+
         scheduleSave(next);
         return next;
       });
@@ -268,10 +327,11 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
   };
 
   const handleExport = async () => {
-    if (!window.jcs?.exportChairmanPrep) return;
+    if (!window.jcs?.exportChairmanPrep || !window.jcs?.saveChairmanPrep) return;
     setExporting(true);
     setMessage(null);
     try {
+      await window.jcs.saveChairmanPrep(record);
       const result = await window.jcs.exportChairmanPrep({ weekId: week.id });
       if (!result.ok) setMessage(result.error ?? 'Exportação cancelada.');
     } finally {
@@ -363,14 +423,6 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
             </button>
           )}
         </div>
-        {record.chairmanName ? (
-          <p className="mt-3 text-sm text-jw-text">
-            Presidente: <strong>{record.chairmanName}</strong>
-            {record.sourceFileName ? (
-              <span className="text-jw-muted"> · {record.sourceFileName}</span>
-            ) : null}
-          </p>
-        ) : null}
         {record.assignments.length > 0 ? (
           <p className="mt-2 text-xs text-jw-muted">
             {record.assignments.length} parte(s) importada(s)
@@ -408,6 +460,10 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
         </button>
       </div>
 
+      {record.assignments.length > 0 ? (
+        <MeetingMetaEditor record={record} onPatch={patchRecord} />
+      ) : null}
+
       {record.content ? (
         <div className="space-y-6">
           <OpeningPreviewEditor
@@ -421,9 +477,6 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
             const showBanner = banner && assignment.section !== currentSection;
             if (showBanner) currentSection = assignment.section;
             const part = record.content?.parts.find((p) => p.assignmentId === assignment.id);
-            const names = assignment.assignees.length
-              ? assignment.assignees.join(' · ')
-              : 'Sem designação';
             const studentPart = isStudentAssignment(assignment);
 
             return (
@@ -435,89 +488,13 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
                     {banner}
                   </h2>
                 ) : null}
-                <article className="rounded-xl border border-jw-border bg-jw-surface p-4">
-                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-jw-text">
-                      {assignment.partTitle}
-                      {assignment.durationMin ? (
-                        <span className="ml-1 font-normal text-jw-muted">
-                          ({assignment.durationMin} min)
-                        </span>
-                      ) : null}
-                    </h3>
-                    <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-900/40 dark:text-violet-200">
-                      {names}
-                    </span>
-                  </div>
-                  {studentPart ? (
-                    <div className="mb-3 rounded-lg border-l-4 border-amber-600 bg-amber-50/80 p-3 dark:bg-amber-950/20">
-                      {part?.lessonRef ? (
-                        <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
-                          Lição: {part.lessonRef}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
-                          Lição não detectada — confira a apostila ou regenere com IA.
-                        </p>
-                      )}
-                      <label className="mt-2 block text-xs text-jw-muted">
-                        Pontos principais da lição
-                        <textarea
-                          value={part?.lessonSummary ?? ''}
-                          onChange={(e) =>
-                            patchPartContent(assignment.id, { lessonSummary: e.target.value })
-                          }
-                          rows={3}
-                          placeholder="Resumo do ponto principal que a apostila pede para considerar…"
-                          className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
-                        />
-                      </label>
-                      {part?.lessonRef && !part?.lessonSummary?.trim() ? (
-                        <p className="mt-2 text-xs text-amber-900/90 dark:text-amber-100/80">
-                          Se o resumo estiver vazio, baixe a publicação em Pregação e regenere com IA.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {!studentPart && part?.highlight !== undefined ? (
-                    <label className="mb-3 block text-xs text-jw-muted">
-                      Destaque
-                      <textarea
-                        value={part.highlight ?? ''}
-                        onChange={(e) =>
-                          patchPartContent(assignment.id, { highlight: e.target.value })
-                        }
-                        rows={2}
-                        className="mt-1 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
-                      />
-                    </label>
-                  ) : null}
-                  <label className="block text-xs text-jw-muted">
-                    {studentPart ? 'Comentário na reunião' : 'Transição'}
-                    <textarea
-                      value={part?.transition ?? ''}
-                      onChange={(e) =>
-                        patchPartContent(assignment.id, { transition: e.target.value })
-                      }
-                      rows={3}
-                      className="mt-1 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
-                    />
-                  </label>
-                  {studentPart ? (
-                    <label className="mt-3 block text-xs text-jw-muted">
-                      Conversa particular com o estudante (não ler na tribuna)
-                      <textarea
-                        value={part?.privateSuggestion ?? ''}
-                        onChange={(e) =>
-                          patchPartContent(assignment.id, { privateSuggestion: e.target.value })
-                        }
-                        rows={2}
-                        placeholder="Sugestão prática para depois da reunião…"
-                        className="mt-1 w-full rounded-lg border border-dashed border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
-                      />
-                    </label>
-                  ) : null}
-                </article>
+                <AssignmentPartEditor
+                  assignment={assignment}
+                  part={part}
+                  studentPart={studentPart}
+                  onPatchAssignment={patchAssignment}
+                  onPatchPartContent={patchPartContent}
+                />
               </div>
             );
           })}
@@ -560,10 +537,33 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
           </section>
         </div>
       ) : record.assignments.length > 0 ? (
-        <p className="text-sm text-jw-muted">
-          Designações prontas. Toque em &quot;Gerar folha com IA&quot; para criar comentários e
-          transições.
-        </p>
+        <div className="space-y-6">
+          <p className="text-sm text-jw-muted">
+            Revise títulos e designações abaixo. Depois toque em &quot;Gerar folha com IA&quot; para
+            criar comentários e transições.
+          </p>
+          {record.assignments.map((assignment) => {
+            const banner = sectionTitle(assignment.section);
+            const showBanner = banner && assignment.section !== currentSection;
+            if (showBanner) currentSection = assignment.section;
+
+            return (
+              <div key={assignment.id}>
+                {showBanner && banner ? (
+                  <h2
+                    className={`mb-3 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white ${sectionBannerClass(assignment.section)}`}
+                  >
+                    {banner}
+                  </h2>
+                ) : null}
+                <AssignmentPartEditor
+                  assignment={assignment}
+                  onPatchAssignment={patchAssignment}
+                />
+              </div>
+            );
+          })}
+        </div>
       ) : null}
 
       <section className="mt-8 rounded-xl border border-jw-border bg-jw-surface p-4">
@@ -657,7 +657,15 @@ function OpeningPreviewEditor({
           Tesouros da Palavra de Deus — discurso (parte 1)
         </p>
         {preview.treasuresPartTitle ? (
-          <p className="mt-1 text-xs font-medium text-jw-text">{preview.treasuresPartTitle}</p>
+          <label className="mt-2 block text-xs text-jw-muted">
+            Título da parte 1
+            <input
+              type="text"
+              value={preview.treasuresPartTitle ?? ''}
+              onChange={(e) => onPatch({ treasuresPartTitle: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+            />
+          </label>
         ) : null}
         <textarea
           value={preview.treasuresHighlight}
@@ -673,7 +681,15 @@ function OpeningPreviewEditor({
           Nossa vida cristã
         </p>
         {preview.lifeChristianPartTitle ? (
-          <p className="mt-1 text-xs font-medium text-jw-text">{preview.lifeChristianPartTitle}</p>
+          <label className="mt-2 block text-xs text-jw-muted">
+            Título em Nossa vida cristã
+            <input
+              type="text"
+              value={preview.lifeChristianPartTitle ?? ''}
+              onChange={(e) => onPatch({ lifeChristianPartTitle: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+            />
+          </label>
         ) : null}
         <textarea
           value={preview.lifeChristianHighlight}
@@ -706,5 +722,222 @@ function EditorBlock({
         className="mt-2 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
       />
     </section>
+  );
+}
+
+function fieldClassName() {
+  return 'mt-1 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text';
+}
+
+function MeetingMetaEditor({
+  record,
+  onPatch,
+}: {
+  record: ChairmanPrepRecord;
+  onPatch: (patch: Partial<ChairmanPrepRecord>) => void;
+}) {
+  return (
+    <section className="mb-6 rounded-xl border border-jw-border bg-jw-surface p-4">
+      <h3 className="text-sm font-semibold text-jw-text">Dados da reunião</h3>
+      <p className="mt-1 text-xs text-jw-muted">
+        Ajuste antes de exportar — entram no PDF e na folha do tablet.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs text-jw-muted sm:col-span-2">
+          Presidente
+          <input
+            type="text"
+            value={record.chairmanName ?? ''}
+            onChange={(e) => onPatch({ chairmanName: e.target.value })}
+            className={fieldClassName()}
+          />
+        </label>
+        <label className="block text-xs text-jw-muted">
+          Oração inicial
+          <input
+            type="text"
+            value={record.openingPrayer ?? ''}
+            onChange={(e) => onPatch({ openingPrayer: e.target.value })}
+            className={fieldClassName()}
+          />
+        </label>
+        <label className="block text-xs text-jw-muted">
+          Oração final
+          <input
+            type="text"
+            value={record.closingPrayer ?? ''}
+            onChange={(e) => onPatch({ closingPrayer: e.target.value })}
+            className={fieldClassName()}
+          />
+        </label>
+        <label className="block text-xs text-jw-muted">
+          Cântico inicial
+          <input
+            type="text"
+            value={record.openingSong ?? ''}
+            onChange={(e) => onPatch({ openingSong: e.target.value })}
+            className={fieldClassName()}
+          />
+        </label>
+        <label className="block text-xs text-jw-muted">
+          Cântico final
+          <input
+            type="text"
+            value={record.closingSong ?? ''}
+            onChange={(e) => onPatch({ closingSong: e.target.value })}
+            className={fieldClassName()}
+          />
+        </label>
+      </div>
+    </section>
+  );
+}
+
+function AssignmentPartEditor({
+  assignment,
+  part,
+  studentPart,
+  onPatchAssignment,
+  onPatchPartContent,
+}: {
+  assignment: ChairmanAssignment;
+  part?: ChairmanGeneratedPart;
+  studentPart?: boolean;
+  onPatchAssignment: (
+    assignmentId: string,
+    patch: Partial<Pick<ChairmanAssignment, 'partTitle' | 'durationMin' | 'assignees'>>,
+  ) => void;
+  onPatchPartContent?: (
+    assignmentId: string,
+    patch: {
+      transition?: string;
+      highlight?: string;
+      lessonRef?: string;
+      lessonSummary?: string;
+      privateSuggestion?: string;
+    },
+  ) => void;
+}) {
+  const isStudent = studentPart ?? isStudentAssignment(assignment);
+  const hasGeneratedContent = Boolean(onPatchPartContent);
+
+  return (
+    <article className="rounded-xl border border-jw-border bg-jw-surface p-4">
+      <div className="mb-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <label className="block text-xs text-jw-muted">
+          Título da parte
+          <input
+            type="text"
+            value={assignment.partTitle}
+            onChange={(e) => onPatchAssignment(assignment.id, { partTitle: e.target.value })}
+            className={fieldClassName()}
+          />
+        </label>
+        <label className="block text-xs text-jw-muted sm:w-24">
+          Minutos
+          <input
+            type="number"
+            min={1}
+            max={60}
+            value={assignment.durationMin ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              onPatchAssignment(assignment.id, {
+                durationMin: raw ? Number(raw) : undefined,
+              });
+            }}
+            className={fieldClassName()}
+          />
+        </label>
+      </div>
+      <label className="mb-3 block text-xs text-jw-muted">
+        Designado(s) — separe com · ou vírgula
+        <input
+          type="text"
+          value={formatAssignees(assignment.assignees)}
+          onChange={(e) =>
+            onPatchAssignment(assignment.id, { assignees: parseAssignees(e.target.value) })
+          }
+          placeholder="Nome do irmão ou irmã"
+          className={fieldClassName()}
+        />
+      </label>
+
+      {hasGeneratedContent ? (
+        <>
+          {isStudent ? (
+            <div className="mb-3 rounded-lg border-l-4 border-amber-600 bg-amber-50/80 p-3 dark:bg-amber-950/20">
+              <label className="block text-xs text-jw-muted">
+                Referência da lição
+                <input
+                  type="text"
+                  value={part?.lessonRef ?? ''}
+                  onChange={(e) =>
+                    onPatchPartContent!(assignment.id, { lessonRef: e.target.value })
+                  }
+                  placeholder="Ex.: lmd lição 5 ponto 5"
+                  className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+                />
+              </label>
+              <label className="mt-2 block text-xs text-jw-muted">
+                Pontos principais da lição
+                <textarea
+                  value={part?.lessonSummary ?? ''}
+                  onChange={(e) =>
+                    onPatchPartContent!(assignment.id, { lessonSummary: e.target.value })
+                  }
+                  rows={3}
+                  placeholder="Resumo do ponto principal que a apostila pede para considerar…"
+                  className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+                />
+              </label>
+              {part?.lessonRef && !part?.lessonSummary?.trim() ? (
+                <p className="mt-2 text-xs text-amber-900/90 dark:text-amber-100/80">
+                  Se o resumo estiver vazio, baixe a publicação em Pregação e regenere com IA.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {!isStudent && part?.highlight !== undefined ? (
+            <label className="mb-3 block text-xs text-jw-muted">
+              Destaque
+              <textarea
+                value={part.highlight ?? ''}
+                onChange={(e) =>
+                  onPatchPartContent!(assignment.id, { highlight: e.target.value })
+                }
+                rows={2}
+                className={fieldClassName()}
+              />
+            </label>
+          ) : null}
+          <label className="block text-xs text-jw-muted">
+            {isStudent ? 'Comentário na reunião' : 'Transição'}
+            <textarea
+              value={part?.transition ?? ''}
+              onChange={(e) =>
+                onPatchPartContent!(assignment.id, { transition: e.target.value })
+              }
+              rows={3}
+              className={fieldClassName()}
+            />
+          </label>
+          {isStudent ? (
+            <label className="mt-3 block text-xs text-jw-muted">
+              Conversa particular com o estudante (não ler na tribuna)
+              <textarea
+                value={part?.privateSuggestion ?? ''}
+                onChange={(e) =>
+                  onPatchPartContent!(assignment.id, { privateSuggestion: e.target.value })
+                }
+                rows={2}
+                placeholder="Sugestão prática para depois da reunião…"
+                className="mt-1 w-full rounded-lg border border-dashed border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
+              />
+            </label>
+          ) : null}
+        </>
+      ) : null}
+    </article>
   );
 }

@@ -3,7 +3,7 @@
     <string name="app_name">TNME Bíblia</string>
     <string name="chapter_title">Capítulo</string>
     <string name="pick_jwpub">Escolher Bíblia (.jwpub)</string>
-    <string name="jwpub_missing">Nenhuma Bíblia selecionada.\n\nBaixe o arquivo .jwpub no jw.org (Edição de Estudo recomendada: nwtsty_T.jwpub) e toque em Escolher Bíblia.</string>
+    <string name="jwpub_missing">Nenhuma Bíblia selecionada.\n\nToque em ⋮ (menu) → Configurações para escolher o arquivo .jwpub baixado no jw.org (Edição de Estudo: nwtsty_T.jwpub).</string>
     <string name="jwpub_current">Arquivo: %1$s</string>
     <string name="jwpub_ready">%1$s · %2$s</string>
     <string name="jwpub_selected">Bíblia configurada.</string>
@@ -16,4 +16,20 @@
     <string name="section_hebrew">ESCRITURAS HEBRAICO-ARAMAICAS</string>
     <string name="section_greek">ESCRITURAS GREGAS CRISTÃS</string>
     <string name="pick_chapter">Escolha um capítulo</string>
+    <string name="back">Voltar</string>
+    <string name="search">Buscar</string>
+    <string name="menu">Menu</string>
+    <string name="books_grid">Livros</string>
+    <string name="settings_title">Configurações</string>
+    <string name="settings_bible_heading">Bíblia offline (.jwpub)</string>
+    <string name="settings_help">Baixe o arquivo .jwpub no jw.org (Edição de Estudo: nwtsty_T.jwpub) e toque no botão abaixo.</string>
+    <string name="jwpub_missing_short">Nenhuma Bíblia selecionada.</string>
+    <string name="search_hint">Referência ou palavra (ex.: Gênesis 2:4)</string>
+    <string name="search_help">Digite uma referência (Jo 3:16) ou palavras do texto bíblico.</string>
+    <string name="search_running">Buscando na Bíblia…</string>
+    <string name="search_empty">Nenhum resultado encontrado.</string>
+    <string name="search_failed">Não foi possível concluir a busca.</string>
+    <string name="search_too_short">Digite ao menos 2 caracteres.</string>
+    <string name="search_results_count">%1$d resultado(s)</string>
+    <string name="search_reference_hit">Referência bíblica</string>
 </resources>

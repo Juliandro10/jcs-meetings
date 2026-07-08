@@ -347,6 +347,62 @@ public final class JwpubReader {
         }
     }
 
+    public static class SearchHit {
+        public int bookNumber;
+        public String bookTitle;
+        public int chapterNumber;
+        public int verseStart;
+        public String snippet;
+    }
+
+    public List<SearchHit> searchText(String query, int maxResults) throws Exception {
+        if (query == null || query.trim().length() < 2) {
+            return new ArrayList<SearchHit>();
+        }
+
+        String needle = normalizeSearchText(query);
+        List<SearchHit> hits = new ArrayList<SearchHit>();
+        List<BookInfo> books = listBooks();
+        for (BookInfo book : books) {
+            for (int chapterNumber = 1; chapterNumber <= book.chapterCount; chapterNumber++) {
+                ChapterContent chapter = loadChapter(book.bookNumber, chapterNumber);
+                String plain = normalizeSearchText(stripHtml(chapter.html));
+                int index = plain.indexOf(needle);
+                if (index < 0) continue;
+
+                SearchHit hit = new SearchHit();
+                hit.bookNumber = book.bookNumber;
+                hit.bookTitle = chapter.bookTitle;
+                hit.chapterNumber = chapterNumber;
+                hit.verseStart = 1;
+                hit.snippet = buildSnippet(plain, index, needle.length());
+                hits.add(hit);
+                if (hits.size() >= maxResults) {
+                    return hits;
+                }
+            }
+        }
+        return hits;
+    }
+
+    private static String normalizeSearchText(String value) {
+        if (value == null) return "";
+        return value
+            .toLowerCase(java.util.Locale.getDefault())
+            .replaceAll("<[^>]+>", " ")
+            .replaceAll("\\s+", " ")
+            .trim();
+    }
+
+    private static String buildSnippet(String plain, int index, int matchLength) {
+        int start = Math.max(0, index - 40);
+        int end = Math.min(plain.length(), index + matchLength + 60);
+        String snippet = plain.substring(start, end).trim();
+        if (start > 0) snippet = "… " + snippet;
+        if (end < plain.length()) snippet = snippet + " …";
+        return snippet;
+    }
+
     private static class PublicationMeta {
         String lang;
         String symbol;

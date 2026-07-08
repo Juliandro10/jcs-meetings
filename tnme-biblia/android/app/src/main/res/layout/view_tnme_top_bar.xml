@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tnmeTopBar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/tnme_toolbar_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingLeft="4dp"
+    android:paddingTop="8dp"
+    android:paddingRight="8dp"
+    android:paddingBottom="8dp">
+
+    <ImageButton
+        android:id="@+id/tnmeBackButton"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/back"
+        android:padding="10dp"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_menu_revert" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingLeft="4dp"
+        android:paddingRight="8dp">
+
+        <TextView
+            android:id="@+id/tnmeTitleView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/tnme_text"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tnmeSubtitleView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/tnme_muted"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/tnmeSearchButton"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/search"
+        android:padding="10dp"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_menu_search" />
+
+    <ImageButton
+        android:id="@+id/tnmeBooksButton"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/books_grid"
+        android:padding="10dp"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/tnmeMenuButton"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="@string/menu"
+        android:padding="10dp"
+        android:scaleType="centerInside"
+        android:src="@android:drawable/ic_menu_more" />
+</LinearLayout>

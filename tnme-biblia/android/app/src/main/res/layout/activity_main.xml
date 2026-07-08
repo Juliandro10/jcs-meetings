@@ -5,35 +5,17 @@
     android:orientation="vertical"
     android:background="@color/tnme_bg">
 
-    <TextView
-        android:id="@+id/statusView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:textColor="@color/tnme_muted"
-        android:textSize="13sp" />
-
-    <Button
-        android:id="@+id/pickJwpubButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="16dp"
-        android:layout_marginRight="16dp"
-        android:layout_marginBottom="8dp"
-        android:text="@string/pick_jwpub"
-        android:background="@color/tnme_purple"
-        android:textColor="@color/tnme_white"
-        android:padding="12dp" />
+    <include layout="@layout/view_tnme_top_bar" />
 
     <TextView
         android:id="@+id/emptyView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
+        android:layout_margin="20dp"
+        android:lineSpacingExtra="4dp"
         android:text="@string/jwpub_missing"
         android:textColor="@color/tnme_muted"
         android:textSize="15sp"
-        android:lineSpacingExtra="4dp"
         android:visibility="gone" />
 
     <ScrollView
@@ -49,6 +31,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="12dp" />
+            android:paddingBottom="12dp" />
     </ScrollView>
 </LinearLayout>

@@ -2,17 +2,13 @@ package com.jcs.tnme;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Color;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class BookActivity extends Activity {
-    private static final int GRID_COLUMNS = 6;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -22,42 +18,61 @@ public class BookActivity extends Activity {
         final String bookTitle = getIntent().getStringExtra("bookTitle");
         final int chapterCount = getIntent().getIntExtra("chapterCount", 0);
 
-        setTitle(bookTitle != null ? bookTitle : getString(R.string.app_name));
+        TnmeTopBar topBar =
+            TnmeTopBar.bind(
+                this,
+                findViewById(R.id.tnmeTopBar),
+                new TnmeTopBar.Actions() {
+                    @Override
+                    public void onBack() {
+                        finish();
+                    }
+
+                    @Override
+                    public void onSearch() {
+                        startActivity(new Intent(BookActivity.this, SearchActivity.class));
+                    }
+
+                    @Override
+                    public void onBooks() {
+                        Intent intent = new Intent(BookActivity.this, MainActivity.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        startActivity(intent);
+                    }
+
+                    @Override
+                    public void onMenu() {
+                        startActivity(new Intent(BookActivity.this, SettingsActivity.class));
+                    }
+                });
+        topBar.setTitle(bookTitle != null ? bookTitle : getString(R.string.app_name));
+        topBar.setSubtitle(TnmeTopBar.editionSubtitle(this));
+        topBar.setShowBooksButton(true);
+        topBar.setShowMenuButton(true);
 
         LinearLayout container = (LinearLayout) findViewById(R.id.chapterContainer);
+        LinearLayout content = TnmeUi.centeredContentRoot(this);
+        LinearLayout column = TnmeUi.getContentColumn(content);
+        container.addView(content);
 
-        TextView hint = new TextView(this);
-        hint.setText(getString(R.string.pick_chapter));
-        hint.setTextColor(getResources().getColor(R.color.tnme_muted));
-        hint.setTextSize(14f);
-        hint.setPadding(0, 0, 0, 12);
-        container.addView(hint);
+        if (column == null) return;
 
+        int columns = TnmeUi.gridColumns(this);
         LinearLayout row = null;
-        int column = 0;
+        int columnIndex = 0;
         for (int chapter = 1; chapter <= chapterCount; chapter++) {
-            if (column == 0) {
+            if (columnIndex == 0) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                container.addView(row);
+                column.addView(row);
             }
 
             final int chapterNumber = chapter;
-            Button tile = new Button(this);
-            tile.setText(String.valueOf(chapterNumber));
-            tile.setTextColor(Color.WHITE);
-            tile.setTextSize(15f);
-            tile.setAllCaps(false);
-            tile.setBackgroundColor(
-                chapter % 2 == 0
-                    ? getResources().getColor(R.color.tnme_chapter_bg_alt)
-                    : getResources().getColor(R.color.tnme_chapter_bg));
-            tile.setPadding(0, 20, 0, 20);
-            tile.setGravity(Gravity.CENTER);
-
+            int tileColor = getResources().getColor(R.color.tnme_chapter_bg);
+            Button tile = TnmeUi.gridTile(this, String.valueOf(chapterNumber), tileColor);
             LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            params.setMargins(2, 2, 2, 2);
+            params.setMargins(1, 1, 1, 1);
             tile.setLayoutParams(params);
 
             tile.setOnClickListener(
@@ -66,17 +81,26 @@ public class BookActivity extends Activity {
                     public void onClick(View v) {
                         Intent intent = new Intent(BookActivity.this, ChapterActivity.class);
                         intent.putExtra("bookNumber", bookNumber);
+                        intent.putExtra("bookTitle", bookTitle);
+                        intent.putExtra("chapterCount", chapterCount);
                         intent.putExtra("chapterNumber", chapterNumber);
-                        intent.putExtra("verseStart", 1);
-                        intent.putExtra("verseEnd", 1);
                         startActivity(intent);
                     }
                 });
 
             row.addView(tile);
-            column++;
-            if (column >= GRID_COLUMNS) {
-                column = 0;
+            columnIndex++;
+            if (columnIndex >= columns) {
+                columnIndex = 0;
+            }
+        }
+
+        if (row != null && columnIndex > 0 && columnIndex < columns) {
+            while (columnIndex < columns) {
+                View spacer = new View(this);
+                spacer.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
+                row.addView(spacer);
+                columnIndex++;
             }
         }
     }

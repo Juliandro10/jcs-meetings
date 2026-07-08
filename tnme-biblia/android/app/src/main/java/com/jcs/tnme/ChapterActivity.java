@@ -18,6 +18,11 @@ import java.io.File;
 public class ChapterActivity extends Activity {
     private WebView webView;
     private ProgressBar progress;
+    private TnmeTopBar topBar;
+    private int bookNumber;
+    private int chapterNumber;
+    private String bookTitle;
+    private String editionLabel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,6 +31,44 @@ public class ChapterActivity extends Activity {
 
         progress = (ProgressBar) findViewById(R.id.progress);
         webView = (WebView) findViewById(R.id.webView);
+        topBar =
+            TnmeTopBar.bind(
+                this,
+                findViewById(R.id.tnmeTopBar),
+                new TnmeTopBar.Actions() {
+                    @Override
+                    public void onBack() {
+                        finish();
+                    }
+
+                    @Override
+                    public void onSearch() {
+                        startActivity(new Intent(ChapterActivity.this, SearchActivity.class));
+                    }
+
+                    @Override
+                    public void onBooks() {
+                        int count = getIntent().getIntExtra("chapterCount", 0);
+                        if (count > 0 && bookNumber > 0) {
+                            Intent intent = new Intent(ChapterActivity.this, BookActivity.class);
+                            intent.putExtra("bookNumber", bookNumber);
+                            intent.putExtra("bookTitle", bookTitle);
+                            intent.putExtra("chapterCount", count);
+                            startActivity(intent);
+                        } else {
+                            Intent intent = new Intent(ChapterActivity.this, MainActivity.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                            startActivity(intent);
+                        }
+                    }
+
+                    @Override
+                    public void onMenu() {
+                        startActivity(new Intent(ChapterActivity.this, SettingsActivity.class));
+                    }
+                });
+        topBar.setShowBooksButton(true);
+        topBar.setShowMenuButton(true);
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -59,22 +102,6 @@ public class ChapterActivity extends Activity {
                 }
             });
 
-        BibleLinkParser.Target target = BibleLinkParser.parseIntent(getIntent());
-        if (target == null) {
-            showError(getString(R.string.invalid_reference));
-            return;
-        }
-
-        final int bookNumber = target.bookNumber;
-        final int chapterNumber = target.chapterNumber;
-        final int verseStart = target.verseStart;
-        final int verseEnd = target.verseEnd;
-
-        if (bookNumber <= 0 || chapterNumber <= 0) {
-            showError(getString(R.string.invalid_reference));
-            return;
-        }
-
         if (!BiblePrefs.hasJwpub(this)) {
             showError(getString(R.string.jwpub_missing));
             Toast.makeText(this, R.string.pick_jwpub_first, Toast.LENGTH_LONG).show();
@@ -83,7 +110,38 @@ public class ChapterActivity extends Activity {
             return;
         }
 
-        loadChapter(bookNumber, chapterNumber, verseStart, verseEnd);
+        applyIntent(getIntent());
+    }
+
+    private void applyIntent(Intent intent) {
+        BibleLinkParser.Target target = BibleLinkParser.parseIntent(intent);
+        if (target == null) {
+            showError(getString(R.string.invalid_reference));
+            return;
+        }
+
+        bookNumber = target.bookNumber;
+        chapterNumber = target.chapterNumber;
+        bookTitle = intent.getStringExtra("bookTitle");
+        if (bookTitle == null || bookTitle.trim().length() == 0) {
+            bookTitle = getString(R.string.chapter_title);
+        }
+
+        if (bookNumber <= 0 || chapterNumber <= 0) {
+            showError(getString(R.string.invalid_reference));
+            return;
+        }
+
+        updateTopBar();
+        loadChapter(bookNumber, chapterNumber, target.verses);
+    }
+
+    private void updateTopBar() {
+        topBar.setTitle(bookTitle + " " + chapterNumber);
+        if (editionLabel == null || editionLabel.length() == 0) {
+            editionLabel = TnmeTopBar.editionSubtitle(this);
+        }
+        topBar.setSubtitle(editionLabel);
     }
 
     private boolean openBibleLink(String url) {
@@ -92,6 +150,7 @@ public class ChapterActivity extends Activity {
             return false;
         }
         Intent intent = BibleLinkParser.toChapterIntent(this, target);
+        intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(intent);
         return true;
     }
@@ -100,14 +159,10 @@ public class ChapterActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        BibleLinkParser.Target target = BibleLinkParser.parseIntent(intent);
-        if (target != null && target.bookNumber > 0 && target.chapterNumber > 0) {
-            loadChapter(target.bookNumber, target.chapterNumber, target.verseStart, target.verseEnd);
-        }
+        applyIntent(intent);
     }
 
-    private void loadChapter(
-        final int bookNumber, final int chapterNumber, final int verseStart, final int verseEnd) {
+    private void loadChapter(final int bookNumber, final int chapterNumber, final int[] highlightVerses) {
         progress.setVisibility(View.VISIBLE);
         final File jwpub = BiblePrefs.getJwpubFile(this);
 
@@ -117,8 +172,12 @@ public class ChapterActivity extends Activity {
                     public void run() {
                         try {
                             final JwpubReader reader = JwpubReader.open(jwpub, getCacheDir());
+                            editionLabel = reader.getEditionLabel();
                             final JwpubReader.ChapterContent chapter =
                                 reader.loadChapter(bookNumber, chapterNumber);
+                            if (bookTitle == null || bookTitle.trim().length() == 0) {
+                                bookTitle = chapter.bookTitle;
+                            }
                             final String wrapped =
                                 BibleHtml.wrapChapter(
                                     chapter.bookTitle,
@@ -126,14 +185,15 @@ public class ChapterActivity extends Activity {
                                     chapter.chapterNumber,
                                     chapter.html,
                                     chapter.publicationCss,
-                                    verseStart,
-                                    verseEnd);
+                                    highlightVerses);
+                            final String resolvedTitle = bookTitle;
 
                             runOnUiThread(
                                 new Runnable() {
                                     @Override
                                     public void run() {
-                                        setTitle(chapter.bookTitle + " " + chapter.chapterNumber);
+                                        bookTitle = resolvedTitle;
+                                        updateTopBar();
                                         webView.loadDataWithBaseURL(
                                             "file:///android_asset/", wrapped, "text/html", "UTF-8", null);
                                     }
@@ -156,7 +216,11 @@ public class ChapterActivity extends Activity {
         progress.setVisibility(View.GONE);
         String safe = message != null ? message : getString(R.string.chapter_load_failed);
         webView.loadData(
-            "<html><body><p>" + safe + "</p></body></html>", "text/html", "UTF-8");
+            "<html><body style='background:#121212;color:#fff;font-family:sans-serif;padding:16px;'><p>"
+                + safe
+                + "</p></body></html>",
+            "text/html",
+            "UTF-8");
     }
 
     @Override

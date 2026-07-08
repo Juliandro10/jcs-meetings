@@ -188,6 +188,7 @@ public final class JcsRootAccess {
                 JSONObject doc = docs.getJSONObject(i);
                 JcsStorage.DocumentEntry document = new JcsStorage.DocumentEntry();
                 document.id = doc.optString("id");
+                document.kind = doc.optString("kind");
                 document.title = doc.optString("title");
                 document.file = doc.optString("file");
                 File htmlFile = new File(weekDir, document.file);
@@ -222,6 +223,7 @@ public final class JcsRootAccess {
                 JSONObject doc = docs.getJSONObject(i);
                 JcsStorage.DocumentEntry document = new JcsStorage.DocumentEntry();
                 document.id = doc.optString("id");
+                document.kind = doc.optString("kind");
                 document.title = doc.optString("title");
                 document.file = doc.optString("file");
                 TreeNode htmlNode = findChildByName(weekDir.documentId, document.file);

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/action_pick_zip"
+        android:title="@string/pick_zip" />
+    <item
+        android:id="@+id/action_pick_folder"
+        android:title="@string/pick_folder" />
+    <item
+        android:id="@+id/action_reload"
+        android:title="@string/reload" />
+</menu>

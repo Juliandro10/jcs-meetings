@@ -95,8 +95,12 @@ export function ensureOpeningPreview(
     return {
       ...fromAssignments,
       ...existing,
-      treasuresPartTitle: fromAssignments.treasuresPartTitle,
-      lifeChristianPartTitle: fromAssignments.lifeChristianPartTitle,
+      treasuresPartTitle: existing.treasuresPartTitle?.trim()
+        ? existing.treasuresPartTitle
+        : fromAssignments.treasuresPartTitle,
+      lifeChristianPartTitle: existing.lifeChristianPartTitle?.trim()
+        ? existing.lifeChristianPartTitle
+        : fromAssignments.lifeChristianPartTitle,
     };
   }
   if (!openingSummary.trim()) {

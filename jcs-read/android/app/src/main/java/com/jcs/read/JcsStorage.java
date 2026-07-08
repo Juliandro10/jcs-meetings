@@ -54,6 +54,7 @@ public final class JcsStorage {
 
     public static class DocumentEntry {
         public String id;
+        public String kind;
         public String title;
         public String file;
         public String htmlUri;

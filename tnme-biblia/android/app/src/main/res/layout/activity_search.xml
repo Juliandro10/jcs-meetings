@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/tnme_bg"
+    android:orientation="vertical">
+
+    <include layout="@layout/view_tnme_top_bar" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="8dp">
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@color/tnme_purple_dark"
+            android:hint="@string/search_hint"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:padding="12dp"
+            android:singleLine="true"
+            android:textColor="@color/tnme_text"
+            android:textColorHint="@color/tnme_muted" />
+
+        <Button
+            android:id="@+id/searchButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:background="@color/tnme_accent_btn"
+            android:minWidth="72dp"
+            android:text="@string/search"
+            android:textColor="@color/tnme_white" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/searchStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="8dp"
+        android:text="@string/search_help"
+        android:textColor="@color/tnme_muted"
+        android:textSize="13sp" />
+
+    <ProgressBar
+        android:id="@+id/searchProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:visibility="gone" />
+
+    <ListView
+        android:id="@+id/searchResults"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:divider="@color/tnme_purple_dark"
+        android:dividerHeight="1dp"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp" />
+</LinearLayout>

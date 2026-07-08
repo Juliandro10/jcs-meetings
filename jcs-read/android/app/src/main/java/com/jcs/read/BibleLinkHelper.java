@@ -65,7 +65,12 @@ final class BibleLinkHelper {
         if (!match.find()) return null;
         int book = Integer.parseInt(match.group(1));
         int chapter = Integer.parseInt(match.group(2));
-        int verseStart = parseVerseToken(match.group(3));
+        String verseToken = match.group(3);
+        if (verseToken == null || verseToken.length() == 0) return null;
+        if (verseToken.indexOf(',') >= 0) {
+            return "tnme-bible://" + book + "/" + chapter + "/" + verseToken;
+        }
+        int verseStart = parseVerseToken(verseToken);
         int verseEnd = match.group(6) != null ? Integer.parseInt(match.group(6)) : verseStart;
         if (verseEnd != verseStart) {
             return "tnme-bible://" + book + "/" + chapter + "/" + verseStart + "-" + verseEnd;

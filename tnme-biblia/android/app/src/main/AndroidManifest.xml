@@ -28,8 +28,23 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings_title"
+            android:parentActivityName=".MainActivity"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".SearchActivity"
+            android:exported="false"
+            android:label="@string/search"
+            android:parentActivityName=".MainActivity"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".ChapterActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/chapter_title"
             android:parentActivityName=".MainActivity"
             android:screenOrientation="portrait">

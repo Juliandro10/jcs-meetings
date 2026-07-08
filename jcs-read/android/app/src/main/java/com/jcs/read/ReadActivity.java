@@ -87,6 +87,7 @@ public class ReadActivity extends Activity {
         }
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.setPackage("com.jcs.tnme");
             intent.addCategory(Intent.CATEGORY_BROWSABLE);
             startActivity(intent);
             return true;
