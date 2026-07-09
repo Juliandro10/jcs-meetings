@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; media-src 'self' file: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>Karaokê</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <header class="sidebar-header">
+          <h1>Karaokê</h1>
+          <button id="btn-refresh" class="icon-btn" title="Atualizar lista">↻</button>
+        </header>
+        <ul id="song-list" class="song-list"></ul>
+        <p id="empty-hint" class="empty-hint hidden">
+          Coloque pares <strong>.mp3</strong> + <strong>.lrc</strong> na pasta
+          <code>songs/</code> com o mesmo nome.
+        </p>
+      </aside>
+
+      <main class="stage">
+        <div class="stage-top">
+          <div class="now-playing">
+            <span class="label">Tocando</span>
+            <h2 id="current-title">Escolha uma música</h2>
+          </div>
+          <div class="time">
+            <span id="time-current">0:00</span>
+            <span class="sep">/</span>
+            <span id="time-total">0:00</span>
+          </div>
+        </div>
+
+        <div id="lyrics-viewport" class="lyrics-viewport">
+          <p class="lyrics-placeholder">Selecione uma música para começar</p>
+        </div>
+
+        <div class="controls">
+          <button id="btn-restart" class="control-btn" disabled title="Reiniciar">⏮</button>
+          <button id="btn-play" class="control-btn play" disabled title="Play/Pause">▶</button>
+          <button id="btn-mic" class="control-btn mic" disabled title="Microfone">🎤</button>
+        </div>
+
+        <div class="progress-wrap">
+          <input id="progress" type="range" min="0" max="1000" value="0" disabled />
+        </div>
+
+        <p id="mic-status" class="mic-status">Microfone desligado</p>
+      </main>
+    </div>
+
+    <audio id="audio" preload="auto"></audio>
+    <script src="renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "name": "karaoke-app",
+  "version": "1.0.0",
+  "description": "Karaokê desktop — MP3 + LRC sincronizado",
+  "main": "main.js",
+  "author": "Stoll",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:portable": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.stoll.karaoke",
+    "productName": "Karaoke",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "songs",
+        "to": "songs",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Karaoke"
+    }
+  },
+  "devDependencies": {
+    "electron": "^34.5.8",
+    "electron-builder": "^25.1.8"
+  }
+}

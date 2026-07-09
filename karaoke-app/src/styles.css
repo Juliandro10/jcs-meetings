@@ -1,0 +1,332 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0a0a12;
+  --panel: #12121f;
+  --panel-border: #252540;
+  --text: #f2f2fa;
+  --muted: #8b8ba8;
+  --accent: #ff4d8d;
+  --accent-soft: rgba(255, 77, 141, 0.18);
+  --active: #ffd166;
+  --active-glow: rgba(255, 209, 102, 0.35);
+  --mic-on: #4ade80;
+  --mic-on-soft: rgba(74, 222, 128, 0.2);
+}
+
+html,
+body {
+  height: 100%;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 18px 14px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.sidebar-header h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.icon-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.song-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+  padding: 10px;
+}
+
+.song-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.song-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.song-item.active {
+  background: var(--accent-soft);
+  border-color: rgba(255, 77, 141, 0.45);
+}
+
+.empty-hint {
+  padding: 16px 18px 24px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.empty-hint code {
+  color: var(--active);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 28px 36px 24px;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 77, 141, 0.08), transparent),
+    var(--bg);
+}
+
+.stage-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 18px;
+}
+
+.now-playing .label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.now-playing h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.time .sep {
+  margin: 0 4px;
+  opacity: 0.5;
+}
+
+.lyrics-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 14%,
+    black 86%,
+    transparent 100%
+  );
+}
+
+.lyrics-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  padding: 42vh 8%;
+  scrollbar-width: none;
+}
+
+.lyrics-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.lyrics-placeholder {
+  color: var(--muted);
+  font-size: 1.2rem;
+}
+
+.lyric-line {
+  font-size: clamp(1.2rem, 2.6vw, 1.9rem);
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  color: rgba(242, 242, 250, 0.22);
+  transition: color 0.25s, transform 0.25s;
+  max-width: 920px;
+  margin: 0 auto 18px;
+  padding: 8px 16px;
+  border-radius: 14px;
+}
+
+.lyric-line.past {
+  color: rgba(242, 242, 250, 0.3);
+  transform: scale(0.94);
+}
+
+.lyric-line.active {
+  color: rgba(242, 242, 250, 0.45);
+  font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+  transform: scale(1.02);
+  background: rgba(255, 209, 102, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.2);
+}
+
+.lyric-line.next {
+  color: rgba(242, 242, 250, 0.5);
+}
+
+.lyric-line.upcoming {
+  color: rgba(242, 242, 250, 0.22);
+}
+
+.lyric-word {
+  display: inline;
+  transition: color 0.08s linear, transform 0.08s linear, text-shadow 0.08s linear;
+}
+
+.lyric-line.active .lyric-word.sung {
+  color: rgba(242, 242, 250, 0.55);
+}
+
+.lyric-line.active .lyric-word.active {
+  color: var(--active);
+  font-weight: 800;
+  text-shadow: 0 0 22px var(--active-glow);
+  transform: scale(1.12);
+  display: inline-block;
+}
+
+.lyric-line.active .lyric-word.upcoming {
+  color: rgba(242, 242, 250, 0.38);
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.control-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 1.3rem;
+  cursor: pointer;
+  transition: transform 0.12s, background 0.15s, border-color 0.15s;
+}
+
+.control-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  border-color: var(--accent);
+}
+
+.control-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.control-btn.play {
+  width: 72px;
+  height: 72px;
+  font-size: 1.6rem;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.control-btn.mic.on {
+  background: var(--mic-on-soft);
+  border-color: var(--mic-on);
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.25);
+}
+
+.progress-wrap {
+  margin-top: 18px;
+  padding: 0 4%;
+}
+
+#progress {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  background: var(--panel-border);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+
+#progress:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+#progress::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--text);
+}
+
+.mic-status {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.mic-status.on {
+  color: var(--mic-on);
+}
