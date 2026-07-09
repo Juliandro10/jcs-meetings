@@ -1,6 +1,8 @@
 import type { ImgHTMLAttributes, SVGProps } from 'react';
+import bibleOpenSrc from '@/assets/icons/bible-open.png';
 import libraryBooksSrc from '@/assets/icons/library-books.png';
 import meetingsPodiumSrc from '@/assets/icons/meetings-podium.png';
+import personalStudyDiamondSrc from '@/assets/icons/personal-study-diamond.png';
 import preachingBriefcaseSrc from '@/assets/icons/preaching-briefcase.png';
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -30,7 +32,7 @@ export function IconBible({
 }: IconProps) {
   return (
     <img
-      src="/icons/bible-open.png"
+      src={bibleOpenSrc}
       alt=""
       aria-hidden
       draggable={false}
@@ -105,7 +107,7 @@ export function IconPersonalStudy({
 }: IconProps) {
   return (
     <img
-      src="/icons/personal-study-diamond.png"
+      src={personalStudyDiamondSrc}
       alt=""
       aria-hidden
       draggable={false}
