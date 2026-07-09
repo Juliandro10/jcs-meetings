@@ -125,9 +125,11 @@ export async function alignChairmanPrepRecordWithMwb(
       content: {
         ...record.content,
         openingPreview: openingPreviewFromAssignments(assignments, {
-          intro: preview?.intro,
+          readingLead: preview?.readingLead ?? preview?.intro,
           treasuresHighlight: preview?.treasuresHighlight ?? '',
+          ministryMention: preview?.ministryMention,
           lifeChristianHighlight: preview?.lifeChristianHighlight ?? '',
+          closingEbcMention: preview?.closingEbcMention,
         }),
       },
     };

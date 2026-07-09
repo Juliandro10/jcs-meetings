@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { repairCommonMojibake } from '../shared/elder-meeting-text';
+import { normalizeChairmanMiddleSong } from '../shared/chairman-middle-song';
 import type { ChairmanGeneratedContent, ChairmanPrepRecord } from '../shared/chairman-prep-types';
 
 export {
@@ -14,7 +15,7 @@ function prepPath(userDataRoot: string, weekId: string) {
 }
 
 function normalizeRecord(record: ChairmanPrepRecord): ChairmanPrepRecord {
-  return {
+  const repaired: ChairmanPrepRecord = {
     ...record,
     weekLabel: repairCommonMojibake(record.weekLabel),
     bibleReading: repairCommonMojibake(record.bibleReading),
@@ -36,15 +37,24 @@ function normalizeRecord(record: ChairmanPrepRecord): ChairmanPrepRecord {
           openingSummary: repairCommonMojibake(record.content.openingSummary),
           openingPreview: record.content.openingPreview
             ? {
+                readingLead: record.content.openingPreview.readingLead
+                  ? repairCommonMojibake(record.content.openingPreview.readingLead)
+                  : undefined,
                 intro: record.content.openingPreview.intro
                   ? repairCommonMojibake(record.content.openingPreview.intro)
                   : undefined,
                 treasuresHighlight: repairCommonMojibake(
                   record.content.openingPreview.treasuresHighlight,
                 ),
+                ministryMention: record.content.openingPreview.ministryMention
+                  ? repairCommonMojibake(record.content.openingPreview.ministryMention)
+                  : undefined,
                 lifeChristianHighlight: repairCommonMojibake(
                   record.content.openingPreview.lifeChristianHighlight,
                 ),
+                closingEbcMention: record.content.openingPreview.closingEbcMention
+                  ? repairCommonMojibake(record.content.openingPreview.closingEbcMention)
+                  : undefined,
                 treasuresPartTitle: record.content.openingPreview.treasuresPartTitle
                   ? repairCommonMojibake(record.content.openingPreview.treasuresPartTitle)
                   : undefined,
@@ -67,10 +77,12 @@ function normalizeRecord(record: ChairmanPrepRecord): ChairmanPrepRecord {
             privateSuggestion: part.privateSuggestion
               ? repairCommonMojibake(part.privateSuggestion)
               : undefined,
+            reminder: part.reminder ? repairCommonMojibake(part.reminder) : undefined,
           })),
         }
       : undefined,
   };
+  return normalizeChairmanMiddleSong(repaired);
 }
 
 export function emptyChairmanPrep(params: {

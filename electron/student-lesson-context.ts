@@ -54,8 +54,61 @@ function stripHtml(value: string) {
   return normalizePlainText(
     value
       .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/p>/gi, '\n'),
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, ' '),
   );
+}
+
+function isQuizStylePoint(plainText: string): boolean {
+  const body = plainText.replace(/^\d+\.\s+/, '').trim();
+  if (body.length >= 80) return false;
+  if (/^['"].*['"]\s*\??$/.test(body)) return true;
+  if (body.length < 70 && /\?\s*$/.test(body)) return true;
+  return false;
+}
+
+function parseNumberedParagraphPoints(body: string): LessonPoint[] {
+  const points: LessonPoint[] = [];
+  const seen = new Set<number>();
+  const pMatches = [...body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)];
+
+  for (let index = 0; index < pMatches.length; index += 1) {
+    const plainText = stripHtml(pMatches[index]![1]!);
+    const numberMatch = plainText.match(/^(\d+)\.\s+/);
+    if (!numberMatch) continue;
+    const number = Number(numberMatch[1]);
+    if (!Number.isFinite(number) || number > 20 || seen.has(number)) continue;
+
+    let fullText = plainText;
+    for (let next = index + 1; next < pMatches.length; next += 1) {
+      const nextPlain = stripHtml(pMatches[next]![1]!);
+      if (/^(\d+)\.\s+/.test(nextPlain)) break;
+      if (!nextPlain.trim()) continue;
+      fullText += ` ${nextPlain}`;
+    }
+
+    seen.add(number);
+    points.push({ number, plainText: fullText.replace(/\s+/g, ' ').trim() });
+  }
+
+  return points.sort((a, b) => a.number - b.number);
+}
+
+function parseNumberedListPoints(body: string): LessonPoint[] {
+  const points: LessonPoint[] = [];
+  const seen = new Set<number>();
+
+  for (const match of body.matchAll(/<li[^>]*>\s*<p[^>]*>([\s\S]*?)<\/p>\s*<\/li>/gi)) {
+    const plainText = stripHtml(match[1]!);
+    const numberMatch = plainText.match(/^(\d+)\.\s+/);
+    if (!numberMatch) continue;
+    const number = Number(numberMatch[1]);
+    if (!Number.isFinite(number) || seen.has(number)) continue;
+    seen.add(number);
+    points.push({ number, plainText });
+  }
+
+  return points.sort((a, b) => a.number - b.number);
 }
 
 function formatLessonLabel(pub: string, lesson: number, point?: number) {
@@ -207,29 +260,14 @@ function summarizePointText(text: string, max = 520) {
 function parseNumberedLessonPoints(html: string): LessonPoint[] {
   const bodyMatch = html.match(/<div class="bodyTxt">([\s\S]*?)<\/div>\s*(?:<\/article|<div class="pubRefs|$)/i);
   const body = bodyMatch?.[1] ?? html;
-  const points: LessonPoint[] = [];
-  const seen = new Set<number>();
 
-  for (const match of body.matchAll(/<li[^>]*>\s*<p[^>]*>([\s\S]*?)<\/p>\s*<\/li>/gi)) {
-    const plainText = stripHtml(match[1]!);
-    const numberMatch = plainText.match(/^(\d+)\./);
-    const number = numberMatch ? Number(numberMatch[1]) : points.length + 1;
-    if (seen.has(number)) continue;
-    seen.add(number);
-    points.push({ number, plainText });
-  }
+  const paragraphPoints = parseNumberedParagraphPoints(body);
+  if (paragraphPoints.length > 0) return paragraphPoints;
 
-  for (const match of body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
-    const plainText = stripHtml(match[1]!);
-    const numberMatch = plainText.match(/^(\d+)\.\s+/);
-    if (!numberMatch) continue;
-    const number = Number(numberMatch[1]);
-    if (!Number.isFinite(number) || number > 20 || seen.has(number)) continue;
-    seen.add(number);
-    points.push({ number, plainText });
-  }
+  const listPoints = parseNumberedListPoints(body).filter((point) => !isQuizStylePoint(point.plainText));
+  if (listPoints.length > 0) return listPoints;
 
-  return points.sort((a, b) => a.number - b.number);
+  return parseNumberedListPoints(body);
 }
 
 function summaryFromPoints(points: LessonPoint[], point?: number, fallbackTitle?: string) {

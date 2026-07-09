@@ -11,7 +11,7 @@ import { serviceYearStart } from '../shared/hourglass/month-utils';
 
 import { parseHourglassExport, publisherDisplayName } from '../shared/hourglass/parse';
 
-import { buildVisitSummaryHtml } from '../shared/hourglass/summary-html';
+import { buildVisitSummaryHtml, buildVisitSummaryInteractiveHtml } from '../shared/hourglass/summary-html';
 
 import { sanitizeFileName } from '../shared/hourglass/month-utils';
 
@@ -170,6 +170,11 @@ export async function exportCircuitVisitPackage(params: {
       }),
     );
     const summaryHtml = buildVisitSummaryHtml(congregationLabel, summary);
+    const summaryInteractiveHtml = buildVisitSummaryInteractiveHtml(congregationLabel, summary);
+    const summaryInteractivePath = path.join(outputDir, 'Resumo-Visita.html');
+    await fs.writeFile(summaryInteractivePath, summaryInteractiveHtml, 'utf8');
+    files.push(summaryInteractivePath);
+
     const summaryPath = path.join(outputDir, 'Resumo-Visita.pdf');
     const summaryResult = await exportFullHtmlToPdf(summaryPath, summaryHtml);
     if (!summaryResult.ok) {

@@ -18,6 +18,7 @@ import type {
   JcsReadWeekManifest,
 } from '../shared/jcs-read-types';
 import { JCS_READ_FORMAT } from '../shared/jcs-read-types';
+import { formatUnknownError } from '../shared/format-unknown-error';
 import { writeJcsReadZip } from './jcs-read-zip';
 import { alignChairmanPrepRecordWithMwb } from './chairman-mwb-align';
 import { enrichChairmanPrepBibleReading } from './chairman-prep-enrich';
@@ -432,7 +433,8 @@ export async function exportWeekForJcsRead(params: {
       warnings: warnings.length > 0 ? warnings : undefined,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro ao exportar para tablet';
+    console.error('[exportWeekForJcsRead]', err);
+    const message = formatUnknownError(err, 'Erro ao exportar para tablet');
     return { ok: false, error: message };
   }
 }

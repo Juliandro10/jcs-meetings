@@ -103,6 +103,7 @@ import { parseChairmanDesignationFile } from './chairman-designation-import';
 import { weekTargetMismatch } from './chairman-designation-ai';
 import { generateChairmanPrepContent } from './chairman-prep-generate';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
+import { formatUnknownError } from '../shared/format-unknown-error';
 import { exportWeekForJcsRead } from './jcs-read-export';
 import { alignChairmanPrepRecordWithMwb, alignDesignationDocumentWithMwb } from './chairman-mwb-align';
 import { enrichChairmanPrepBibleReading } from './chairman-prep-enrich';
@@ -639,6 +640,10 @@ function registerIpc() {
       params: { week: MeetingWeek; preferLastFolder?: boolean },
     ) => {
       try {
+        if (!params?.week?.id) {
+          return { ok: false, error: 'Semana inválida para exportação.' };
+        }
+
         const defaultPath = path.join(app.getPath('documents'), 'JCS');
         const lastRoot = await loadJcsReadExportRoot(getUserDataRoot(), defaultPath);
         let exportRoot: string | undefined;
@@ -664,9 +669,13 @@ function registerIpc() {
           exportRoot = pick.filePaths[0];
         }
 
+        if (!exportRoot?.trim()) {
+          return { ok: false, error: 'Escolha uma pasta válida para exportar.' };
+        }
+
         await saveJcsReadExportRoot(getUserDataRoot(), exportRoot);
 
-        return exportWeekForJcsRead({
+        return await exportWeekForJcsRead({
           exportRoot,
           cacheDir: getCacheDir(),
           userDataRoot: getUserDataRoot(),
@@ -674,7 +683,8 @@ function registerIpc() {
           week: params.week,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro ao exportar para tablet';
+        const message = formatUnknownError(err, 'Erro ao exportar para tablet');
+        console.error('[jcs:export-read-week]', err);
         return { ok: false, error: message };
       }
     },
@@ -1462,6 +1472,39 @@ function registerIpc() {
       return { ok: false, error: message };
     }
   });
+
+  ipcMain.handle(
+    'jcs:preview-chairman-prep',
+    async (_event, params: { record: ChairmanPrepRecord; weekId: string }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+
+      try {
+        let record = params.record;
+        if (!record?.content) {
+          return { ok: false, error: 'Gere ou edite a folha antes de visualizar.' };
+        }
+
+        const weeksResult = await loadMeetingWeeks(getCacheDir(), getUserDataRoot());
+        const week = weeksResult.weeks.find((item) => item.id === params.weekId);
+        if (week) {
+          record = await alignChairmanPrepRecordWithMwb(
+            getCacheDir(),
+            getUserDataRoot(),
+            params.weekId,
+            record,
+          );
+          record = await enrichChairmanPrepBibleReading(getCacheDir(), week, record);
+        }
+
+        const html = buildChairmanPrepHtml(record);
+        return { ok: true, html };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao visualizar folha';
+        return { ok: false, error: message };
+      }
+    },
+  );
 
   ipcMain.handle('jcs:list-circuit-visits', async () => {
     const denied = assertElderUnlocked();

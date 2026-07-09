@@ -13,56 +13,9 @@ import type { CircuitVisitRecord } from '../../electron/types';
 
 type Tab = 'dados' | 'revisao' | 'resumo' | 'exportar';
 
-type SummaryRowDef = {
-  id: string;
-  label: string;
-  value: number | string;
-  names?: string[];
-};
-
-function buildSummaryRows(summary: VisitSummaryMetrics): SummaryRowDef[] {
-  const L = summary.publisherLists;
-  return [
-    { id: 'total', label: 'Publicadores totais', value: summary.totalPublishers, names: L.totalPublishers },
-    {
-      id: 'avgPub',
-      label: `Média de publicadores/mês (${summary.averageMonthsCounted} meses)`,
-      value: summary.averagePublishersPerMonth,
-    },
-    {
-      id: 'irregular',
-      label: 'Irregulares',
-      value: summary.irregularPublishers,
-      names: L.irregularPublishers,
-    },
-    { id: 'inactive', label: 'Inativos totais', value: summary.totalInactive, names: L.totalInactive },
-    { id: 'reactivated', label: 'Reativados', value: summary.reactivated, names: L.reactivated },
-    {
-      id: 'newUnbaptized',
-      label: 'Novos não batizados',
-      value: summary.newUnbaptized,
-      names: L.newUnbaptized,
-    },
-    { id: 'newBaptized', label: 'Novos batizados (6 meses)', value: summary.newBaptized, names: L.newBaptized },
-    {
-      id: 'regularPio',
-      label: 'Pioneiros regulares (6 meses)',
-      value: summary.regularPioneers,
-      names: L.regularPioneers,
-    },
-    {
-      id: 'auxPio',
-      label: 'Pioneiros auxiliares (6 meses)',
-      value: summary.auxiliaryPioneers,
-      names: L.auxiliaryPioneers,
-    },
-    {
-      id: 'avgStudies',
-      label: `Média de estudos/mês (${summary.averageMonthsCounted} meses)`,
-      value: summary.averageStudiesPerMonth,
-    },
-  ];
-}
+import { formatVisitSummaryHeader } from '../../shared/hourglass/summary-html';
+import { buildVisitSummaryRows } from '../../shared/hourglass/summary-rows';
+import type { SummaryRowDef } from '../../shared/hourglass/summary-rows';
 
 function SummaryMetricRow({
   row,
@@ -209,7 +162,7 @@ export function ElderCircuitVisitEditorPage({ visitId, onBack }: ElderCircuitVis
     [record?.hourglassData, period],
   );
 
-  const summaryRows = useMemo(() => (summary ? buildSummaryRows(summary) : []), [summary]);
+  const summaryRows = useMemo(() => (summary ? buildVisitSummaryRows(summary) : []), [summary]);
 
   const toggleSummaryRow = (id: string) => {
     setExpandedSummaryRows((prev) => {
@@ -594,7 +547,11 @@ export function ElderCircuitVisitEditorPage({ visitId, onBack }: ElderCircuitVis
 
         {tab === 'resumo' && summary ? (
           <section className="mt-6 space-y-3">
-            <h2 className="text-base font-semibold text-jw-text">Últimos 6 meses</h2>
+            <h2 className="text-base font-semibold text-jw-text">
+              {formatVisitSummaryHeader(
+                record.congregation || record.hourglassData?.congregationName || '',
+              )}
+            </h2>
             <div className="overflow-hidden rounded-xl border border-jw-border bg-jw-surface">
               <table className="w-full text-sm">
                 <tbody>
@@ -646,7 +603,7 @@ export function ElderCircuitVisitEditorPage({ visitId, onBack }: ElderCircuitVis
             <div className="rounded-xl border border-jw-border bg-jw-surface p-4">
               <h2 className="text-sm font-semibold text-jw-text">Exportar pacote</h2>
               <p className="mt-1 text-sm text-jw-muted">
-                S-21 por grupo, totais, S-88 e resumo ({periodLength} meses).
+                S-21 por grupo, totais, S-88, resumo PDF e resumo HTML interativo ({periodLength} meses).
               </p>
               <button
                 type="button"

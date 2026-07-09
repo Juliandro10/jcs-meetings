@@ -23,6 +23,7 @@ Saída preferida — APENAS a semana pedida pelo usuário (JSON válido, sem mar
   "meetingDate": "ex.: 16 de julho de 2026",
   "bibleReading": "ex.: JEREMIAS 16-17",
   "openingSong": "número da música inicial ou vazio",
+  "middleSong": "cântico logo abaixo de Nossa vida cristã (número e título) ou vazio",
   "closingSong": "número da música final ou vazio",
   "chairmanName": "presidente",
   "openingPrayer": "nome oração inicial",
@@ -46,7 +47,8 @@ Regras:
 - section "tesouros" = Tesouros da Palavra de Deus.
 - section "ministerio" = Faça seu melhor no ministério.
 - section "vida" = Nossa vida cristã.
-- section "musica" = cânticos intermediários quando listados como parte.
+- section "musica" = cântico intermediário logo abaixo do título Nossa vida cristã (prefira middleSong + omita entrada duplicada em assignments).
+- middleSong = cântico após o ministério, imediatamente abaixo de "Nossa vida cristã" na folha.
 - Presidente e orações nos campos chairmanName/openingPrayer/closingPrayer.
 - Preserve ordem; uma entrada por parte com designado.
 - assignees = nomes à direita; duplas no ministério = dois nomes.
@@ -123,6 +125,7 @@ function sanitizeDesignation(parsed: unknown): ParsedChairmanDesignation | null 
     meetingDate: str('meetingDate') || undefined,
     bibleReading: str('bibleReading') || undefined,
     openingSong: str('openingSong') || undefined,
+    middleSong: str('middleSong') || undefined,
     closingSong: str('closingSong') || undefined,
     chairmanName: str('chairmanName') || undefined,
     openingPrayer: str('openingPrayer') || undefined,

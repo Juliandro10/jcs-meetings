@@ -70,6 +70,7 @@ import type {
   ChairmanPrepResult,
   ImportChairmanDesignationResult,
   GenerateChairmanPrepResult,
+  PreviewChairmanPrepResult,
   ExportTalkThemeCardParams,
   ExportTalkThemeCardResult,
   GlobalSearchResult,
@@ -293,6 +294,11 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:generate-chairman-prep', params),
   exportChairmanPrep: (params: { weekId: string }): Promise<PublicTalkExportResult> =>
     ipcRenderer.invoke('jcs:export-chairman-prep', params),
+  previewChairmanPrep: (params: {
+    record: ChairmanPrepRecord;
+    weekId: string;
+  }): Promise<PreviewChairmanPrepResult> =>
+    ipcRenderer.invoke('jcs:preview-chairman-prep', params),
   exportElderMeetingAta: (params: {
     record: Pick<
       ElderMeetingRecord,
@@ -592,6 +598,10 @@ declare global {
       }) => Promise<ImportChairmanDesignationResult>;
       generateChairmanPrep: (params: { week: MeetingWeek }) => Promise<GenerateChairmanPrepResult>;
       exportChairmanPrep: (params: { weekId: string }) => Promise<PublicTalkExportResult>;
+      previewChairmanPrep: (params: {
+        record: ChairmanPrepRecord;
+        weekId: string;
+      }) => Promise<PreviewChairmanPrepResult>;
       exportElderMeetingAta: (params: {
         record: Pick<
           ElderMeetingRecord,

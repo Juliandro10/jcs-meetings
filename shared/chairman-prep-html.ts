@@ -6,8 +6,14 @@ import {
   isSongAssignment,
   type ChairmanSongRef,
 } from '../shared/chairman-song-links';
-import { ensureOpeningPreview } from '../shared/chairman-opening-preview';
+import { ensureOpeningPreview, normalizeOpeningPreview, resolveReadingLead, isOpeningGreeting, sanitizeReadingLead } from '../shared/chairman-opening-preview';
 import { isStudentAssignment } from '../shared/chairman-student-part';
+import { buildChairmanStudentReminder, isChairmanStudentReminderPart, resolveChairmanStudentReminder } from '../shared/chairman-part-reminder';
+import { shouldHideChairmanHighlight } from '../shared/chairman-part-highlight';
+import {
+  isDuplicateMiddleSongAssignment,
+  resolveMiddleSongRef,
+} from '../shared/chairman-middle-song';
 
 function escapeHtml(value: string) {
   return value
@@ -79,6 +85,17 @@ function buildSongPassageBlock(ref: ChairmanSongRef) {
 </div>`;
 }
 
+function buildMiddleSongTextSection(middleSong: string) {
+  return `<section class="part song-middle-part">
+  <div class="part-head">
+    <h3>Cântico</h3>
+  </div>
+  <div class="song-passage">
+    <p class="song-passage-label"><strong>Cântico:</strong> ${escapeHtml(middleSong)}</p>
+  </div>
+</section>`;
+}
+
 function buildMiddleSongSection(ref: ChairmanSongRef) {
   return `<section class="part song-middle-part">
   <div class="part-head">
@@ -91,7 +108,9 @@ function buildMiddleSongSection(ref: ChairmanSongRef) {
 function musicaAssignmentsHaveSong(record: ChairmanPrepRecord) {
   return record.assignments.some(
     (assignment) =>
-      isSongAssignment(assignment) && record.songLinks?.byAssignmentId?.[assignment.id] != null,
+      !isDuplicateMiddleSongAssignment(assignment, record) &&
+      isSongAssignment(assignment) &&
+      record.songLinks?.byAssignmentId?.[assignment.id] != null,
   );
 }
 
@@ -114,7 +133,7 @@ export function buildChairmanPrepHtml(
   const sections: string[] = [];
 
   sections.push(`<header class="doc-header">
-    <h1>Folha do presidente — Reunião do meio de semana</h1>
+    <h1>Reunião do meio de semana</h1>
     <p class="meta">${escapeHtml(headerDate)} · <span class="meta-kicker">Leitura da semana:</span> ${readingMeta}</p>
     <p class="meta">Presidente: <strong>${escapeHtml(chairman)}</strong>${record.congregation ? ` · ${escapeHtml(record.congregation)}` : ''}</p>
     ${record.openingPrayer ? `<p class="meta">Oração inicial: ${escapeHtml(record.openingPrayer)}</p>` : ''}
@@ -122,28 +141,37 @@ export function buildChairmanPrepHtml(
   </header>`);
 
   if (content) {
-    const preview = ensureOpeningPreview(
-      content.openingSummary,
-      record.assignments,
-      content.openingPreview,
+    const preview = normalizeOpeningPreview(
+      ensureOpeningPreview(content.openingSummary, record.assignments, content.openingPreview),
+      { applyDefaults: true },
     );
+    let readingLead = resolveReadingLead(preview);
+    if (isOpeningGreeting(readingLead)) {
+      readingLead = sanitizeReadingLead(readingLead, record.bibleReading, record.assignments);
+    }
     const hasStructured =
-      preview.treasuresHighlight.trim() || preview.lifeChristianHighlight.trim();
+      readingLead ||
+      preview.treasuresHighlight?.trim() ||
+      preview.ministryMention?.trim() ||
+      preview.lifeChristianHighlight?.trim() ||
+      preview.closingEbcMention?.trim();
 
     if (hasStructured) {
       sections.push(`<section class="block opening-block">
       <h2>Comentários iniciais (~1 min)</h2>
-      ${preview.intro?.trim() ? `<p class="opening-intro">${nl2br(preview.intro)}</p>` : ''}
+      ${readingLead ? `<div class="opening-highlight reading-lead"><h3>Leitura da semana</h3><p>${nl2br(readingLead)}</p></div>` : ''}
       <div class="opening-highlight treasures">
         <h3>Tesouros da Palavra de Deus — discurso (parte 1)</h3>
         ${preview.treasuresPartTitle ? `<p class="opening-part-title">${escapeHtml(preview.treasuresPartTitle)}</p>` : ''}
         <p>${nl2br(preview.treasuresHighlight || '—')}</p>
       </div>
+      ${preview.ministryMention?.trim() ? `<div class="opening-highlight ministry"><h3>Faça seu melhor no ministério</h3><p>${nl2br(preview.ministryMention)}</p></div>` : ''}
       <div class="opening-highlight life">
         <h3>Nossa vida cristã</h3>
         ${preview.lifeChristianPartTitle ? `<p class="opening-part-title">${escapeHtml(preview.lifeChristianPartTitle)}</p>` : ''}
         <p>${nl2br(preview.lifeChristianHighlight || '—')}</p>
       </div>
+      ${preview.closingEbcMention?.trim() ? `<div class="opening-highlight ebc-close"><h3>Estudo bíblico de congregação</h3><p>${nl2br(preview.closingEbcMention)}</p></div>` : ''}
     </section>`);
     } else if (content.openingSummary) {
       sections.push(`<section class="block">
@@ -156,15 +184,8 @@ export function buildChairmanPrepHtml(
   let currentSection: ChairmanAssignment['section'] | null = null;
   let middleSongShown = false;
   for (const assignment of record.assignments) {
-    if (
-      currentSection === 'ministerio' &&
-      assignment.section !== 'ministerio' &&
-      !middleSongShown &&
-      !musicaAssignmentsHaveSong(record) &&
-      record.songLinks?.middle
-    ) {
-      sections.push(buildMiddleSongSection(record.songLinks.middle));
-      middleSongShown = true;
+    if (isDuplicateMiddleSongAssignment(assignment, record)) {
+      continue;
     }
 
     if (assignment.section !== currentSection) {
@@ -173,6 +194,18 @@ export function buildChairmanPrepHtml(
         sections.push(
           `<h2 class="section-banner" style="background:${sectionColor(currentSection)}">${escapeHtml(sectionLabel(currentSection))}</h2>`,
         );
+        if (currentSection === 'vida' && !middleSongShown) {
+          const middleRef = resolveMiddleSongRef(record);
+          if (!musicaAssignmentsHaveSong(record)) {
+            if (middleRef) {
+              sections.push(buildMiddleSongSection(middleRef));
+              middleSongShown = true;
+            } else if (record.middleSong?.trim()) {
+              sections.push(buildMiddleSongTextSection(record.middleSong.trim()));
+              middleSongShown = true;
+            }
+          }
+        }
       }
     }
 
@@ -201,10 +234,15 @@ export function buildChairmanPrepHtml(
         ${partContent.lessonRef ? `<p class="lesson-ref"><strong>Lição:</strong> ${escapeHtml(partContent.lessonRef)}</p>` : ''}
         ${partContent.lessonSummary ? `<p class="lesson-summary"><strong>Pontos principais:</strong> ${nl2br(partContent.lessonSummary)}</p>` : ''}
       </div>` : ''}
-      ${partContent?.highlight && !partContent?.lessonSummary ? `<p class="highlight"><strong>Destaque:</strong> ${nl2br(partContent.highlight)}</p>` : ''}
-      ${partContent?.highlight && partContent?.lessonSummary && partContent.highlight !== partContent.lessonSummary ? `<p class="highlight"><strong>Considerar:</strong> ${nl2br(partContent.highlight)}</p>` : ''}
-      ${partContent?.transition ? `<p class="transition"><strong>Comentário na reunião:</strong> ${nl2br(partContent.transition)}</p>` : ''}
-      ${partContent?.privateSuggestion ? `<p class="private-note"><strong>Conversa particular com o estudante:</strong> ${nl2br(partContent.privateSuggestion)}</p>` : ''}
+      ${!shouldHideChairmanHighlight(assignment) && partContent?.highlight && !partContent?.lessonSummary ? `<p class="highlight"><strong>Destaque:</strong> ${nl2br(partContent.highlight)}</p>` : ''}
+      ${!shouldHideChairmanHighlight(assignment) && partContent?.highlight && partContent?.lessonSummary && partContent.highlight !== partContent.lessonSummary ? `<p class="highlight"><strong>Considerar:</strong> ${nl2br(partContent.highlight)}</p>` : ''}
+      ${
+        isChairmanStudentReminderPart(assignment)
+          ? `<div class="reminder-box"><p><strong>Lembrete:</strong> ${nl2br(resolveChairmanStudentReminder(partContent, assignment))}</p></div>`
+          : partContent?.transition
+            ? `<p class="transition"><strong>Transição:</strong> ${nl2br(partContent.transition)}</p>`
+            : ''
+      }
     </section>`);
   }
 
@@ -216,7 +254,7 @@ export function buildChairmanPrepHtml(
   }
 
   if (content?.finalQuestion) {
-    const options = content.finalQuestionOptions
+    const options = (content.finalQuestionOptions ?? [])
       .map((opt, i) => `<li>${escapeHtml(opt)}</li>`)
       .join('');
     sections.push(`<section class="block question">
@@ -250,7 +288,7 @@ export function buildChairmanPrepHtml(
 <head>
   <meta charset="utf-8">
   ${tablet ? '<meta name="viewport" content="width=device-width, initial-scale=1">' : ''}
-  <title>Folha do presidente — ${escapeHtml(record.weekLabel)}</title>
+  <title>Reunião do meio de semana — ${escapeHtml(record.weekLabel)}</title>
   <style>
     body {
       font-family: 'Segoe UI', Calibri, sans-serif;
@@ -326,6 +364,21 @@ export function buildChairmanPrepHtml(
     }
     .opening-highlight.treasures h3 { color: #1d4ed8; }
     .opening-highlight.life h3 { color: #9f1239; }
+    .opening-highlight.reading-lead {
+      border-left: 4px solid #64748b;
+      background: #f8fafc;
+    }
+    .opening-highlight.reading-lead h3 { color: #475569; }
+    .opening-highlight.ministry {
+      border-left: 4px solid #b45309;
+      background: #fffbeb;
+    }
+    .opening-highlight.ministry h3 { color: #92400e; }
+    .opening-highlight.ebc-close {
+      border-left: 4px solid #6d28d9;
+      background: #f5f3ff;
+    }
+    .opening-highlight.ebc-close h3 { color: #5b21b6; }
     .opening-part-title {
       font-size: ${tablet ? '16px' : '10pt'};
       font-weight: 600;
@@ -359,12 +412,12 @@ export function buildChairmanPrepHtml(
       font-size: ${tablet ? '16px' : '10.5pt'};
     }
     .lesson-ref { margin: 0 0 0.35em; font-weight: 600; color: #92400e; }
-    .private-note {
-      margin: 0.45em 0 0;
-      padding: 0.4em 0.55em;
-      background: #f3f4f6;
-      border: 1px dashed #9ca3af;
-      font-size: ${tablet ? '15px' : '10pt'};
+    .reminder-box {
+      margin: 0.5em 0 0;
+      padding: 0.45em 0.65em;
+      background: #f8fafc;
+      border-left: 3px solid #64748b;
+      font-size: ${tablet ? '16px' : '10.5pt'};
     }
     .transition { margin: 0.35em 0 0; }
     .question ol { margin: 0.4em 0 0 1.2em; }

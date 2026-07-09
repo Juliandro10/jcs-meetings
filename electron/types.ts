@@ -862,4 +862,10 @@ export type GenerateChairmanPrepResult = {
   error?: string;
 };
 
+export type PreviewChairmanPrepResult = {
+  ok: boolean;
+  html?: string;
+  error?: string;
+};
+
 export type { JcsReadExportResult } from '../shared/jcs-read-types';

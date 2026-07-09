@@ -9,19 +9,41 @@ import type {
 } from '../../shared/chairman-prep-types';
 import type { ImportChairmanDesignationResult } from '../../electron/types';
 import { ChairmanDesignationReviewDialog } from '@/components/ChairmanDesignationReviewDialog';
+import { ChairmanPrepPreviewDialog } from '@/components/ChairmanPrepPreviewDialog';
 import { IconChevronLeft, IconOutlinePodium } from '@/components/Icons';
 import { mergeDesignationIntoPrep } from '../../shared/chairman-prep-merge';
 import {
   composeOpeningSummary,
+  DEFAULT_OPENING_EBC_MENTION,
+  DEFAULT_OPENING_MINISTRY_MENTION,
   ensureOpeningPreview,
   resolveOpeningPartHints,
 } from '../../shared/chairman-opening-preview';
 import { isStudentAssignment } from '../../shared/chairman-student-part';
+import { resolveChairmanStudentReminder } from '../../shared/chairman-part-reminder';
+import { shouldHideChairmanHighlight } from '../../shared/chairman-part-highlight';
+import {
+  isDuplicateMiddleSongAssignment,
+  resolveMiddleSongRef,
+} from '../../shared/chairman-middle-song';
+import { chairmanSongLinkLabel } from '../../shared/chairman-song-links';
 
 type ChairmanPrepPageProps = {
   week: MeetingWeek;
   onBack: () => void;
 };
+
+function MiddleSongAfterBanner({ record }: { record: ChairmanPrepRecord }) {
+  const ref = resolveMiddleSongRef(record);
+  const label = ref ? chairmanSongLinkLabel(ref) : record.middleSong?.trim();
+  if (!label) return null;
+  return (
+    <div className="mb-3 rounded-lg border border-jw-border bg-jw-bg/60 px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-jw-muted">Cântico</p>
+      <p className="mt-1 text-sm text-jw-text">{label}</p>
+    </div>
+  );
+}
 
 function sectionBannerClass(section: ChairmanAssignment['section']) {
   switch (section) {
@@ -79,6 +101,8 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
   const [generating, setGenerating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingRead, setExportingRead] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const saveTimer = useRef<number | null>(null);
 
@@ -117,13 +141,21 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
     (patch: Partial<ChairmanOpeningPreview>) => {
       setRecord((prev) => {
         if (!prev.content) return prev;
-        const preview = ensureOpeningPreview(
-          prev.content.openingSummary,
-          prev.assignments,
-          prev.content.openingPreview,
-        );
-        const nextPreview = { ...preview, ...patch };
         const hints = resolveOpeningPartHints(prev.assignments);
+        const current = prev.content.openingPreview;
+        const nextPreview: ChairmanOpeningPreview = {
+          readingLead: current?.readingLead ?? current?.intro,
+          treasuresHighlight: current?.treasuresHighlight ?? '',
+          ministryMention: current?.ministryMention,
+          lifeChristianHighlight: current?.lifeChristianHighlight ?? '',
+          closingEbcMention: current?.closingEbcMention,
+          treasuresPartTitle:
+            current?.treasuresPartTitle ?? hints.treasuresDiscourse?.partTitle,
+          lifeChristianPartTitle:
+            current?.lifeChristianPartTitle ?? hints.lifeChristian?.partTitle,
+          ...patch,
+          intro: undefined,
+        };
         let assignments = prev.assignments;
         if (patch.treasuresPartTitle !== undefined || patch.lifeChristianPartTitle !== undefined) {
           assignments = prev.assignments.map((assignment) => {
@@ -172,6 +204,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
         lessonRef?: string;
         lessonSummary?: string;
         privateSuggestion?: string;
+        reminder?: string;
       },
     ) => {
       setRecord((prev) => {
@@ -359,6 +392,27 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
     }
   };
 
+  const handlePreview = async () => {
+    if (!window.jcs?.previewChairmanPrep || !window.jcs?.saveChairmanPrep) return;
+    if (!record.content) {
+      setMessage('Gere a folha com IA antes de visualizar.');
+      return;
+    }
+    setPreviewing(true);
+    setMessage(null);
+    try {
+      await window.jcs.saveChairmanPrep(record);
+      const result = await window.jcs.previewChairmanPrep({ record, weekId: week.id });
+      if (!result.ok || !result.html) {
+        setMessage(result.error ?? 'Não foi possível visualizar a folha.');
+        return;
+      }
+      setPreviewHtml(result.html);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   const handleExport = async () => {
     if (!window.jcs?.exportChairmanPrep || !window.jcs?.saveChairmanPrep) return;
     setExporting(true);
@@ -415,8 +469,10 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <IconOutlinePodium className="h-5 w-5 shrink-0 text-jw-purple" />
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-jw-text">Presidir — {week.label}</h1>
-            <p className="text-sm text-jw-muted">{week.bibleReading}</p>
+            <h1 className="truncate text-lg font-semibold text-jw-text">Reunião meio de semana</h1>
+            <p className="text-sm text-jw-muted">
+              {week.label} · {week.bibleReading}
+            </p>
           </div>
         </div>
       </div>
@@ -477,6 +533,14 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
         </button>
         <button
           type="button"
+          disabled={!record.content || previewing}
+          onClick={() => void handlePreview()}
+          className="rounded-lg border border-jw-purple/40 bg-jw-purple/5 px-4 py-2 text-sm font-medium text-jw-purple hover:bg-jw-purple-light/40 disabled:opacity-50"
+        >
+          {previewing ? 'Carregando…' : 'Visualizar'}
+        </button>
+        <button
+          type="button"
           disabled={!record.content || exporting}
           onClick={() => void handleExport()}
           className="rounded-lg border border-jw-border px-4 py-2 text-sm text-jw-text hover:bg-jw-bg disabled:opacity-50"
@@ -506,6 +570,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
           />
 
           {record.assignments.map((assignment) => {
+            if (isDuplicateMiddleSongAssignment(assignment, record)) return null;
             const banner = sectionTitle(assignment.section);
             const showBanner = banner && assignment.section !== currentSection;
             if (showBanner) currentSection = assignment.section;
@@ -520,6 +585,9 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
                   >
                     {banner}
                   </h2>
+                ) : null}
+                {showBanner && assignment.section === 'vida' ? (
+                  <MiddleSongAfterBanner record={record} />
                 ) : null}
                 <AssignmentPartEditor
                   assignment={assignment}
@@ -576,6 +644,7 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
             criar comentários e transições.
           </p>
           {record.assignments.map((assignment) => {
+            if (isDuplicateMiddleSongAssignment(assignment, record)) return null;
             const banner = sectionTitle(assignment.section);
             const showBanner = banner && assignment.section !== currentSection;
             if (showBanner) currentSection = assignment.section;
@@ -588,6 +657,9 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
                   >
                     {banner}
                   </h2>
+                ) : null}
+                {showBanner && assignment.section === 'vida' ? (
+                  <MiddleSongAfterBanner record={record} />
                 ) : null}
                 <AssignmentPartEditor
                   assignment={assignment}
@@ -616,6 +688,14 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
           <div className="mt-2 min-h-[6.5rem]" aria-hidden />
         </div>
       </section>
+
+      {previewHtml ? (
+        <ChairmanPrepPreviewDialog
+          html={previewHtml}
+          weekLabel={week.label}
+          onClose={() => setPreviewHtml(null)}
+        />
+      ) : null}
 
       {pendingImport?.document ? (
         <ChairmanDesignationReviewDialog
@@ -665,46 +745,68 @@ function OpeningPreviewEditor({
   assignments: ChairmanPrepRecord['assignments'];
   onPatch: (patch: Partial<ChairmanOpeningPreview>) => void;
 }) {
-  const preview = ensureOpeningPreview(content.openingSummary, assignments, content.openingPreview);
+  const hints = resolveOpeningPartHints(assignments);
+  const stored = content.openingPreview;
+  const readingLead = stored?.readingLead ?? stored?.intro ?? '';
+  const treasuresPartTitle =
+    stored?.treasuresPartTitle ?? hints.treasuresDiscourse?.partTitle ?? '';
+  const lifeChristianPartTitle =
+    stored?.lifeChristianPartTitle ?? hints.lifeChristian?.partTitle ?? '';
 
   return (
     <section className="rounded-xl border border-jw-border bg-jw-surface p-4">
       <h3 className="text-sm font-semibold text-jw-text">Comentários iniciais (~1 min)</h3>
       <p className="mt-1 text-xs text-jw-muted">
-        Visão geral da reunião — identifique a seção de cada assunto.
+        Após o cântico e a oração — sem boa noite nem cumprimento. Edite cada destaque antes de
+        exportar.
       </p>
 
-      <label className="mt-4 block text-xs text-jw-muted">
-        Saudação breve (opcional)
+      <div className="mt-4 rounded-lg border-l-4 border-slate-500 bg-slate-50/80 p-3 dark:bg-slate-950/20">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">
+          Leitura da semana
+        </p>
         <textarea
-          value={preview.intro ?? ''}
-          onChange={(e) => onPatch({ intro: e.target.value })}
+          value={readingLead}
+          onChange={(e) => onPatch({ readingLead: e.target.value, intro: undefined })}
           rows={2}
-          placeholder="Ex.: É um prazer dar boas-vindas a todos…"
-          className="mt-1 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
+          placeholder="Ex.: Nossa reunião de hoje é baseada em Jeremias, capítulos 13, 14 e 15…"
+          className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
-      </label>
+      </div>
 
       <div className="mt-4 rounded-lg border-l-4 border-blue-600 bg-blue-50/80 p-3 dark:bg-blue-950/20">
         <p className="text-[11px] font-bold uppercase tracking-wide text-blue-700 dark:text-blue-300">
           Tesouros da Palavra de Deus — discurso (parte 1)
         </p>
-        {preview.treasuresPartTitle ? (
+        {treasuresPartTitle ? (
           <label className="mt-2 block text-xs text-jw-muted">
             Título da parte 1
             <input
               type="text"
-              value={preview.treasuresPartTitle ?? ''}
+              value={treasuresPartTitle}
               onChange={(e) => onPatch({ treasuresPartTitle: e.target.value })}
               className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
             />
           </label>
         ) : null}
         <textarea
-          value={preview.treasuresHighlight}
+          value={stored?.treasuresHighlight ?? ''}
           onChange={(e) => onPatch({ treasuresHighlight: e.target.value })}
           rows={3}
           placeholder="Em Tesouros da Palavra de Deus, na parte 1…"
+          className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+        />
+      </div>
+
+      <div className="mt-4 rounded-lg border-l-4 border-amber-600 bg-amber-50/80 p-3 dark:bg-amber-950/20">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-amber-900 dark:text-amber-300">
+          Faça seu melhor no ministério
+        </p>
+        <textarea
+          value={stored?.ministryMention ?? DEFAULT_OPENING_MINISTRY_MENTION}
+          onChange={(e) => onPatch({ ministryMention: e.target.value })}
+          rows={2}
+          placeholder="Teremos também apresentações ao vivo em Faça seu melhor no ministério."
           className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
       </div>
@@ -713,22 +815,35 @@ function OpeningPreviewEditor({
         <p className="text-[11px] font-bold uppercase tracking-wide text-rose-900 dark:text-rose-300">
           Nossa vida cristã
         </p>
-        {preview.lifeChristianPartTitle ? (
+        {lifeChristianPartTitle ? (
           <label className="mt-2 block text-xs text-jw-muted">
             Título em Nossa vida cristã
             <input
               type="text"
-              value={preview.lifeChristianPartTitle ?? ''}
+              value={lifeChristianPartTitle}
               onChange={(e) => onPatch({ lifeChristianPartTitle: e.target.value })}
               className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
             />
           </label>
         ) : null}
         <textarea
-          value={preview.lifeChristianHighlight}
+          value={stored?.lifeChristianHighlight ?? ''}
           onChange={(e) => onPatch({ lifeChristianHighlight: e.target.value })}
           rows={3}
           placeholder="Em Nossa vida cristã, consideraremos…"
+          className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+        />
+      </div>
+
+      <div className="mt-4 rounded-lg border-l-4 border-violet-700 bg-violet-50/80 p-3 dark:bg-violet-950/20">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-violet-900 dark:text-violet-300">
+          Estudo bíblico de congregação
+        </p>
+        <textarea
+          value={stored?.closingEbcMention ?? DEFAULT_OPENING_EBC_MENTION}
+          onChange={(e) => onPatch({ closingEbcMention: e.target.value })}
+          rows={2}
+          placeholder="Finalizaremos com o estudo bíblico de congregação."
           className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
       </div>
@@ -941,7 +1056,7 @@ function AssignmentPartEditor({
               ) : null}
             </div>
           ) : null}
-          {!isStudent && part?.highlight !== undefined ? (
+          {!isStudent && !shouldHideChairmanHighlight(assignment) && part?.highlight !== undefined ? (
             <label className="mb-3 block text-xs text-jw-muted">
               Destaque
               <textarea
@@ -954,31 +1069,31 @@ function AssignmentPartEditor({
               />
             </label>
           ) : null}
-          <label className="block text-xs text-jw-muted">
-            {isStudent ? 'Comentário na reunião' : 'Transição'}
-            <textarea
-              value={part?.transition ?? ''}
-              onChange={(e) =>
-                onPatchPartContent!(assignment.id, { transition: e.target.value })
-              }
-              rows={3}
-              className={fieldClassName()}
-            />
-          </label>
           {isStudent ? (
-            <label className="mt-3 block text-xs text-jw-muted">
-              Conversa particular com o estudante (não ler na tribuna)
+            <label className="block text-xs text-jw-muted">
+              Lembrete
               <textarea
-                value={part?.privateSuggestion ?? ''}
+                value={part?.reminder ?? resolveChairmanStudentReminder(part, assignment)}
                 onChange={(e) =>
-                  onPatchPartContent!(assignment.id, { privateSuggestion: e.target.value })
+                  onPatchPartContent!(assignment.id, { reminder: e.target.value })
                 }
-                rows={2}
-                placeholder="Sugestão prática para depois da reunião…"
-                className="mt-1 w-full rounded-lg border border-dashed border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
+                rows={4}
+                className={fieldClassName()}
               />
             </label>
-          ) : null}
+          ) : (
+            <label className="block text-xs text-jw-muted">
+              Transição
+              <textarea
+                value={part?.transition ?? ''}
+                onChange={(e) =>
+                  onPatchPartContent!(assignment.id, { transition: e.target.value })
+                }
+                rows={3}
+                className={fieldClassName()}
+              />
+            </label>
+          )}
         </>
       ) : null}
     </article>

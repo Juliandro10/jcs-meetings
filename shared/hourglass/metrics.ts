@@ -13,9 +13,9 @@ import {
   isRegularPioneer,
   publisherDisplayName,
 } from './parse';
-import type { HourglassExport, HourglassPublisher, VisitSummaryMetrics } from './types';
+import type { HourglassAttendanceRow, HourglassExport, HourglassPublisher, VisitSummaryMetrics } from './types';
 
-/** Médias do resumo SC: últimos 6 meses utilizáveis (sem futuros vazios). */
+/** Resumo SC: métricas do relatório usam os últimos 6 meses utilizáveis (completos), independente do período configurado para S-21/S-88. */
 const AVERAGE_SUMMARY_MONTHS = 6;
 
 function parseIsoDate(value?: string | null): Date | null {
@@ -63,17 +63,13 @@ function firstReportMonth(reportsByPub: Map<number, Set<string>>, pubId: number)
   return months[0] ?? null;
 }
 
-/** Reportou em algum mês dentro de [windowStart, windowEnd) */
-function wasActiveInMonthWindow(
+function reportedBeforeMonth(
   reportsByPub: Map<number, Set<string>>,
   pubId: number,
-  windowStart: string,
-  windowEndExclusive: string,
+  beforeMonth: string,
 ): boolean {
   for (const month of reportsByPub.get(pubId) ?? []) {
-    if (compareMonthKeys(month, windowStart) >= 0 && compareMonthKeys(month, windowEndExclusive) < 0) {
-      return true;
-    }
+    if (compareMonthKeys(month, beforeMonth) < 0) return true;
   }
   return false;
 }
@@ -84,6 +80,55 @@ function sortedPublisherNames(data: HourglassExport, ids: Iterable<number>): str
     .filter((p) => idSet.has(p.id))
     .map((p) => publisherDisplayName(p))
     .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
+function countMeetingSlots(values: Array<number | undefined>): { count: number; total: number } {
+  let count = 0;
+  let total = 0;
+  for (const value of values) {
+    if (value != null && value > 0) {
+      count += 1;
+      total += value;
+    }
+  }
+  return { count, total };
+}
+
+function rowMeetingTotals(
+  row: HourglassAttendanceRow,
+  meeting: 'mw' | 'we',
+): { count: number; total: number } {
+  if (meeting === 'mw') {
+    if ((row.mwCount ?? 0) > 0 && (row.mwTotal ?? 0) > 0) {
+      return { count: row.mwCount!, total: row.mwTotal! };
+    }
+    return countMeetingSlots([row.mw1, row.mw2, row.mw3, row.mw4, row.mw5]);
+  }
+  if ((row.weCount ?? 0) > 0 && (row.weTotal ?? 0) > 0) {
+    return { count: row.weCount!, total: row.weTotal! };
+  }
+  return countMeetingSlots([row.we1, row.we2, row.we3, row.we4, row.we5]);
+}
+
+function averageMeetingAttendance(
+  attendance: HourglassAttendanceRow[],
+  months: string[],
+  meeting: 'mw' | 'we',
+): number {
+  const monthSet = new Set(months);
+  let totalMeetings = 0;
+  let totalAttendance = 0;
+
+  for (const row of attendance) {
+    if (!row.month || !monthSet.has(row.month)) continue;
+    const { count, total } = rowMeetingTotals(row, meeting);
+    if (count > 0) {
+      totalMeetings += count;
+      totalAttendance += total;
+    }
+  }
+
+  return totalMeetings > 0 ? Math.round(totalAttendance / totalMeetings) : 0;
 }
 
 export function computeVisitSummary(
@@ -107,10 +152,16 @@ export function computeVisitSummary(
     return studies;
   });
 
-  const activeInPeriod = new Set<number>();
-  for (const month of usableMonths) {
+  const lastSixUsableMonths = usableMonths.slice(
+    -Math.min(AVERAGE_SUMMARY_MONTHS, usableMonths.length),
+  );
+  const summaryEndMonth =
+    lastSixUsableMonths[lastSixUsableMonths.length - 1] ?? lastUsableMonth;
+
+  const activeInLastSix = new Set<number>();
+  for (const month of lastSixUsableMonths) {
     for (const report of byMonth.get(month) ?? []) {
-      if (isPublisherReported(report)) activeInPeriod.add(report.user.id);
+      if (isPublisherReported(report)) activeInLastSix.add(report.user.id);
     }
   }
 
@@ -119,61 +170,37 @@ export function computeVisitSummary(
   const reactivatedIds = new Set<number>();
 
   for (const pubId of publisherIds) {
-    let missedAny = false;
-    for (const month of usableMonths) {
+    let missedAnyInLastSix = false;
+    for (const month of lastSixUsableMonths) {
       if (!reportedInMonth(reportsByPub, pubId, month)) {
-        missedAny = true;
+        missedAnyInLastSix = true;
         break;
       }
     }
-    if (missedAny) irregularIds.add(pubId);
+    if (missedAnyInLastSix) irregularIds.add(pubId);
 
-    if (lastUsableMonth && consecutiveMissedMonths(reportsByPub, pubId, lastUsableMonth, 6)) {
+    if (summaryEndMonth && consecutiveMissedMonths(reportsByPub, pubId, summaryEndMonth, 6)) {
       inactiveIds.add(pubId);
     }
 
-    const reportedLast = reportedInMonth(reportsByPub, pubId, lastUsableMonth);
-    const monthBeforePeriod = addMonths(configuredMonths[0]!, -1);
-    const hadSixGapBeforePeriod = consecutiveMissedMonths(
-      reportsByPub,
-      pubId,
-      monthBeforePeriod,
-      6,
-    );
-    const gapStartMonth = addMonths(configuredMonths[0]!, -6);
-    const preGapWindowStart = addMonths(gapStartMonth, -12);
-    /** Já reportava aqui antes do buraco de 6 meses (exclui transferência recente). */
-    const wasActiveBeforeInactiveGap = wasActiveInMonthWindow(
-      reportsByPub,
-      pubId,
-      preGapWindowStart,
-      gapStartMonth,
-    );
-    const firstReport = firstReportMonth(reportsByPub, pubId);
-    const joinedDuringPeriod =
-      firstReport !== null && compareMonthKeys(firstReport, configuredMonths[0]!) >= 0;
-    const reportedInPeriod = usableMonths.some((m) => reportedInMonth(reportsByPub, pubId, m));
-    if (
-      hadSixGapBeforePeriod &&
-      reportedInPeriod &&
-      reportedLast &&
-      wasActiveBeforeInactiveGap &&
-      !joinedDuringPeriod
-    ) {
-      reactivatedIds.add(pubId);
+    for (const month of lastSixUsableMonths) {
+      if (!reportedInMonth(reportsByPub, pubId, month)) continue;
+      if (!consecutiveMissedMonths(reportsByPub, pubId, addMonths(month, -1), 6)) continue;
+      const gapStart = addMonths(month, -6);
+      if (reportedBeforeMonth(reportsByPub, pubId, gapStart)) {
+        reactivatedIds.add(pubId);
+        break;
+      }
     }
   }
 
-  const lastSixUsableMonths = usableMonths.slice(
-    -Math.min(AVERAGE_SUMMARY_MONTHS, usableMonths.length),
-  );
   const baptismWindowStart = lastSixUsableMonths[0]
     ? monthStart(lastSixUsableMonths[0])
     : monthStart(configuredMonths[0]!);
-  const baptismWindowEnd = lastSixUsableMonths[lastSixUsableMonths.length - 1]
+  const baptismWindowEnd = summaryEndMonth
     ? new Date(
-        monthStart(lastSixUsableMonths[lastSixUsableMonths.length - 1]!).getFullYear(),
-        monthStart(lastSixUsableMonths[lastSixUsableMonths.length - 1]!).getMonth() + 1,
+        monthStart(summaryEndMonth).getFullYear(),
+        monthStart(summaryEndMonth).getMonth() + 1,
         0,
       )
     : new Date(
@@ -184,6 +211,7 @@ export function computeVisitSummary(
 
   const newUnbaptizedIds = new Set<number>();
   const newBaptizedIds = new Set<number>();
+  const summaryStartMonth = lastSixUsableMonths[0];
 
   for (const pub of data.publishers) {
     const baptism = parseIsoDate(pub.baptism);
@@ -192,19 +220,24 @@ export function computeVisitSummary(
     }
 
     const firstMonth = pub.firstmonth ?? firstReportMonth(reportsByPub, pub.id);
-    if (firstMonth && compareMonthKeys(firstMonth, configuredMonths[0]!) >= 0) {
-      if (pub.status === 'Unbaptized Publisher') newUnbaptizedIds.add(pub.id);
+    if (
+      summaryStartMonth &&
+      summaryEndMonth &&
+      firstMonth &&
+      compareMonthKeys(firstMonth, summaryStartMonth) >= 0 &&
+      compareMonthKeys(firstMonth, summaryEndMonth) <= 0 &&
+      pub.status === 'Unbaptized Publisher'
+    ) {
+      newUnbaptizedIds.add(pub.id);
     }
   }
 
   const regularPioneerIds = new Set<number>();
   const auxiliaryPioneerIds = new Set<number>();
-  const activeInLastSix = new Set<number>();
 
   for (const month of lastSixUsableMonths) {
     for (const report of byMonth.get(month) ?? []) {
       if (!isPublisherReported(report)) continue;
-      activeInLastSix.add(report.user.id);
       const pub = data.publishers.find((p) => p.id === report.user.id);
       if (isRegularPioneer(pub?.status, report.pioneer)) regularPioneerIds.add(report.user.id);
       if (isAuxiliaryPioneer(pub?.status, report.pioneer)) auxiliaryPioneerIds.add(report.user.id);
@@ -222,10 +255,17 @@ export function computeVisitSummary(
 
   let activeSum = 0;
   let studiesSum = 0;
+  let publisherReportMonths = 0;
+  let studiesFromReports = 0;
   for (const month of averageWindowMonths) {
     const i = configuredMonths.indexOf(month);
     activeSum += monthlyActiveCounts[i]!;
     studiesSum += monthlyStudyCounts[i]!;
+    for (const report of byMonth.get(month) ?? []) {
+      if (!isPublisherReported(report)) continue;
+      publisherReportMonths += 1;
+      studiesFromReports += report.studies ?? 0;
+    }
   }
 
   const averagePublishersPerMonth =
@@ -234,9 +274,25 @@ export function computeVisitSummary(
   const averageStudiesPerMonth =
     averageDivisor > 0 ? Math.round((studiesSum / averageDivisor) * 10) / 10 : 0;
 
+  const averageStudiesPerPublisher =
+    publisherReportMonths > 0
+      ? Math.round((studiesFromReports / publisherReportMonths) * 10) / 10
+      : 0;
+
+  const averageMidweekAttendance = averageMeetingAttendance(
+    data.attendance,
+    averageWindowMonths,
+    'mw',
+  );
+  const averageWeekendAttendance = averageMeetingAttendance(
+    data.attendance,
+    averageWindowMonths,
+    'we',
+  );
+
   return {
     periodMonths: usableMonths,
-    totalPublishers: activeInPeriod.size,
+    totalPublishers: activeInLastSix.size,
     averagePublishersPerMonth,
     irregularPublishers: irregularIds.size,
     totalInactive: inactiveIds.size,
@@ -246,12 +302,15 @@ export function computeVisitSummary(
     regularPioneers: regularPioneerIds.size,
     auxiliaryPioneers: auxiliaryPioneerIds.size,
     averageStudiesPerMonth,
+    averageStudiesPerPublisher,
+    averageMidweekAttendance,
+    averageWeekendAttendance,
     averageMonthsCounted: averageDivisor,
     serviceYearLabel: serviceYearLabel(referenceDate),
     periodStartMonth: period.periodStartMonth,
     periodLengthMonths: period.periodLengthMonths,
     publisherLists: {
-      totalPublishers: sortedPublisherNames(data, activeInPeriod),
+      totalPublishers: sortedPublisherNames(data, activeInLastSix),
       irregularPublishers: sortedPublisherNames(data, irregularIds),
       totalInactive: sortedPublisherNames(data, inactiveIds),
       reactivated: sortedPublisherNames(data, reactivatedIds),

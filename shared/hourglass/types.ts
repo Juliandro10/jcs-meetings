@@ -16,6 +16,8 @@ export type HourglassPublisher = {
   anointed?: boolean;
   comments?: string | null;
 };
+
+export type HourglassReport = {
   id?: number;
   user: { id: number };
   month: number;
@@ -150,11 +152,17 @@ export type VisitSummaryMetrics = {
   regularPioneers: number;
   auxiliaryPioneers: number;
   averageStudiesPerMonth: number;
+  /** Média de estudos bíblicos por publicador (últimos 6 meses). */
+  averageStudiesPerPublisher: number;
+  /** Média de assistência — reunião do meio de semana (últimos 6 meses). */
+  averageMidweekAttendance: number;
+  /** Média de assistência — reunião do fim de semana (últimos 6 meses). */
+  averageWeekendAttendance: number;
   /** Meses usados nas médias (até 6, só meses já com relatórios). */
   averageMonthsCounted: number;
   serviceYearLabel: string;
   periodStartMonth: string;
   periodLengthMonths: number;
-  /** Nomes por categoria — só para UI; não entra no PDF exportado. */
+  /** Nomes por categoria — resumo dos últimos 6 meses utilizáveis. */
   publisherLists: VisitSummaryPublisherLists;
 };

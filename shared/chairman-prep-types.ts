@@ -1,4 +1,5 @@
 import type { ChairmanSongLinks } from './chairman-song-links';
+import type { ChairmanOpeningPreview } from './chairman-opening-preview';
 
 export type ChairmanAssignmentSection =
   | 'abertura'
@@ -29,15 +30,11 @@ export type ChairmanGeneratedPart = {
   lessonSummary?: string;
   /** Sugestão para conversa particular com o estudante (não ler na tribuna) */
   privateSuggestion?: string;
+  /** Lembrete para o presidente nas partes de estudante (editável). */
+  reminder?: string;
 };
 
-export type ChairmanOpeningPreview = {
-  intro?: string;
-  treasuresHighlight: string;
-  lifeChristianHighlight: string;
-  treasuresPartTitle?: string;
-  lifeChristianPartTitle?: string;
-};
+export type { ChairmanOpeningPreview } from './chairman-opening-preview';
 
 export type ChairmanGeneratedContent = {
   openingSummary: string;

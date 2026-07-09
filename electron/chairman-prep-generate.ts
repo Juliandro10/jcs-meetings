@@ -12,11 +12,13 @@ import {
   buildStudentLessonBriefs,
   formatStudentLessonContextForPrompt,
 } from './student-lesson-context';
+import { buildChairmanStudentReminder } from '../shared/chairman-part-reminder';
 import { isStudentAssignment } from '../shared/chairman-student-part';
 import {
   composeOpeningSummary,
   openingPreviewFromAssignments,
   resolveOpeningPartHints,
+  sanitizeReadingLead,
 } from '../shared/chairman-opening-preview';
 import type { MeetingWeek } from './types';
 
@@ -146,18 +148,18 @@ export async function generateChairmanPrepContent(
     '### Partes da apostila (referência)',
     mwbPartsList,
     openingHints ? `\n### Partes para visão inicial da reunião\n${openingHints}` : '',
-    studentLessonContext ? `\n### Lições das partes de estudante (use na transição)\n${studentLessonContext}` : '',
+    studentLessonContext ? `\n### Lições das partes de estudante (use em lessonSummary)\n${studentLessonContext}` : '',
     fieldsList ? `\n### Campos da apostila\n${fieldsList}` : '',
     bibleText ? `\n### Leitura bíblica\n${bibleText.slice(0, 6000)}` : '',
     '',
     'Devolva APENAS JSON válido (sem markdown):',
-    '{"openingPreview":{"intro":"...","treasuresHighlight":"Em Tesouros da Palavra de Deus...","lifeChristianHighlight":"Em Nossa vida cristã..."},"parts":[{"assignmentId":"UUID","transition":"...","highlight":"...","privateSuggestion":"..."}],"closingSummary":"...","finalQuestion":"Que pontos os irmãos mais gostaram nesta reunião?","finalQuestionOptions":["...","...","..."]}',
+    '{"openingPreview":{"readingLead":"Nossa reunião de hoje é baseada em...","treasuresHighlight":"Em Tesouros da Palavra de Deus...","ministryMention":"Teremos também apresentações ao vivo...","lifeChristianHighlight":"Em Nossa vida cristã...","closingEbcMention":"Finalizaremos com o estudo bíblico de congregação."},"parts":[{"assignmentId":"UUID","transition":"...","highlight":"...","lessonSummary":"..."}],"closingSummary":"...","finalQuestion":"Que pontos os irmãos mais gostaram nesta reunião?","finalQuestionOptions":["...","...","..."]}',
     '',
     '- openingPreview: visão inicial (~1 min) com seção identificada em cada destaque.',
     '- Uma entrada em "parts" para CADA assignmentId listado (mesma ordem).',
-    '- "privateSuggestion" só para partes de estudante (ministério e leitura da Bíblia); omita nos demais.',
+    '- Partes de estudante (ministério e leitura da Bíblia): NÃO preencha transition; foque em lessonSummary e highlight.',
     '- "highlight" obrigatório para ministerio, vida e leitura da bíblia; opcional para tesouros.',
-    '- "transition" = o que o presidente diz ao encerrar aquela parte (~2-4 frases).',
+    '- "transition" só para partes que NÃO são de estudante (~2-4 frases).',
     '- "closingSummary" visão geral da reunião (~1 min).',
     '- finalQuestionOptions: exatamente 3 opções distintas de pontos que a congregação pode ter apreciado.',
   ]
@@ -210,25 +212,39 @@ export async function generateChairmanPrepContent(
 
     let openingPreview: ChairmanOpeningPreview;
     if (previewRaw) {
+      const readingRaw =
+        typeof previewRaw.readingLead === 'string'
+          ? previewRaw.readingLead.trim()
+          : typeof previewRaw.intro === 'string'
+            ? previewRaw.intro.trim()
+            : undefined;
       openingPreview = openingPreviewFromAssignments(record.assignments, {
-        intro: typeof previewRaw.intro === 'string' ? previewRaw.intro.trim() : undefined,
+        readingLead: readingRaw
+          ? sanitizeReadingLead(readingRaw, record.bibleReading, record.assignments)
+          : undefined,
         treasuresHighlight:
           typeof previewRaw.treasuresHighlight === 'string'
             ? previewRaw.treasuresHighlight.trim()
             : '',
+        ministryMention:
+          typeof previewRaw.ministryMention === 'string'
+            ? previewRaw.ministryMention.trim()
+            : undefined,
         lifeChristianHighlight:
           typeof previewRaw.lifeChristianHighlight === 'string'
             ? previewRaw.lifeChristianHighlight.trim()
             : '',
+        closingEbcMention:
+          typeof previewRaw.closingEbcMention === 'string'
+            ? previewRaw.closingEbcMention.trim()
+            : undefined,
       });
     } else if (legacyOpening) {
-      openingPreview = {
-        ...openingPreviewFromAssignments(record.assignments, {
-          treasuresHighlight: '',
-          lifeChristianHighlight: '',
-        }),
-        intro: legacyOpening,
-      };
+      openingPreview = openingPreviewFromAssignments(record.assignments, {
+        readingLead: sanitizeReadingLead(legacyOpening, record.bibleReading, record.assignments),
+        treasuresHighlight: '',
+        lifeChristianHighlight: '',
+      });
     } else {
       openingPreview = openingPreviewFromAssignments(record.assignments, {
         treasuresHighlight: '',
@@ -263,23 +279,28 @@ export async function generateChairmanPrepContent(
             (entry as { assignmentId?: string }).assignmentId === assignment.id,
         ) ?? partsRaw[index];
       const row = match && typeof match === 'object' ? (match as Record<string, unknown>) : {};
-      const transition = typeof row.transition === 'string' ? row.transition.trim() : '';
-      const highlight = typeof row.highlight === 'string' ? row.highlight.trim() : undefined;
-      const privateSuggestion =
-        typeof row.privateSuggestion === 'string' ? row.privateSuggestion.trim() : undefined;
-      const brief = lessonBriefByAssignment.get(assignment.id);
       const student = isStudentAssignment(assignment);
+      const transition = student
+        ? ''
+        : typeof row.transition === 'string'
+          ? row.transition.trim()
+          : '';
+      const highlight = typeof row.highlight === 'string' ? row.highlight.trim() : undefined;
+      const brief = lessonBriefByAssignment.get(assignment.id);
       return {
         assignmentId: assignment.id,
         transition,
         highlight: student ? highlight || brief?.consideracao : highlight || undefined,
         lessonRef: brief?.lessonRef?.label,
         lessonSummary: brief?.lessonSummary,
-        privateSuggestion: student ? privateSuggestion || undefined : undefined,
+        reminder: student ? buildChairmanStudentReminder(assignment) : undefined,
       };
     });
 
-    if (!openingSummary && !parts.some((p) => p.transition)) {
+    if (
+      !openingSummary &&
+      !parts.some((p) => p.transition || p.lessonSummary || p.highlight)
+    ) {
       return { ok: false, error: 'IA não gerou conteúdo utilizável.' };
     }
 
