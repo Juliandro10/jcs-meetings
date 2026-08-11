@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { MeetingWeek } from '@/lib/meeting-types';
 import type {
   ChairmanAssignment,
@@ -10,6 +10,7 @@ import type {
 import type { ImportChairmanDesignationResult } from '../../electron/types';
 import { ChairmanDesignationReviewDialog } from '@/components/ChairmanDesignationReviewDialog';
 import { ChairmanPrepPreviewDialog } from '@/components/ChairmanPrepPreviewDialog';
+import { AssigneesTextField, EditableTextField } from '@/components/EditableTextField';
 import { IconChevronLeft, IconOutlinePodium } from '@/components/Icons';
 import { mergeDesignationIntoPrep } from '../../shared/chairman-prep-merge';
 import {
@@ -69,17 +70,6 @@ function sectionTitle(section: ChairmanAssignment['section']) {
     default:
       return null;
   }
-}
-
-function formatAssignees(assignees: string[]) {
-  return assignees.join(' · ');
-}
-
-function parseAssignees(value: string) {
-  return value
-    .split(/[·,]/)
-    .map((name) => name.trim())
-    .filter(Boolean);
 }
 
 function emptyRecord(week: MeetingWeek): ChairmanPrepRecord {
@@ -431,7 +421,11 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
     setExportingRead(true);
     setMessage(null);
     try {
-      await window.jcs.saveChairmanPrep(record);
+      const saveResult = await window.jcs.saveChairmanPrep(record);
+      if (!saveResult.ok) {
+        setMessage(saveResult.error ?? 'Não foi possível salvar a folha antes de exportar.');
+        return;
+      }
       const result = await window.jcs.exportReadWeek(week, { preferLastFolder: true });
       if (result.ok) {
         setMessage(
@@ -440,6 +434,8 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
       } else {
         setMessage(result.error ?? 'Não foi possível exportar para o tablet.');
       }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Não foi possível exportar para o tablet.');
     } finally {
       setExportingRead(false);
     }
@@ -608,26 +604,26 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
 
           <section className="rounded-xl border border-jw-border bg-jw-surface p-4">
             <h3 className="text-sm font-semibold text-jw-text">Pergunta final</h3>
-            <textarea
-              value={record.content.finalQuestion}
-              onChange={(e) => patchContent({ finalQuestion: e.target.value })}
+            <EditableTextField
+              multiline
               rows={2}
+              value={record.content.finalQuestion}
+              onChange={(value) => patchContent({ finalQuestion: value })}
               className="mt-2 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
             />
             <p className="mt-3 text-xs text-jw-muted">Três opções de resposta sugeridas</p>
             <ol className="mt-2 space-y-2">
               {record.content.finalQuestionOptions.map((opt, index) => (
                 <li key={index}>
-                  <input
-                    type="text"
+                  <EditableTextField
                     value={opt}
-                    onChange={(e) => {
+                    onChange={(value) => {
                       const options = [...record.content!.finalQuestionOptions] as [
                         string,
                         string,
                         string,
                       ];
-                      options[index] = e.target.value;
+                      options[index] = value;
                       patchContent({ finalQuestionOptions: options });
                     }}
                     className="w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
@@ -675,10 +671,11 @@ export function ChairmanPrepPage({ week, onBack }: ChairmanPrepPageProps) {
         <h3 className="text-sm font-semibold text-jw-text">Anúncios</h3>
         <label className="mt-2 block text-xs text-jw-muted">
           Escreva os anúncios da reunião
-          <textarea
-            value={record.announcements ?? ''}
-            onChange={(e) => patchRecord({ announcements: e.target.value })}
+          <EditableTextField
+            multiline
             rows={4}
+            value={record.announcements ?? ''}
+            onChange={(value) => patchRecord({ announcements: value })}
             placeholder="Ex.: Campanha especial de pregação, assembleia de circuito, limpeza do Salão…"
             className="mt-1 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
           />
@@ -765,10 +762,11 @@ function OpeningPreviewEditor({
         <p className="text-[11px] font-bold uppercase tracking-wide text-slate-700 dark:text-slate-300">
           Leitura da semana
         </p>
-        <textarea
-          value={readingLead}
-          onChange={(e) => onPatch({ readingLead: e.target.value, intro: undefined })}
+        <EditableTextField
+          multiline
           rows={2}
+          value={readingLead}
+          onChange={(value) => onPatch({ readingLead: value, intro: undefined })}
           placeholder="Ex.: Nossa reunião de hoje é baseada em Jeremias, capítulos 13, 14 e 15…"
           className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
@@ -781,18 +779,18 @@ function OpeningPreviewEditor({
         {treasuresPartTitle ? (
           <label className="mt-2 block text-xs text-jw-muted">
             Título da parte 1
-            <input
-              type="text"
+            <EditableTextField
               value={treasuresPartTitle}
-              onChange={(e) => onPatch({ treasuresPartTitle: e.target.value })}
+              onChange={(value) => onPatch({ treasuresPartTitle: value })}
               className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
             />
           </label>
         ) : null}
-        <textarea
-          value={stored?.treasuresHighlight ?? ''}
-          onChange={(e) => onPatch({ treasuresHighlight: e.target.value })}
+        <EditableTextField
+          multiline
           rows={3}
+          value={stored?.treasuresHighlight ?? ''}
+          onChange={(value) => onPatch({ treasuresHighlight: value })}
           placeholder="Em Tesouros da Palavra de Deus, na parte 1…"
           className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
@@ -802,10 +800,11 @@ function OpeningPreviewEditor({
         <p className="text-[11px] font-bold uppercase tracking-wide text-amber-900 dark:text-amber-300">
           Faça seu melhor no ministério
         </p>
-        <textarea
-          value={stored?.ministryMention ?? DEFAULT_OPENING_MINISTRY_MENTION}
-          onChange={(e) => onPatch({ ministryMention: e.target.value })}
+        <EditableTextField
+          multiline
           rows={2}
+          value={stored?.ministryMention ?? DEFAULT_OPENING_MINISTRY_MENTION}
+          onChange={(value) => onPatch({ ministryMention: value })}
           placeholder="Teremos também apresentações ao vivo em Faça seu melhor no ministério."
           className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
@@ -818,18 +817,18 @@ function OpeningPreviewEditor({
         {lifeChristianPartTitle ? (
           <label className="mt-2 block text-xs text-jw-muted">
             Título em Nossa vida cristã
-            <input
-              type="text"
+            <EditableTextField
               value={lifeChristianPartTitle}
-              onChange={(e) => onPatch({ lifeChristianPartTitle: e.target.value })}
+              onChange={(value) => onPatch({ lifeChristianPartTitle: value })}
               className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
             />
           </label>
         ) : null}
-        <textarea
-          value={stored?.lifeChristianHighlight ?? ''}
-          onChange={(e) => onPatch({ lifeChristianHighlight: e.target.value })}
+        <EditableTextField
+          multiline
           rows={3}
+          value={stored?.lifeChristianHighlight ?? ''}
+          onChange={(value) => onPatch({ lifeChristianHighlight: value })}
           placeholder="Em Nossa vida cristã, consideraremos…"
           className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
@@ -839,10 +838,11 @@ function OpeningPreviewEditor({
         <p className="text-[11px] font-bold uppercase tracking-wide text-violet-900 dark:text-violet-300">
           Estudo bíblico de congregação
         </p>
-        <textarea
-          value={stored?.closingEbcMention ?? DEFAULT_OPENING_EBC_MENTION}
-          onChange={(e) => onPatch({ closingEbcMention: e.target.value })}
+        <EditableTextField
+          multiline
           rows={2}
+          value={stored?.closingEbcMention ?? DEFAULT_OPENING_EBC_MENTION}
+          onChange={(value) => onPatch({ closingEbcMention: value })}
           placeholder="Finalizaremos com o estudo bíblico de congregação."
           className="mt-2 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
         />
@@ -863,10 +863,11 @@ function EditorBlock({
   return (
     <section className="rounded-xl border border-jw-border bg-jw-surface p-4">
       <h3 className="text-sm font-semibold text-jw-text">{title}</h3>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+      <EditableTextField
+        multiline
         rows={4}
+        value={value}
+        onChange={onChange}
         className="mt-2 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
       />
     </section>
@@ -877,7 +878,7 @@ function fieldClassName() {
   return 'mt-1 w-full rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text';
 }
 
-function MeetingMetaEditor({
+const MeetingMetaEditor = memo(function MeetingMetaEditor({
   record,
   onPatch,
 }: {
@@ -893,65 +894,59 @@ function MeetingMetaEditor({
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="block text-xs text-jw-muted sm:col-span-2">
           Presidente
-          <input
-            type="text"
+          <EditableTextField
             value={record.chairmanName ?? ''}
-            onChange={(e) => onPatch({ chairmanName: e.target.value })}
+            onChange={(value) => onPatch({ chairmanName: value })}
             className={fieldClassName()}
           />
         </label>
         <label className="block text-xs text-jw-muted">
           Oração inicial
-          <input
-            type="text"
+          <EditableTextField
             value={record.openingPrayer ?? ''}
-            onChange={(e) => onPatch({ openingPrayer: e.target.value })}
+            onChange={(value) => onPatch({ openingPrayer: value })}
             className={fieldClassName()}
           />
         </label>
         <label className="block text-xs text-jw-muted">
           Oração final
-          <input
-            type="text"
+          <EditableTextField
             value={record.closingPrayer ?? ''}
-            onChange={(e) => onPatch({ closingPrayer: e.target.value })}
+            onChange={(value) => onPatch({ closingPrayer: value })}
             className={fieldClassName()}
           />
         </label>
         <label className="block text-xs text-jw-muted">
           Cântico inicial
-          <input
-            type="text"
+          <EditableTextField
             value={record.openingSong ?? ''}
-            onChange={(e) => onPatch({ openingSong: e.target.value })}
+            onChange={(value) => onPatch({ openingSong: value })}
             className={fieldClassName()}
           />
         </label>
         <label className="block text-xs text-jw-muted">
           Cântico do meio
-          <input
-            type="text"
+          <EditableTextField
             value={record.middleSong ?? ''}
-            onChange={(e) => onPatch({ middleSong: e.target.value })}
+            onChange={(value) => onPatch({ middleSong: value })}
             className={fieldClassName()}
             placeholder="Após o ministério"
           />
         </label>
         <label className="block text-xs text-jw-muted">
           Cântico final
-          <input
-            type="text"
+          <EditableTextField
             value={record.closingSong ?? ''}
-            onChange={(e) => onPatch({ closingSong: e.target.value })}
+            onChange={(value) => onPatch({ closingSong: value })}
             className={fieldClassName()}
           />
         </label>
       </div>
     </section>
   );
-}
+});
 
-function AssignmentPartEditor({
+const AssignmentPartEditor = memo(function AssignmentPartEditor({
   assignment,
   part,
   studentPart,
@@ -984,10 +979,9 @@ function AssignmentPartEditor({
       <div className="mb-3 grid gap-3 sm:grid-cols-[1fr_auto]">
         <label className="block text-xs text-jw-muted">
           Título da parte
-          <input
-            type="text"
+          <EditableTextField
             value={assignment.partTitle}
-            onChange={(e) => onPatchAssignment(assignment.id, { partTitle: e.target.value })}
+            onChange={(value) => onPatchAssignment(assignment.id, { partTitle: value })}
             className={fieldClassName()}
           />
         </label>
@@ -1009,13 +1003,10 @@ function AssignmentPartEditor({
         </label>
       </div>
       <label className="mb-3 block text-xs text-jw-muted">
-        Designado(s) — separe com · ou vírgula
-        <input
-          type="text"
-          value={formatAssignees(assignment.assignees)}
-          onChange={(e) =>
-            onPatchAssignment(assignment.id, { assignees: parseAssignees(e.target.value) })
-          }
+        Designado(s) — separe com / ou vírgula
+        <AssigneesTextField
+          assignees={assignment.assignees}
+          onChange={(assignees) => onPatchAssignment(assignment.id, { assignees })}
           placeholder="Nome do irmão ou irmã"
           className={fieldClassName()}
         />
@@ -1027,24 +1018,22 @@ function AssignmentPartEditor({
             <div className="mb-3 rounded-lg border-l-4 border-amber-600 bg-amber-50/80 p-3 dark:bg-amber-950/20">
               <label className="block text-xs text-jw-muted">
                 Referência da lição
-                <input
-                  type="text"
+                <EditableTextField
                   value={part?.lessonRef ?? ''}
-                  onChange={(e) =>
-                    onPatchPartContent!(assignment.id, { lessonRef: e.target.value })
-                  }
+                  onChange={(value) => onPatchPartContent!(assignment.id, { lessonRef: value })}
                   placeholder="Ex.: lmd lição 5 ponto 5"
                   className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
                 />
               </label>
               <label className="mt-2 block text-xs text-jw-muted">
                 Pontos principais da lição
-                <textarea
-                  value={part?.lessonSummary ?? ''}
-                  onChange={(e) =>
-                    onPatchPartContent!(assignment.id, { lessonSummary: e.target.value })
-                  }
+                <EditableTextField
+                  multiline
                   rows={3}
+                  value={part?.lessonSummary ?? ''}
+                  onChange={(value) =>
+                    onPatchPartContent!(assignment.id, { lessonSummary: value })
+                  }
                   placeholder="Resumo do ponto principal que a apostila pede para considerar…"
                   className="mt-1 w-full rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
                 />
@@ -1059,12 +1048,11 @@ function AssignmentPartEditor({
           {!isStudent && !shouldHideChairmanHighlight(assignment) && part?.highlight !== undefined ? (
             <label className="mb-3 block text-xs text-jw-muted">
               Destaque
-              <textarea
-                value={part.highlight ?? ''}
-                onChange={(e) =>
-                  onPatchPartContent!(assignment.id, { highlight: e.target.value })
-                }
+              <EditableTextField
+                multiline
                 rows={2}
+                value={part.highlight ?? ''}
+                onChange={(value) => onPatchPartContent!(assignment.id, { highlight: value })}
                 className={fieldClassName()}
               />
             </label>
@@ -1072,24 +1060,22 @@ function AssignmentPartEditor({
           {isStudent ? (
             <label className="block text-xs text-jw-muted">
               Lembrete
-              <textarea
-                value={part?.reminder ?? resolveChairmanStudentReminder(part, assignment)}
-                onChange={(e) =>
-                  onPatchPartContent!(assignment.id, { reminder: e.target.value })
-                }
+              <EditableTextField
+                multiline
                 rows={4}
+                value={part?.reminder ?? resolveChairmanStudentReminder(part, assignment)}
+                onChange={(value) => onPatchPartContent!(assignment.id, { reminder: value })}
                 className={fieldClassName()}
               />
             </label>
           ) : (
             <label className="block text-xs text-jw-muted">
               Transição
-              <textarea
-                value={part?.transition ?? ''}
-                onChange={(e) =>
-                  onPatchPartContent!(assignment.id, { transition: e.target.value })
-                }
+              <EditableTextField
+                multiline
                 rows={3}
+                value={part?.transition ?? ''}
+                onChange={(value) => onPatchPartContent!(assignment.id, { transition: value })}
                 className={fieldClassName()}
               />
             </label>
@@ -1098,4 +1084,4 @@ function AssignmentPartEditor({
       ) : null}
     </article>
   );
-}
+});

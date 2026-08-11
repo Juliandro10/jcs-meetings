@@ -304,6 +304,7 @@ export default function App() {
     return wrapWithSelectionTools(
       <ReaderPage
         target={reader}
+        week={week ?? null}
         weekLabel={week?.label ?? ''}
         bibleReading={week?.bibleReading}
         downloadProgressMap={downloadProgressMap}

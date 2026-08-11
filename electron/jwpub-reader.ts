@@ -445,6 +445,10 @@ export async function resolveCachedPubPath(
     return tryAccess(path.join(cacheDir, 'lfb_T_.jwpub'));
   }
 
+  if (normalized === 'wcg') {
+    return tryAccess(path.join(cacheDir, 'wcg_T_.jwpub'));
+  }
+
   const variants = pubCacheKeyVariants(pub);
 
   if (issue) {

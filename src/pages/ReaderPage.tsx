@@ -10,6 +10,7 @@ import { DiscourseScriptEditorPage } from '@/pages/DiscourseScriptEditorPage';
 import { isDiscourseScriptNote } from '../../shared/discourse-script';
 import { StudyBookReader } from '@/components/StudyBookReader';
 import type { ReaderOpenTarget } from '@/pages/MeetingsPage';
+import type { MeetingWeek } from '@/lib/meeting-types';
 import {
   applyHighlight,
   serializeSelection,
@@ -22,12 +23,23 @@ import type { ResolveLinkResult, StudyBookStoryRef } from '../../electron/types'
 type StudyBookSession = {
   href: string;
   linkLabel?: string;
+  pub: 'lfb' | 'wcg';
   stories: StudyBookStoryRef[];
   currentIndex: number;
 };
 
+const STUDY_BOOK_LABELS: Record<'lfb' | 'wcg', string> = {
+  lfb: 'Aprenda com as Histórias da Bíblia',
+  wcg: 'Ande Corajosamente com Deus',
+};
+
+function isStudyBookPub(pub: string): pub is 'lfb' | 'wcg' {
+  return pub === 'lfb' || pub === 'wcg';
+}
+
 type ReaderPageProps = {
   target: ReaderOpenTarget;
+  week: MeetingWeek | null;
   weekLabel: string;
   bibleReading?: string;
   downloadProgressMap: Record<string, number>;
@@ -46,6 +58,7 @@ function getSelectedTextFromReader() {
 
 export function ReaderPage({
   target,
+  week,
   weekLabel,
   bibleReading,
   downloadProgressMap,
@@ -91,16 +104,18 @@ export function ReaderPage({
 
   const activeStory = studyBookSession?.stories[studyBookSession.currentIndex] ?? null;
 
+  const studyBookPub = studyBookSession?.pub ?? 'lfb';
+
   const loadNotes = useCallback(async () => {
     if (!window.jcs?.getNotes || !target.issue) return;
-    const pub = studyBookSession ? 'lfb' : target.pub;
+    const pub = studyBookSession ? studyBookPub : target.pub;
     const issue = studyBookSession ? '' : target.issue;
     const documentId = studyBookSession ? activeStory?.documentId : target.documentId;
     if (!documentId) return;
 
     const loaded = await window.jcs.getNotes({ pub, issue, documentId });
     setNotes(loaded);
-  }, [activeStory?.documentId, studyBookSession, target.documentId, target.issue, target.pub]);
+  }, [activeStory?.documentId, studyBookPub, studyBookSession, target.documentId, target.issue, target.pub]);
 
   useEffect(() => {
     void loadNotes();
@@ -112,15 +127,15 @@ export function ReaderPage({
 
   const prepTarget = useMemo(() => {
     if (studyBookSession && activeStory?.documentId) {
-      return { pub: 'lfb' as const, issue: '', documentId: activeStory.documentId };
+      return { pub: studyBookPub, issue: '', documentId: activeStory.documentId };
     }
     return { pub: target.pub, issue: target.issue ?? '', documentId: target.documentId };
-  }, [activeStory?.documentId, studyBookSession, target.documentId, target.issue, target.pub]);
+  }, [activeStory?.documentId, studyBookPub, studyBookSession, target.documentId, target.issue, target.pub]);
 
   const persistNote = useCallback(
     (note: DocumentNote) => {
       if (!window.jcs?.saveNote) return;
-      if (prepTarget.pub !== 'lfb' && !prepTarget.issue) return;
+      if (!isStudyBookPub(prepTarget.pub) && !prepTarget.issue) return;
       if (saveNoteTimerRef.current) clearTimeout(saveNoteTimerRef.current);
       saveNoteTimerRef.current = setTimeout(() => {
         void window.jcs
@@ -143,7 +158,7 @@ export function ReaderPage({
   }, []);
 
   const createNoteFromSelection = useCallback(async () => {
-    if (prepTarget.pub !== 'lfb' && !prepTarget.issue) return;
+    if (!isStudyBookPub(prepTarget.pub) && !prepTarget.issue) return;
     const root = document.querySelector<HTMLElement>('.jwpub-content');
     if (!root) return;
 
@@ -198,7 +213,7 @@ export function ReaderPage({
 
   const deleteActiveNote = useCallback(async () => {
     if (!activeNoteId || !window.jcs?.removeNote) return;
-    if (prepTarget.pub !== 'lfb' && !prepTarget.issue) return;
+    if (!isStudyBookPub(prepTarget.pub) && !prepTarget.issue) return;
 
     const root = document.querySelector<HTMLElement>('.jwpub-content');
     if (root) removeNoteAnchor(root, activeNoteId);
@@ -295,6 +310,7 @@ export function ReaderPage({
         setStudyBookSession({
           href: refreshed.studyBook.href,
           linkLabel: refreshed.studyBook.linkLabel,
+          pub: refreshed.studyBook.pub ?? 'lfb',
           stories: refreshed.studyBook.stories.filter((s) => s.documentId > 0),
           currentIndex: 0,
         });
@@ -310,14 +326,16 @@ export function ReaderPage({
 
   const openStudyBookFromReference = useCallback((ref: ResolveLinkResult) => {
     const stories = ref.studyBook?.stories.filter((story) => story.documentId > 0) ?? [];
+    const pub = ref.studyBook?.pub ?? 'lfb';
     if (!ref.studyBook || stories.length === 0) {
-      setAutoPrepMessage('Baixe o livro lfb para abrir as histórias.');
+      setAutoPrepMessage(`Baixe o livro ${STUDY_BOOK_LABELS[pub]} para abrir o estudo.`);
       return;
     }
 
     setStudyBookSession({
       href: ref.studyBook.href,
       linkLabel: ref.studyBook.linkLabel,
+      pub,
       stories,
       currentIndex: 0,
     });
@@ -338,13 +356,17 @@ export function ReaderPage({
     openStudyBookFromReference(reference);
   }, [openStudyBookFromReference, reference]);
 
-  const handleLfbPrep = useCallback(async () => {
-    if (!window.jcs?.lfbPrep || !studyBookSession || !activeStory?.documentId) return;
+  const handleStudyBookPrep = useCallback(async () => {
+    if (!studyBookSession || !activeStory?.documentId) return;
+
+    const prepFn =
+      studyBookPub === 'wcg' ? window.jcs?.wcgPrep : window.jcs?.lfbPrep;
+    if (!prepFn) return;
 
     setLfbPrepping(true);
     setLfbPrepMessage(null);
 
-    const result = await window.jcs.lfbPrep({
+    const result = await prepFn({
       documentIds: [activeStory.documentId],
       weekLabel,
     });
@@ -352,13 +374,16 @@ export function ReaderPage({
     setLfbPrepping(false);
 
     if (!result.ok) {
-      setLfbPrepMessage(result.error ?? 'Falha ao preparar lições.');
+      setLfbPrepMessage(
+        result.error ??
+          (studyBookPub === 'wcg' ? 'Falha ao preparar o estudo.' : 'Falha ao preparar lições.'),
+      );
       return;
     }
 
     await studyReaderRef.current?.reloadDocument();
     const highlights = await window.jcs.getHighlights({
-      pub: 'lfb',
+      pub: studyBookPub,
       issue: '',
       documentId: activeStory.documentId,
     });
@@ -368,20 +393,25 @@ export function ReaderPage({
     setPanelOpen(true);
     setPanelTab('references');
 
+    const unitLabel = studyBookPub === 'wcg' ? 'Estudo preparado' : 'Lições preparadas';
     setLfbPrepMessage(
-      `Lições preparadas: ${result.highlights?.length ?? 0} grifo(s) e ${result.notes?.length ?? 0} resposta(s).`,
+      `${unitLabel}: ${result.highlights?.length ?? 0} grifo(s) e ${result.notes?.length ?? 0} nota(s)/resposta(s).`,
     );
-  }, [activeStory?.documentId, loadNotes, studyBookSession, weekLabel]);
+  }, [activeStory?.documentId, loadNotes, studyBookPub, studyBookSession, weekLabel]);
 
-  const handleLfbClearPrep = useCallback(async () => {
+  const handleStudyBookClearPrep = useCallback(async () => {
     if (!window.jcs?.clearDocumentPrep || !studyBookSession || !activeStory?.documentId) return;
-    if (!window.confirm('Limpar grifos, notas e respostas preenchidas desta história?')) return;
+    const confirmMessage =
+      studyBookPub === 'wcg'
+        ? 'Limpar grifos, notas de condução e respostas deste capítulo?'
+        : 'Limpar grifos, notas e respostas preenchidas desta história?';
+    if (!window.confirm(confirmMessage)) return;
 
     setClearingPrep(true);
     setLfbPrepMessage(null);
 
     const removed = await window.jcs.clearDocumentPrep({
-      pub: 'lfb',
+      pub: studyBookPub,
       issue: '',
       documentId: activeStory.documentId,
     });
@@ -393,7 +423,7 @@ export function ReaderPage({
     setLfbPrepMessage(
       `Preparação limpa: ${removed.highlights} grifo(s), ${removed.fields} campo(s) e ${removed.notes} nota(s) removidos.`,
     );
-  }, [activeStory?.documentId, studyBookSession]);
+  }, [activeStory?.documentId, studyBookPub, studyBookSession]);
 
   const applyHighlightColor = useCallback(
     async (color: HighlightColorId) => {
@@ -568,10 +598,11 @@ export function ReaderPage({
     [],
   );
 
-  if (fullEditorOpen && activeNote && isDiscourseScriptNote(activeNote) && target.issue) {
+  if (fullEditorOpen && activeNote && isDiscourseScriptNote(activeNote) && target.issue && week) {
     return (
       <DiscourseScriptEditorPage
         note={activeNote}
+        week={week}
         weekLabel={weekLabel}
         bibleReading={bibleReading}
         pub={target.pub}
@@ -603,6 +634,10 @@ export function ReaderPage({
           storyTitle={activeStory.title}
           storyIndex={studyBookSession.currentIndex}
           storyCount={studyBookSession.stories.length}
+          bookLabel={STUDY_BOOK_LABELS[studyBookPub]}
+          enableStudyPrep
+          prepPrepareLabel={studyBookPub === 'wcg' ? 'Preparar estudo' : 'Preparar lições'}
+          prepClearLabel={studyBookPub === 'wcg' ? 'Limpar preparação' : 'Limpar preparação'}
           prepping={lfbPrepping}
           clearingPrep={clearingPrep}
           prepMessage={lfbPrepMessage}
@@ -615,7 +650,7 @@ export function ReaderPage({
           reader={
             <PublicationReader
               ref={studyReaderRef}
-              pub="lfb"
+              pub={studyBookPub}
               documentId={activeStory.documentId}
               issue=""
               onStudyNotesUpdated={loadNotes}
@@ -647,8 +682,8 @@ export function ReaderPage({
                 : current,
             );
           }}
-          onPrepareLessons={() => void handleLfbPrep()}
-          onClearPrep={() => void handleLfbClearPrep()}
+          onPrepareLessons={() => void handleStudyBookPrep()}
+          onClearPrep={() => void handleStudyBookClearPrep()}
           onPanelClose={() => setPanelOpen(false)}
           onPanelOpen={() => setPanelOpen(true)}
           onPanelTabChange={setPanelTab}
@@ -669,7 +704,7 @@ export function ReaderPage({
         />
         <DownloadPublicationModal
           open={downloadModalOpen}
-          title={reference?.download?.label ?? 'Aprenda com as Histórias da Bíblia'}
+          title={reference?.download?.label ?? STUDY_BOOK_LABELS[studyBookPub]}
           sizeMb={reference?.download?.sizeMb}
           downloading={downloading}
           downloadPercent={activeDownloadPercent}

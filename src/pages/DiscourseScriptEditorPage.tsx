@@ -4,11 +4,13 @@ import { BibleLinkedEditor } from '@/components/BibleLinkedEditor';
 import { IconChevronLeft } from '@/components/Icons';
 import { readBibleEdition } from '@/lib/bible-edition';
 import type { DocumentNote } from '@/lib/note-dom';
+import type { MeetingWeek } from '@/lib/meeting-types';
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
 import type { ResolveLinkResult } from '../../electron/types';
 
 type DiscourseScriptEditorPageProps = {
   note: DocumentNote;
+  week: MeetingWeek;
   weekLabel: string;
   bibleReading?: string;
   pub: string;
@@ -20,6 +22,7 @@ type DiscourseScriptEditorPageProps = {
 
 export function DiscourseScriptEditorPage({
   note,
+  week,
   weekLabel,
   bibleReading,
   pub,
@@ -31,7 +34,7 @@ export function DiscourseScriptEditorPage({
   const [value, setValue] = useState(note.body);
   const [title, setTitle] = useState(note.title);
   const [saving, setSaving] = useState(false);
-  const [exporting, setExporting] = useState<'doc' | 'pdf' | null>(null);
+  const [exporting, setExporting] = useState<'doc' | 'pdf' | 'tablet' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<SidePanelTab>('references');
@@ -111,6 +114,31 @@ export function DiscourseScriptEditorPage({
     [bibleReading, reference, title, weekLabel],
   );
 
+  const handleExportTablet = async () => {
+    if (!window.jcs?.exportReadPreparedPart) {
+      setMessage('Exportação para tablet disponível apenas no app Electron.');
+      return;
+    }
+    setExporting('tablet');
+    setMessage(null);
+    try {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        await persist(value, title);
+      }
+      const result = await window.jcs.exportReadPreparedPart(week, note.id, {
+        preferLastFolder: true,
+      });
+      if (result.ok) {
+        setMessage('Roteiro exportado para o tablet. Envie jcs-read.zip ao JCS Read.');
+      } else {
+        setMessage(result.error ?? 'Não foi possível exportar para o tablet.');
+      }
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const handleExport = async (format: 'doc' | 'pdf') => {
     if (!window.jcs?.exportDiscourseScript) {
       setMessage('Exportação disponível apenas no app Electron.');
@@ -159,6 +187,14 @@ export function DiscourseScriptEditorPage({
         </div>
         <div className="flex items-center gap-2">
           {saving ? <span className="text-xs text-jw-muted">Salvando…</span> : null}
+          <button
+            type="button"
+            disabled={!!exporting}
+            onClick={() => void handleExportTablet()}
+            className="rounded-lg border border-jw-purple/40 bg-jw-purple/5 px-3 py-1.5 text-sm text-jw-purple hover:bg-jw-purple-light disabled:opacity-50"
+          >
+            {exporting === 'tablet' ? 'Exportando…' : 'Exportar pro tablet'}
+          </button>
           <button
             type="button"
             disabled={!!exporting}

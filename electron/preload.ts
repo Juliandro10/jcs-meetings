@@ -25,6 +25,8 @@ import type {
   JcsMeetingsRestoreResult,
   LfbPrepParams,
   LfbPrepResult,
+  WcgPrepParams,
+  WcgPrepResult,
   ListElderOutlineDocumentsResult,
   MeetingWeek,
   NwtLanguageOption,
@@ -185,6 +187,8 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:export-discourse-script', params),
   lfbPrep: (params: LfbPrepParams): Promise<LfbPrepResult> =>
     ipcRenderer.invoke('jcs:lfb-prep', params),
+  wcgPrep: (params: WcgPrepParams): Promise<WcgPrepResult> =>
+    ipcRenderer.invoke('jcs:wcg-prep', params),
   getNotes: (params: { pub: string; issue: string; documentId: number }) =>
     ipcRenderer.invoke('jcs:get-notes', params),
   saveNote: (params: {
@@ -203,11 +207,22 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:get-week-meeting-summary', week),
   exportReadWeek: (
     week: MeetingWeek,
-    options?: { preferLastFolder?: boolean },
+    options?: { preferLastFolder?: boolean; preparedPartNoteIds?: string[] },
   ): Promise<JcsReadExportResult> =>
     ipcRenderer.invoke('jcs:export-read-week', {
       week,
       preferLastFolder: options?.preferLastFolder ?? false,
+      preparedPartNoteIds: options?.preparedPartNoteIds,
+    }),
+  exportReadPreparedPart: (
+    week: MeetingWeek,
+    noteId: string,
+    options?: { preferLastFolder?: boolean },
+  ): Promise<JcsReadExportResult> =>
+    ipcRenderer.invoke('jcs:export-read-prepared-part', {
+      week,
+      noteId,
+      preferLastFolder: options?.preferLastFolder ?? true,
     }),
   setPublicTalkNote: (params: { weekId: string; value: string }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('jcs:set-public-talk-note', params),
@@ -512,6 +527,7 @@ declare global {
         value: string;
       }) => Promise<{ ok: boolean; error?: string }>;
       lfbPrep: (params: LfbPrepParams) => Promise<LfbPrepResult>;
+      wcgPrep: (params: WcgPrepParams) => Promise<WcgPrepResult>;
       getNotes: (params: { pub: string; issue: string; documentId: number }) => Promise<DocumentNote[]>;
       saveNote: (params: {
         pub: string;
@@ -534,6 +550,11 @@ declare global {
       getWeekMeetingSummary: (week: MeetingWeek) => Promise<WeekMeetingSummaryResult>;
       exportReadWeek: (
         week: MeetingWeek,
+        options?: { preferLastFolder?: boolean; preparedPartNoteIds?: string[] },
+      ) => Promise<JcsReadExportResult>;
+      exportReadPreparedPart: (
+        week: MeetingWeek,
+        noteId: string,
         options?: { preferLastFolder?: boolean },
       ) => Promise<JcsReadExportResult>;
       setPublicTalkNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;

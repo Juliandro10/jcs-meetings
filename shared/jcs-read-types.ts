@@ -5,6 +5,7 @@ export const JCS_READ_FORMAT = 1 as const;
 export type JcsReadDocumentKind =
   | 'mwb'
   | 'prepared-parts'
+  | 'prepared-part'
   | 'cbs'
   | 'w'
   | 'chairman'

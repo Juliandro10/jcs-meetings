@@ -284,6 +284,135 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.jcs-wcg-conductor-guide {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #c4b5fd;
+  border-radius: 10px;
+  background: #f5f3ff;
+}
+
+.jcs-wcg-conductor-guide-title {
+  margin: 0 0 0.5rem;
+  color: #4c1d95;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.jcs-wcg-conductor-guide-intro {
+  margin: 0 0 0.75rem;
+  color: #5b21b6;
+  font-size: 14px;
+}
+
+.jcs-wcg-conductor-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.jcs-wcg-conductor-steps li + li {
+  margin-top: 0.45rem;
+}
+
+.jcs-wcg-skip {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.jcs-wcg-chapter-header {
+  margin: 0 0 1.25rem;
+}
+
+.jcs-wcg-chapter-kicker {
+  margin: 0 0 0.25rem;
+  color: #6b7280;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.jcs-wcg-chapter-title {
+  margin: 0;
+  color: #4c1d95;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.jcs-wcg-aprenda-omitted {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 14px;
+}
+
+.jcs-wcg-section {
+  margin: 1.5rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.jcs-wcg-section-head {
+  margin-bottom: 0.75rem;
+}
+
+.jcs-wcg-section-step {
+  margin: 0 0 0.2rem;
+  color: #7c3aed;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.jcs-wcg-section-title {
+  margin: 0;
+  color: #4c1d95;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.jcs-wcg-image-hint {
+  margin: 0 0 0.75rem;
+  color: #6b7280;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.jcs-wcg-download-hint {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.jcs-wcg-answer {
+  margin: 0.35rem 0 1rem 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-left: 3px solid #7c3aed;
+  background: #f5f3ff;
+  border-radius: 0 8px 8px 0;
+}
+
+.jcs-wcg-answer-label {
+  margin: 0 0 0.35rem;
+  color: #6d28d9;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.jcs-wcg-answer-body {
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .prose-bible p {
   margin: 0.65rem 0;
 }

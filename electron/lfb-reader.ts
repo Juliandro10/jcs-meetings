@@ -321,7 +321,12 @@ export async function resolveLfbStudyLink(
   const label = linkLabel?.trim() || (storyNumbers.length ? `lfb histórias ${storyNumbers.join('-')}` : 'lfb');
 
   const bookLabel = 'Aprenda com as Histórias da Bíblia';
-  const studyBook = { href, linkLabel, stories: [] as Array<{ documentId: number; storyNumber: number; title: string }> };
+  const studyBook = {
+    href,
+    linkLabel,
+    pub: 'lfb' as const,
+    stories: [] as Array<{ documentId: number; storyNumber: number; title: string }>,
+  };
 
   if (downloaded) {
     try {
@@ -389,25 +394,4 @@ export async function resolveLfbStudyLink(
   };
 }
 
-export function extractCbsStudyFromHtml(html: string) {
-  const blockRe = /<(p|li)[^>]*\bdata-pid="(\d+)"[^>]*>([\s\S]*?)<\/\1>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = blockRe.exec(html)) !== null) {
-    const inner = match[3];
-    if (!/lfb/i.test(inner)) continue;
-
-    const hrefMatch = inner.match(/href="(jwpub:\/\/p\/[^"]+)"/i);
-    if (!hrefMatch) continue;
-
-    const linkLabel = stripHtml(inner.match(/<a[^>]*>([\s\S]*?)<\/a>/i)?.[1] ?? inner);
-    return {
-      blockId: match[2],
-      href: hrefMatch[1],
-      linkLabel,
-      mepsDocumentIds: parseMepsIdsFromHref(hrefMatch[1]),
-    };
-  }
-
-  return undefined;
-}
+export { extractCbsStudyFromHtml } from '../shared/cbs-study-parse';

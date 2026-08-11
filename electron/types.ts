@@ -108,6 +108,7 @@ export type ResolveLinkResult = {
   studyBook?: {
     href: string;
     linkLabel?: string;
+    pub?: 'lfb' | 'wcg';
     stories: StudyBookStoryRef[];
   };
   error?: string;
@@ -125,6 +126,13 @@ export type LfbPrepResult = {
   error?: string;
   preparedDocuments?: number;
 };
+
+export type WcgPrepParams = {
+  documentIds: number[];
+  weekLabel?: string;
+};
+
+export type WcgPrepResult = LfbPrepResult;
 
 export type AiChatMessage = {
   role: 'user' | 'assistant';

@@ -4,6 +4,8 @@ import { MEETING_PUBLICATIONS } from '@/lib/types';
 import { DownloadProgressBar, getDownloadPercent } from '@/components/DownloadProgressBar';
 import { IconChevronLeft, IconChevronRight, IconCloudDownload, IconMore, IconOutlinePodium } from '@/components/Icons';
 import { AiToolsMenu } from '@/components/AiToolsMenu';
+import { PreparedPartsExportDialog } from '@/components/PreparedPartsExportDialog';
+import { isDiscourseScriptNote } from '../../shared/discourse-script';
 
 export type ReaderOpenTarget = {
   pub: 'mwb' | 'w';
@@ -50,10 +52,63 @@ export function MeetingsPage({
   const [aiOpen, setAiOpen] = useState(false);
   const [exportingRead, setExportingRead] = useState(false);
   const [exportReadMessage, setExportReadMessage] = useState<string | null>(null);
+  const [preparedExportOpen, setPreparedExportOpen] = useState(false);
+  const [preparedExportNotes, setPreparedExportNotes] = useState<
+    Awaited<ReturnType<NonNullable<typeof window.jcs>['getNotes']>>
+  >([]);
 
   const week = weeks[weekIndex];
   const weekLabel = week ? `${week.label}${week.isCurrentWeek ? ' · Esta semana' : ''}` : '—';
   const initialLoading = loadingWeeks && weeks.length === 0;
+
+  const runTabletExport = (preparedPartNoteIds?: string[]) => {
+    if (!window.jcs?.exportReadWeek || !week) return;
+    setExportReadMessage(null);
+    setExportingRead(true);
+    void window.jcs
+      .exportReadWeek(week, { preparedPartNoteIds })
+      .then((result) => {
+        if (result.ok) {
+          const warning = result.warnings?.length ? ` ${result.warnings.join(' ')}` : '';
+          setExportReadMessage(
+            `Exportado (${result.documentCount ?? 0} documento(s)). Envie jcs-read.zip ao tablet.${warning}`,
+          );
+        } else {
+          setExportReadMessage(result.error ?? 'Não foi possível exportar.');
+        }
+      })
+      .catch((err) => {
+        setExportReadMessage(err instanceof Error ? err.message : 'Erro ao exportar.');
+      })
+      .finally(() => {
+        setExportingRead(false);
+        setPreparedExportOpen(false);
+      });
+  };
+
+  const handleExportForTablet = async () => {
+    if (!window.jcs?.exportReadWeek || !week) return;
+
+    if (week.mwbDownloaded && week.mwbDocumentId && week.mwbIssue && window.jcs.getNotes) {
+      try {
+        const notes = await window.jcs.getNotes({
+          pub: 'mwb',
+          issue: week.mwbIssue,
+          documentId: week.mwbDocumentId,
+        });
+        const prepared = notes.filter((note) => isDiscourseScriptNote(note));
+        if (prepared.length > 0) {
+          setPreparedExportNotes(notes);
+          setPreparedExportOpen(true);
+          return;
+        }
+      } catch {
+        /* exporta semana inteira */
+      }
+    }
+
+    runTabletExport();
+  };
 
   if (initialLoading) {
     return (
@@ -128,28 +183,7 @@ export function MeetingsPage({
         <button
           type="button"
           disabled={exportingRead || !window.jcs?.exportReadWeek}
-          onClick={() => {
-            if (!window.jcs?.exportReadWeek) return;
-            setExportReadMessage(null);
-            setExportingRead(true);
-            void window.jcs
-              .exportReadWeek(week)
-              .then((result) => {
-                if (result.ok) {
-                  const warning =
-                    result.warnings?.length ? ` ${result.warnings.join(' ')}` : '';
-                  setExportReadMessage(
-                    `Exportado (${result.documentCount ?? 0} documento(s)): apostila, partes preparadas (se houver), estudo de congregação (se houver) e sentinela. Envie jcs-read.zip ao tablet.${warning}`,
-                  );
-                } else {
-                  setExportReadMessage(result.error ?? 'Não foi possível exportar.');
-                }
-              })
-              .catch((err) => {
-                setExportReadMessage(err instanceof Error ? err.message : 'Erro ao exportar.');
-              })
-              .finally(() => setExportingRead(false));
-          }}
+          onClick={() => void handleExportForTablet()}
           className="inline-flex items-center gap-2 rounded-full border border-jw-border bg-white px-5 py-2 text-sm font-medium text-jw-text shadow-sm hover:border-jw-purple/40 hover:text-jw-purple disabled:opacity-50"
         >
           {exportingRead ? 'Exportando…' : 'Exportar para tablet (JCS Read)'}
@@ -158,6 +192,15 @@ export function MeetingsPage({
           <p className="max-w-md text-center text-xs text-jw-muted">{exportReadMessage}</p>
         ) : null}
       </div>
+
+      <PreparedPartsExportDialog
+        open={preparedExportOpen}
+        weekLabel={week.label}
+        notes={preparedExportNotes}
+        exporting={exportingRead}
+        onCancel={() => setPreparedExportOpen(false)}
+        onConfirm={(noteIds) => runTabletExport(noteIds)}
+      />
 
       <MeetingSection title="Vida e Ministério">
         {week.mwbDownloaded && week.mwbDocumentId ? (

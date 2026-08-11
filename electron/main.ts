@@ -8,6 +8,7 @@ import { webcrypto } from 'node:crypto';
 import { runAutoPrep } from './auto-prep';
 import { runFullDiscoursePrep } from './full-discourse-prep';
 import { runLfbPrep } from './lfb-prep';
+import { runWcgPrep } from './wcg-prep';
 import { runAiChat } from './ai-assistant';
 import { prepareAiChatParams } from './ai-context';
 import { loadEnvFile } from './env';
@@ -103,8 +104,9 @@ import { parseChairmanDesignationFile } from './chairman-designation-import';
 import { weekTargetMismatch } from './chairman-designation-ai';
 import { generateChairmanPrepContent } from './chairman-prep-generate';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
+import { buildWcgChapterMeetingHtml } from '../shared/wcg-chapter-parse';
 import { formatUnknownError } from '../shared/format-unknown-error';
-import { exportWeekForJcsRead } from './jcs-read-export';
+import { exportPreparedPartForJcsRead, exportWeekForJcsRead } from './jcs-read-export';
 import { alignChairmanPrepRecordWithMwb, alignDesignationDocumentWithMwb } from './chairman-mwb-align';
 import { enrichChairmanPrepBibleReading } from './chairman-prep-enrich';
 import {
@@ -185,6 +187,7 @@ import type {
   DocumentNote,
   GetDocumentHtmlParams,
   LfbPrepParams,
+  WcgPrepParams,
   ResolveLinkParams,
   SetFieldValueParams,
   MeetingWeek,
@@ -251,6 +254,40 @@ function sendDownloadProgress(event: IpcMainInvokeEvent, progress: DownloadProgr
 }
 
 function registerIpc() {
+  async function resolveJcsReadExportRoot(preferLastFolder?: boolean) {
+    const defaultPath = path.join(app.getPath('documents'), 'JCS');
+    const lastRoot = await loadJcsReadExportRoot(getUserDataRoot(), defaultPath);
+    let exportRoot: string | undefined;
+
+    if (preferLastFolder && lastRoot) {
+      try {
+        await fs.access(lastRoot);
+        exportRoot = lastRoot;
+      } catch {
+        exportRoot = undefined;
+      }
+    }
+
+    if (!exportRoot) {
+      const pick = await dialog.showOpenDialog({
+        title: 'Pasta JCS — gera jcs-read.zip para o tablet (JCS Read)',
+        defaultPath: lastRoot ?? defaultPath,
+        properties: ['openDirectory', 'createDirectory'],
+      });
+      if (pick.canceled || !pick.filePaths[0]) {
+        return { ok: false as const, error: 'Exportação cancelada.' };
+      }
+      exportRoot = pick.filePaths[0];
+    }
+
+    if (!exportRoot?.trim()) {
+      return { ok: false as const, error: 'Escolha uma pasta válida para exportar.' };
+    }
+
+    await saveJcsReadExportRoot(getUserDataRoot(), exportRoot);
+    return { ok: true as const, exportRoot };
+  }
+
   ipcMain.handle('jw:download-pub', async (event, params: { pub: string; issue: string; lang?: string }) => {
     const lang = params.lang ?? 'T';
     const key = `${params.pub}_${params.issue}`;
@@ -315,7 +352,9 @@ function registerIpc() {
         const label =
           params.pub === 'lfb'
             ? 'Livro lfb não baixado. Baixe a publicação primeiro.'
-            : isElderGuidelinePubSymbol(params.pub)
+            : params.pub === 'wcg'
+              ? 'Livro Ande Corajosamente com Deus não baixado. Baixe a publicação primeiro.'
+              : isElderGuidelinePubSymbol(params.pub)
               ? 'Orientação não encontrada. Importe o .jwpub em Elder → Orientações.'
               : params.pub.startsWith('s-') || params.pub.startsWith('ca-')
                 ? 'Esboço não encontrado. Copie o .jwpub para a pasta publications do JCS.'
@@ -325,13 +364,16 @@ function registerIpc() {
       const issue =
         params.issue ??
         (params.pub === 'lfb' ||
+        params.pub === 'wcg' ||
         params.pub.startsWith('s-') ||
         isElderGuidelinePubSymbol(params.pub) ||
         params.pub.startsWith('ca-')
           ? ''
           : path.basename(filePath).match(/_(\d{6})\.jwpub$/)?.[1]);
       const prepared = await getPreparedDocumentHtml(filePath, params.documentId);
-      return { ok: true, html: prepared.html, publicationCss: prepared.publicationCss, issue: issue ?? '' };
+      const html =
+        params.pub === 'wcg' ? buildWcgChapterMeetingHtml(prepared.html) : prepared.html;
+      return { ok: true, html, publicationCss: prepared.publicationCss, issue: issue ?? '' };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao abrir documento';
       return { ok: false, error: message };
@@ -566,6 +608,10 @@ function registerIpc() {
     runLfbPrep(getCacheDir(), getUserDataDir(), params),
   );
 
+  ipcMain.handle('jcs:wcg-prep', async (_event, params: WcgPrepParams) =>
+    runWcgPrep(getCacheDir(), getUserDataDir(), params),
+  );
+
   ipcMain.handle(
     'jcs:get-notes',
     async (_event, params: { pub: string; issue: string; documentId: number }) => {
@@ -637,54 +683,69 @@ function registerIpc() {
     'jcs:export-read-week',
     async (
       _event,
-      params: { week: MeetingWeek; preferLastFolder?: boolean },
+      params: { week: MeetingWeek; preferLastFolder?: boolean; preparedPartNoteIds?: string[] },
     ) => {
       try {
         if (!params?.week?.id) {
           return { ok: false, error: 'Semana inválida para exportação.' };
         }
 
-        const defaultPath = path.join(app.getPath('documents'), 'JCS');
-        const lastRoot = await loadJcsReadExportRoot(getUserDataRoot(), defaultPath);
-        let exportRoot: string | undefined;
-
-        if (params.preferLastFolder && lastRoot) {
-          try {
-            await fs.access(lastRoot);
-            exportRoot = lastRoot;
-          } catch {
-            exportRoot = undefined;
-          }
-        }
-
-        if (!exportRoot) {
-          const pick = await dialog.showOpenDialog({
-            title: 'Pasta JCS — gera jcs-read.zip para o tablet (JCS Read)',
-            defaultPath: lastRoot,
-            properties: ['openDirectory', 'createDirectory'],
-          });
-          if (pick.canceled || !pick.filePaths[0]) {
-            return { ok: false, error: 'Exportação cancelada.' };
-          }
-          exportRoot = pick.filePaths[0];
-        }
-
-        if (!exportRoot?.trim()) {
-          return { ok: false, error: 'Escolha uma pasta válida para exportar.' };
-        }
-
-        await saveJcsReadExportRoot(getUserDataRoot(), exportRoot);
+        const resolved = await resolveJcsReadExportRoot(params.preferLastFolder);
+        if (!resolved.ok) return resolved;
 
         return await exportWeekForJcsRead({
-          exportRoot,
+          exportRoot: resolved.exportRoot,
           cacheDir: getCacheDir(),
           userDataRoot: getUserDataRoot(),
           userDataDir: getUserDataDir(),
           week: params.week,
+          preparedPartNoteIds: params.preparedPartNoteIds,
         });
       } catch (err) {
         const message = formatUnknownError(err, 'Erro ao exportar para tablet');
         console.error('[jcs:export-read-week]', err);
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:export-read-prepared-part',
+    async (
+      _event,
+      params: { week: MeetingWeek; noteId: string; preferLastFolder?: boolean },
+    ) => {
+      try {
+        if (!params?.week?.id || !params.noteId?.trim()) {
+          return { ok: false, error: 'Roteiro inválido para exportação.' };
+        }
+        if (!params.week.mwbIssue || !params.week.mwbDocumentId) {
+          return { ok: false, error: 'Baixe a apostila desta semana antes de exportar.' };
+        }
+
+        const notes = await getNotes(
+          getUserDataDir(),
+          'mwb',
+          params.week.mwbIssue,
+          params.week.mwbDocumentId,
+        );
+        const note = notes.find((item) => item.id === params.noteId);
+        if (!note) {
+          return { ok: false, error: 'Roteiro não encontrado.' };
+        }
+
+        const resolved = await resolveJcsReadExportRoot(params.preferLastFolder ?? true);
+        if (!resolved.ok) return resolved;
+
+        return await exportPreparedPartForJcsRead({
+          exportRoot: resolved.exportRoot,
+          userDataDir: getUserDataDir(),
+          week: params.week,
+          note,
+        });
+      } catch (err) {
+        const message = formatUnknownError(err, 'Erro ao exportar roteiro para tablet');
+        console.error('[jcs:export-read-prepared-part]', err);
         return { ok: false, error: message };
       }
     },

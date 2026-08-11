@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { ChairmanAssignment, ParsedChairmanDesignation } from '../../shared/chairman-prep-types';
+import { formatAssigneesText, parseAssigneesText } from '@/components/EditableTextField';
 
 type ChairmanDesignationReviewDialogProps = {
   fileName: string;
@@ -18,6 +19,8 @@ type ChairmanDesignationReviewDialogProps = {
   onConfirm: (document: ParsedChairmanDesignation) => void;
   onCancel: () => void;
 };
+
+type ReviewRow = ParsedChairmanDesignation['assignments'][number] & { rowId: string };
 
 function sectionLabel(section: ChairmanAssignment['section']) {
   switch (section) {
@@ -38,6 +41,10 @@ function sectionLabel(section: ChairmanAssignment['section']) {
   }
 }
 
+function inputClassName() {
+  return 'rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text';
+}
+
 export function ChairmanDesignationReviewDialog({
   fileName,
   document: initial,
@@ -50,26 +57,53 @@ export function ChairmanDesignationReviewDialog({
   onConfirm,
   onCancel,
 }: ChairmanDesignationReviewDialogProps) {
-  const [doc, setDoc] = useState(initial);
+  const formId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [rows] = useState<ReviewRow[]>(() =>
+    initial.assignments.map((item) => ({ ...item, rowId: crypto.randomUUID() })),
+  );
+  const [meta] = useState(() => ({
+    chairmanName: initial.chairmanName ?? '',
+    meetingDate: initial.meetingDate ?? '',
+    bibleReading: initial.bibleReading ?? '',
+  }));
 
-  const patchAssignment = useCallback((index: number, patch: Partial<ChairmanAssignment>) => {
-    setDoc((prev) => ({
-      ...prev,
-      assignments: prev.assignments.map((item, i) =>
-        i === index ? { ...item, ...patch } : item,
-      ),
-    }));
-  }, []);
+  const assigneesDefaults = useMemo(
+    () => rows.map((item) => formatAssigneesText(item.assignees)),
+    [rows],
+  );
 
-  const patchAssignees = useCallback((index: number, value: string) => {
-    const assignees = value
-      .split(/[,/|]/)
-      .map((name) => name.trim())
-      .filter(Boolean);
-    patchAssignment(index, { assignees });
-  }, [patchAssignment]);
+  const confirm = () => {
+    const form = formRef.current;
+    if (!form) return;
 
-  const canConfirm = doc.assignments.some((item) => item.partTitle.trim());
+    const data = new FormData(form);
+    const chairmanName = String(data.get('chairmanName') ?? '').trim();
+    const meetingDate = String(data.get('meetingDate') ?? '').trim();
+    const bibleReading = String(data.get('bibleReading') ?? '').trim();
+
+    const assignments = rows.map((item, index) => {
+      const partTitle = String(data.get(`partTitle-${item.rowId}`) ?? '').trim();
+      const assigneesRaw = String(data.get(`assignees-${item.rowId}`) ?? assigneesDefaults[index] ?? '');
+      return {
+        section: item.section,
+        partTitle,
+        durationMin: item.durationMin,
+        assignees: parseAssigneesText(assigneesRaw),
+        partTitleManual: item.partTitleManual,
+      };
+    });
+
+    if (!assignments.some((item) => item.partTitle)) return;
+
+    onConfirm({
+      ...initial,
+      chairmanName: chairmanName || undefined,
+      meetingDate: meetingDate || undefined,
+      bibleReading: bibleReading || undefined,
+      assignments,
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
@@ -109,7 +143,7 @@ export function ChairmanDesignationReviewDialog({
           ) : weeksFound && weeksFound > 1 ? (
             <div className="mt-3 rounded-lg border border-emerald-300/60 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950/40 dark:text-emerald-100">
               Folha com {weeksFound} semanas — extraído o bloco de{' '}
-              <strong>{doc.meetingDate ?? doc.bibleReading ?? 'semana selecionada'}</strong>.
+              <strong>{meta.meetingDate || meta.bibleReading || 'semana selecionada'}</strong>.
             </div>
           ) : null}
 
@@ -125,43 +159,51 @@ export function ChairmanDesignationReviewDialog({
           ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <form
+          id={formId}
+          ref={formRef}
+          className="min-h-0 flex-1 overflow-y-auto px-5 py-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            confirm();
+          }}
+        >
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs text-jw-muted">
               Presidente
               <input
                 type="text"
-                value={doc.chairmanName ?? ''}
-                onChange={(e) => setDoc((prev) => ({ ...prev, chairmanName: e.target.value }))}
-                className="rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
+                name="chairmanName"
+                defaultValue={meta.chairmanName}
+                className={inputClassName()}
+                autoComplete="off"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs text-jw-muted">
               Data da reunião
               <input
                 type="text"
-                value={doc.meetingDate ?? ''}
-                onChange={(e) => setDoc((prev) => ({ ...prev, meetingDate: e.target.value }))}
-                className="rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
+                name="meetingDate"
+                defaultValue={meta.meetingDate}
+                className={inputClassName()}
+                autoComplete="off"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs text-jw-muted sm:col-span-2">
               Leitura bíblica
               <input
                 type="text"
-                value={doc.bibleReading ?? ''}
-                onChange={(e) => setDoc((prev) => ({ ...prev, bibleReading: e.target.value }))}
-                className="rounded-lg border border-jw-border bg-jw-bg px-3 py-2 text-sm text-jw-text"
+                name="bibleReading"
+                defaultValue={meta.bibleReading}
+                className={inputClassName()}
+                autoComplete="off"
               />
             </label>
           </div>
 
           <ul className="space-y-3">
-            {doc.assignments.map((item, index) => (
-              <li
-                key={`${item.partTitle}-${index}`}
-                className="rounded-lg border border-jw-border bg-jw-bg/50 p-3"
-              >
+            {rows.map((item, index) => (
+              <li key={item.rowId} className="rounded-lg border border-jw-border bg-jw-bg/50 p-3">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-jw-purple/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-jw-purple">
                     {sectionLabel(item.section)}
@@ -174,25 +216,27 @@ export function ChairmanDesignationReviewDialog({
                   Parte
                   <input
                     type="text"
-                    value={item.partTitle}
-                    onChange={(e) => patchAssignment(index, { partTitle: e.target.value, partTitleManual: true })}
-                    className="rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+                    name={`partTitle-${item.rowId}`}
+                    defaultValue={item.partTitle}
+                    className={inputClassName()}
+                    autoComplete="off"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs text-jw-muted">
                   Designado(s)
                   <input
                     type="text"
-                    value={item.assignees.join(' / ')}
-                    onChange={(e) => patchAssignees(index, e.target.value)}
+                    name={`assignees-${item.rowId}`}
+                    defaultValue={assigneesDefaults[index]}
                     placeholder="Nome ou par no ministério"
-                    className="rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-text"
+                    className={inputClassName()}
+                    autoComplete="off"
                   />
                 </label>
               </li>
             ))}
           </ul>
-        </div>
+        </form>
 
         <div className="flex justify-end gap-2 border-t border-jw-border px-5 py-4">
           <button
@@ -203,10 +247,9 @@ export function ChairmanDesignationReviewDialog({
             Cancelar
           </button>
           <button
-            type="button"
-            disabled={!canConfirm}
-            onClick={() => onConfirm(doc)}
-            className="rounded-lg bg-jw-purple px-4 py-2 text-sm text-white hover:bg-jw-purple-dark disabled:opacity-50"
+            type="submit"
+            form={formId}
+            className="rounded-lg bg-jw-purple px-4 py-2 text-sm text-white hover:bg-jw-purple-dark"
           >
             Confirmar designações
           </button>

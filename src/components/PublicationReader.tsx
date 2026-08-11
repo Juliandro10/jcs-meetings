@@ -7,6 +7,7 @@ import {
 } from '@/lib/highlight-dom';
 import { applyAllNoteAnchors, repositionNoteMarkers, type DocumentNote } from '@/lib/note-dom';
 import { buildLfbStudyFieldsHtml, isLfbStudyFieldId, LFB_STUDY_QUESTIONS } from '@/lib/lfb-study-fields';
+import { injectWcgPrepAnswers, isWcgStudyPrepNote } from '@/lib/wcg-study-notes';
 import { setupAutoResizeTextarea } from '@/lib/auto-resize-textarea';
 import { applyPublicationCss } from '@/lib/jwpub-publication-styles';
 import { SelectionContextMenu } from '@/components/SelectionContextMenu';
@@ -188,7 +189,12 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
                 issue: resolved,
                 documentId,
               });
-        if (notes?.length) applyAllNoteAnchors(root, notes);
+        if (notes?.length) {
+          applyAllNoteAnchors(root, notes);
+          if (pub === 'wcg') {
+            injectWcgPrepAnswers(root, notes.filter((note) => isWcgStudyPrepNote(note)));
+          }
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Erro ao carregar matéria';
         setError(message);

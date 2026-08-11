@@ -12,6 +12,7 @@ public final class DocumentUi {
         if (doc.id != null) {
             if ("mwb".equals(doc.id)) return "mwb";
             if ("prepared-parts".equals(doc.id)) return "prepared-parts";
+            if (doc.id.startsWith("prepared-part-")) return "prepared-part";
             if ("cbs".equals(doc.id)) return "cbs";
             if ("w".equals(doc.id)) return "w";
             if ("chairman".equals(doc.id)) return "chairman";
@@ -21,6 +22,7 @@ public final class DocumentUi {
         if (doc.file != null) {
             if ("mwb.html".equals(doc.file)) return "mwb";
             if ("prepared-parts.html".equals(doc.file)) return "prepared-parts";
+            if (doc.file.startsWith("roteiro-") && doc.file.endsWith(".html")) return "prepared-part";
             if ("cbs.html".equals(doc.file)) return "cbs";
             if ("w.html".equals(doc.file)) return "w";
             if ("chairman.html".equals(doc.file)) return "chairman";
@@ -30,14 +32,14 @@ public final class DocumentUi {
     }
 
     public static String sectionKeyForKind(String kind) {
-        if ("mwb".equals(kind) || "prepared-parts".equals(kind)) return "mwb";
+        if ("mwb".equals(kind) || "prepared-parts".equals(kind) || "prepared-part".equals(kind)) return "mwb";
         if ("cbs".equals(kind)) return "cbs";
         if ("w".equals(kind)) return "w";
         return "other";
     }
 
     public static int thumbDrawableForKind(String kind) {
-        if ("mwb".equals(kind) || "prepared-parts".equals(kind)) {
+        if ("mwb".equals(kind) || "prepared-parts".equals(kind) || "prepared-part".equals(kind)) {
             return R.drawable.thumb_placeholder_mwb;
         }
         if ("cbs".equals(kind)) {
@@ -71,7 +73,7 @@ public final class DocumentUi {
 
     public static int documentOrder(String kind) {
         if ("mwb".equals(kind)) return 0;
-        if ("prepared-parts".equals(kind)) return 1;
+        if ("prepared-parts".equals(kind) || "prepared-part".equals(kind)) return 1;
         if ("cbs".equals(kind)) return 2;
         if ("w".equals(kind)) return 3;
         return 4;
@@ -86,6 +88,9 @@ public final class DocumentUi {
             return doc.title != null && doc.title.length() > 0
                 ? doc.title
                 : context.getString(R.string.doc_prepared_parts);
+        }
+        if ("prepared-part".equals(kind)) {
+            return doc.title != null && doc.title.length() > 0 ? doc.title : "Roteiro";
         }
         if ("cbs".equals(kind)) {
             return weekLabel != null && weekLabel.length() > 0 ? weekLabel : doc.title;
@@ -113,6 +118,9 @@ public final class DocumentUi {
             return doc.title;
         }
         if ("prepared-parts".equals(kind) && bibleReading != null && bibleReading.length() > 0) {
+            return bibleReading;
+        }
+        if ("prepared-part".equals(kind) && bibleReading != null && bibleReading.length() > 0) {
             return bibleReading;
         }
         return null;

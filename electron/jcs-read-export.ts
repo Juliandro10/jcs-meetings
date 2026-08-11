@@ -3,7 +3,13 @@ import path from 'node:path';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { parseDiscourseThemeFromNote, sanitizeJcsReadFileSlug } from '../shared/jcs-read-discourse';
 import { DISCOURSE_SCRIPT_TAG } from '../shared/discourse-script';
-import { prepareDiscourseBodyHtml } from '../shared/discourse-manuscript-html';
+import {
+  buildPreparedPartInnerHtml,
+  preparedPartDisplayTitle,
+  preparedPartDocumentId,
+  preparedPartFileName,
+} from '../shared/jcs-read-prepared-part';
+import { linkifyBibleCitationsHtml } from '../src/lib/bible-citation';
 import {
   buildJcsReadDocumentHtml,
   buildJcsReadOutlineHtml,
@@ -47,14 +53,6 @@ const CATALOG_FILE = 'catalog.json';
 
 function weekFolderName(week: MeetingWeek) {
   return week.id.replace(/[^\w-]/g, '_');
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 function isDiscourseScriptNote(note: PrepNote) {
@@ -159,43 +157,168 @@ async function exportPublicationDocument(params: {
   await writeTextFile(params.outFile, html);
 }
 
-async function exportPreparedPartsDocument(params: {
+async function exportPreparedPartDocuments(params: {
   userDataDir: string;
   pub: 'mwb';
   issue: string;
   documentId: number;
-  weekLabel: string;
-  outFile: string;
-}) {
+  week: MeetingWeek;
+  weekDir: string;
+  noteIds?: string[];
+}): Promise<JcsReadWeekDocument[]> {
   const allNotes = await getNotes(
     params.userDataDir,
     params.pub,
     params.issue,
     params.documentId,
   );
-  const notes = allNotes.filter(isDiscourseScriptNote);
-  if (notes.length === 0) return false;
+  let notes = allNotes.filter(isDiscourseScriptNote);
+  if (params.noteIds) {
+    const selected = new Set(params.noteIds);
+    notes = notes.filter((note) => selected.has(note.id));
+  }
+  if (notes.length === 0) return [];
 
-  const bodyHtml = notes
-    .map((note) => {
-      const rich = isRichOutlineContent(note.body)
-        ? outlineValueToBodyHtml(note.body)
-        : `<p>${escapeHtml(note.body).replace(/\n/g, '<br>')}</p>`;
-      return `<section class="jcs-prepared-part">
-  <h2>${escapeHtml(note.title || 'Roteiro')}</h2>
-  <div class="jcs-outline-body">${prepareDiscourseBodyHtml(rich)}</div>
-</section>`;
-    })
-    .join('\n');
+  const linkifySegment = (text: string) => linkifyBibleCitationsHtml(text, 'all');
+  const documents: JcsReadWeekDocument[] = [];
 
-  const html = buildJcsReadDocumentHtml({
-    title: 'Partes preparadas',
-    subtitle: params.weekLabel,
-    bodyHtml,
-  });
+  for (const note of notes) {
+    const fileName = preparedPartFileName(note);
+    const docId = preparedPartDocumentId(note.id);
+    const title = preparedPartDisplayTitle(note.title || 'Roteiro');
+    const outlineHtml = buildPreparedPartInnerHtml(note.body, linkifySegment);
+    const html = buildJcsReadOutlineHtml({
+      title,
+      subtitle: `${params.week.label} · ${params.week.bibleReading}`,
+      outlineHtml,
+    });
 
-  await writeTextFile(params.outFile, html);
-  return true;
+    await writeTextFile(path.join(params.weekDir, fileName), html);
+    documents.push({
+      id: docId,
+      kind: 'prepared-part',
+      title,
+      file: fileName,
+    });
+  }
+
+  return documents;
+}
+
+async function removeLegacyPreparedPartsExport(weekDir: string) {
+  const legacyFile = path.join(weekDir, 'prepared-parts.html');
+  try {
+    await fs.unlink(legacyFile);
+  } catch {
+    /* already removed */
+  }
+}
+
+async function mergePreparedPartDocuments(params: {
+  weekDir: string;
+  week: MeetingWeek;
+  newDocuments: JcsReadWeekDocument[];
+  removeOtherPreparedParts?: boolean;
+}) {
+  const manifestPath = path.join(params.weekDir, 'week.json');
+  let manifest: JcsReadWeekManifest;
+
+  try {
+    const raw = await fs.readFile(manifestPath, 'utf8');
+    manifest = JSON.parse(raw) as JcsReadWeekManifest;
+  } catch {
+    manifest = {
+      format: JCS_READ_FORMAT,
+      weekId: params.week.id,
+      label: params.week.label,
+      bibleReading: params.week.bibleReading,
+      dateIso: params.week.dateIso,
+      exportedAt: new Date().toISOString(),
+      documents: [],
+    };
+  }
+
+  manifest.weekId = params.week.id;
+  manifest.label = params.week.label;
+  manifest.bibleReading = params.week.bibleReading;
+  manifest.dateIso = params.week.dateIso;
+  manifest.exportedAt = new Date().toISOString();
+  manifest.format = JCS_READ_FORMAT;
+
+  manifest.documents = manifest.documents.filter(
+    (doc) => doc.id !== 'prepared-parts' && doc.kind !== 'prepared-parts',
+  );
+
+  if (params.removeOtherPreparedParts) {
+    const keepIds = new Set(params.newDocuments.map((doc) => doc.id));
+    manifest.documents = manifest.documents.filter(
+      (doc) => doc.kind !== 'prepared-part' || keepIds.has(doc.id),
+    );
+  }
+
+  for (const doc of params.newDocuments) {
+    const index = manifest.documents.findIndex((item) => item.id === doc.id);
+    if (index >= 0) {
+      manifest.documents[index] = doc;
+    } else {
+      manifest.documents.push(doc);
+    }
+  }
+
+  await removeLegacyPreparedPartsExport(params.weekDir);
+  await writeTextFile(manifestPath, JSON.stringify(manifest, null, 2));
+  return manifest;
+}
+
+export async function exportPreparedPartForJcsRead(params: {
+  exportRoot: string;
+  userDataDir: string;
+  week: MeetingWeek;
+  note: PrepNote;
+}): Promise<JcsReadExportResult> {
+  try {
+    if (!params.week.mwbIssue || !params.week.mwbDocumentId) {
+      return { ok: false, error: 'Baixe a apostila desta semana antes de exportar o roteiro.' };
+    }
+
+    const folder = weekFolderName(params.week);
+    const weekDir = path.join(params.exportRoot, 'weeks', folder);
+    await ensureDir(weekDir);
+
+    const documents = await exportPreparedPartDocuments({
+      userDataDir: params.userDataDir,
+      pub: 'mwb',
+      issue: params.week.mwbIssue,
+      documentId: params.week.mwbDocumentId,
+      week: params.week,
+      weekDir,
+      noteIds: [params.note.id],
+    });
+
+    if (documents.length === 0) {
+      return { ok: false, error: 'Roteiro não encontrado para exportação.' };
+    }
+
+    const manifest = await mergePreparedPartDocuments({
+      weekDir,
+      week: params.week,
+      newDocuments: documents,
+    });
+
+    await upsertCatalog(params.exportRoot, params.week, folder);
+    const zipPath = await writeJcsReadZip(params.exportRoot);
+
+    return {
+      ok: true,
+      folderPath: weekDir,
+      zipPath,
+      weekId: params.week.id,
+      documentCount: manifest.documents.length,
+    };
+  } catch (err) {
+    console.error('[exportPreparedPartForJcsRead]', err);
+    return { ok: false, error: formatUnknownError(err, 'Erro ao exportar roteiro para tablet') };
+  }
 }
 
 async function upsertCatalog(exportRoot: string, week: MeetingWeek, folder: string) {
@@ -238,6 +361,7 @@ export async function exportWeekForJcsRead(params: {
   userDataRoot: string;
   userDataDir: string;
   week: MeetingWeek;
+  preparedPartNoteIds?: string[];
 }): Promise<JcsReadExportResult> {
   try {
     const folder = weekFolderName(params.week);
@@ -269,22 +393,17 @@ export async function exportWeekForJcsRead(params: {
         file: 'mwb.html',
       });
 
-      const hasPreparedParts = await exportPreparedPartsDocument({
+      const preparedPartDocs = await exportPreparedPartDocuments({
         userDataDir: params.userDataDir,
         pub: 'mwb',
         issue: params.week.mwbIssue,
         documentId: params.week.mwbDocumentId,
-        weekLabel: params.week.label,
-        outFile: path.join(weekDir, 'prepared-parts.html'),
+        week: params.week,
+        weekDir,
+        noteIds: params.preparedPartNoteIds,
       });
-      if (hasPreparedParts) {
-        documents.push({
-          id: 'prepared-parts',
-          kind: 'prepared-parts',
-          title: 'Partes preparadas',
-          file: 'prepared-parts.html',
-        });
-      }
+      documents.push(...preparedPartDocs);
+      await removeLegacyPreparedPartsExport(weekDir);
 
       try {
         const mwbPath = await resolveCachedPubPath(params.cacheDir, 'mwb', params.week.mwbIssue);
@@ -299,6 +418,7 @@ export async function exportWeekForJcsRead(params: {
               linkLabel: cbsStudy.linkLabel,
               weekLabel: params.week.label,
               assetsDir,
+              pub: cbsStudy.pub,
             });
             if (cbsHtml) {
               await writeTextFile(path.join(weekDir, 'cbs.html'), cbsHtml);
@@ -309,7 +429,11 @@ export async function exportWeekForJcsRead(params: {
                 file: 'cbs.html',
               });
             } else {
-              warnings.push('Estudo de congregação: baixe o livro lfb e prepare as histórias.');
+              const bookLabel =
+                cbsStudy.pub === 'wcg'
+                  ? 'Ande Corajosamente com Deus'
+                  : 'Aprenda com as Histórias da Bíblia';
+              warnings.push(`Estudo de congregação: baixe o livro ${bookLabel} e prepare o capítulo.`);
             }
           }
         }
@@ -390,8 +514,20 @@ export async function exportWeekForJcsRead(params: {
           chairmanRaw,
         )
       : null;
-    if (chairman?.content) {
-      chairman = await enrichChairmanPrepBibleReading(params.cacheDir, params.week, chairman);
+    const shouldExportChairman =
+      chairman &&
+      (Boolean(chairman.content) ||
+        chairman.assignments.length > 0 ||
+        Boolean(chairman.chairmanName?.trim()));
+    if (shouldExportChairman) {
+      try {
+        chairman = await enrichChairmanPrepBibleReading(params.cacheDir, params.week, chairman);
+      } catch (err) {
+        console.warn('[exportWeekForJcsRead] enrich chairman skipped', err);
+        warnings.push(
+          'Folha do presidente exportada sem alguns links automáticos (cânticos/leitura).',
+        );
+      }
       const html = buildChairmanPrepHtml(chairman, { tablet: true });
       await writeTextFile(path.join(weekDir, 'chairman.html'), html);
       documents.push({

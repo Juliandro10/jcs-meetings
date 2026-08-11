@@ -8,6 +8,10 @@ type StudyBookReaderProps = {
   storyTitle: string;
   storyIndex: number;
   storyCount: number;
+  bookLabel: string;
+  enableStudyPrep?: boolean;
+  prepPrepareLabel?: string;
+  prepClearLabel?: string;
   prepping: boolean;
   clearingPrep?: boolean;
   prepMessage: string | null;
@@ -42,6 +46,10 @@ export function StudyBookReader({
   storyTitle,
   storyIndex,
   storyCount,
+  bookLabel,
+  enableStudyPrep = true,
+  prepPrepareLabel = 'Preparar lições',
+  prepClearLabel = 'Limpar preparação',
   prepping,
   clearingPrep = false,
   prepMessage,
@@ -84,8 +92,8 @@ export function StudyBookReader({
             {storyNumber}. {storyTitle}
           </p>
           <p className="truncate text-xs text-jw-muted">
-            {weekLabel} · Aprenda com as Histórias da Bíblia
-            {storyCount > 1 ? ` · História ${storyIndex + 1}/${storyCount}` : ''}
+            {weekLabel} · {bookLabel}
+            {storyCount > 1 ? ` · ${prepPrepareLabel.includes('lições') ? 'História' : 'Capítulo'} ${storyIndex + 1}/${storyCount}` : ''}
           </p>
           {prepMessage ? <p className="truncate text-xs text-jw-purple">{prepMessage}</p> : null}
         </div>
@@ -104,16 +112,20 @@ export function StudyBookReader({
               </ToolbarButton>
             </>
           ) : null}
-          <ToolbarButton
-            label="Limpar preparação desta história"
-            onClick={onClearPrep}
-            disabled={prepping || clearingPrep || !onClearPrep}
-          >
-            {clearingPrep ? 'Limpando…' : 'Limpar preparação'}
-          </ToolbarButton>
-          <ToolbarButton label="Preparar lições desta história" onClick={onPrepareLessons} disabled={prepping || clearingPrep}>
-            {prepping ? 'Preparando…' : 'Preparar lições'}
-          </ToolbarButton>
+          {enableStudyPrep ? (
+            <>
+              <ToolbarButton
+                label={prepClearLabel}
+                onClick={onClearPrep}
+                disabled={prepping || clearingPrep || !onClearPrep}
+              >
+                {clearingPrep ? 'Limpando…' : prepClearLabel}
+              </ToolbarButton>
+              <ToolbarButton label={prepPrepareLabel} onClick={onPrepareLessons} disabled={prepping || clearingPrep}>
+                {prepping ? 'Preparando…' : prepPrepareLabel}
+              </ToolbarButton>
+            </>
+          ) : null}
           {!panelOpen ? (
             <ToolbarButton
               label="Abrir referências e notas"

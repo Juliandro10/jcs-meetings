@@ -173,6 +173,48 @@ export const JW_CBS_STUDY_RULES = [
   'Inclua em "fields" com fieldId study-q1, study-q2, study-q3.',
 ].join('\n');
 
+/** Preparação — livro Ande Corajosamente com Deus (wcg). */
+export const JW_WCG_PREP_RULES = [
+  '## Livro Ande Corajosamente com Deus — preparação do condutor (OBRIGATÓRIO)',
+  '- Leia o capítulo inteiro antes de responder.',
+  '- Tom de quem CONDUZ o estudo na reunião — claro, respeitoso, vocabulário JW.',
+  '- Siga a ordem oficial do livro (infográfico do condutor): narrativa → relato na Bíblia → controle do tempo → perguntas → imagens.',
+  '- **NÃO** inclua a seção "Aprenda mais" na condução — é só para pesquisa pessoal.',
+  '- **Controle de tamanho**: respostas equilibradas (3 a 6 frases por pergunta); nota do condutor: 180 a 320 palavras.',
+].join('\n');
+
+/** Grifos no capítulo wcg. */
+export const JW_WCG_HIGHLIGHT_RULES = [
+  '## Grifos no capítulo (OBRIGATÓRIO — livro wcg)',
+  '- Grife trechos da **narrativa** e do **relato na Bíblia** que sustentam "Para considerar" e as perguntas do capítulo.',
+  '- **8 a 14 grifos** no total — aparência de livro já preparado.',
+  '- Priorize a narrativa (primeiras páginas) e frases que destacam coragem, fé e lições práticas.',
+  '- "text" = trecho EXATO do parágrafo — frase completa (8 a 30 palavras).',
+  '- NÃO grife títulos de seção, listas inteiras de versículos nem legendas de imagem.',
+].join('\n');
+
+/** Respostas às perguntas do capítulo wcg. */
+export const JW_WCG_QUESTION_RULES = [
+  '## Perguntas do capítulo (OBRIGATÓRIO)',
+  '- Responda TODAS as perguntas listadas (noteId exato em questionAnswers).',
+  '- Cada "body": **3 a 6 frases** equilibradas, baseadas no capítulo e nas Escrituras citadas.',
+  '- Vocabulário JW; cite fatos do relato (nomes, ações, lugares) quando couber.',
+  '- Para comparações (ex.: Sara e a esposa de Ló): estruture a resposta com paralelos claros.',
+  '- A nota "wcg-conductor" NÃO substitui as respostas — é roteiro separado para o condutor.',
+].join('\n');
+
+/** Nota de condução do estudo wcg. */
+export const JW_WCG_CONDUCTOR_RULES = [
+  '## Nota de condução (conductorNote — OBRIGATÓRIO)',
+  'Roteiro para o condutor conduzir os ~30 min do EBC neste capítulo:',
+  '1) **Narrativa** — o que destacar na leitura das duas primeiras páginas.',
+  '2) **Relato na Bíblia** — quais textos principais ler (não precisa ler todos os versículos); ligue a "Para considerar".',
+  '3) **Tempo** — como dividir o tempo para caber as perguntas da segunda metade.',
+  '4) **Perguntas** — breve orientação para Análise mais a fundo, Medite e Pense no quadro completo.',
+  '5) **Imagens** — sugira comentários para cada ilustração mencionada no capítulo.',
+  '6) Lembrete: **Aprenda mais** fica fora da reunião.',
+].join('\n');
+
 /** Notas estilo condução da tribuna (JCS-ELDER — não usar na parte comum). */
 export const JW_TRIBUNE_NOTE_RULES = [
   '## Notas para conduzir da tribuna (OBRIGATÓRIO)',

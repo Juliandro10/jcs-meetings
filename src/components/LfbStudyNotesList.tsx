@@ -1,5 +1,11 @@
 import type { DocumentNote } from '@/lib/note-dom';
 import { isLfbStudyFieldId } from '@/lib/lfb-study-fields';
+import {
+  isWcgConductorNoteId,
+  isWcgQuestionNoteId,
+  isWcgStudyPrepNote,
+  sortWcgStudyNotes,
+} from '@/lib/wcg-study-notes';
 
 type LfbStudyNotesListProps = {
   notes: DocumentNote[];
@@ -57,11 +63,33 @@ function NoteCards({
 export function LfbStudyNotesList({ notes, activeNoteId, onSelect }: LfbStudyNotesListProps) {
   const sabeNotes = notes.filter(isLfbSabeNote);
   const studyNotes = notes.filter((note) => isLfbStudyFieldId(note.id));
+  const wcgConductor = notes.find((note) => isWcgConductorNoteId(note.id));
+  const wcgQuestions = notes.filter((note) => isWcgQuestionNoteId(note.id));
 
-  if (sabeNotes.length === 0 && studyNotes.length === 0) return null;
+  if (sabeNotes.length === 0 && studyNotes.length === 0 && !wcgConductor && wcgQuestions.length === 0) {
+    return null;
+  }
 
   return (
     <div className="mb-4 space-y-4">
+      {wcgConductor ? (
+        <section>
+          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-jw-muted">
+            Condução do estudo
+          </h4>
+          <NoteCards items={[wcgConductor]} activeNoteId={activeNoteId} onSelect={onSelect} />
+        </section>
+      ) : null}
+
+      {wcgQuestions.length > 0 ? (
+        <section>
+          <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-jw-muted">
+            Respostas do capítulo
+          </h4>
+          <NoteCards items={sortWcgStudyNotes(wcgQuestions)} activeNoteId={activeNoteId} onSelect={onSelect} />
+        </section>
+      ) : null}
+
       {sabeNotes.length > 0 ? (
         <section>
           <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-jw-muted">
@@ -84,6 +112,15 @@ export function LfbStudyNotesList({ notes, activeNoteId, onSelect }: LfbStudyNot
 }
 
 export function sortLfbStudyNotes(notes: DocumentNote[]): DocumentNote[] {
+  const wcg = notes.filter(isWcgStudyPrepNote);
+  if (wcg.length > 0) {
+    const rest = notes.filter((note) => !isWcgStudyPrepNote(note));
+    return [...sortWcgStudyNotes(wcg), ...sortLfbOnlyNotes(rest)];
+  }
+  return sortLfbOnlyNotes(notes);
+}
+
+function sortLfbOnlyNotes(notes: DocumentNote[]): DocumentNote[] {
   const studyOrder = ['study-q1', 'study-q2', 'study-q3'];
 
   return [...notes].sort((a, b) => {

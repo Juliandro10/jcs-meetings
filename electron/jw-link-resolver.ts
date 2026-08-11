@@ -1,5 +1,6 @@
 import { fetchBibleVerseOnline, fetchPublicationExtractOnline, fetchWolDocumentOnline } from './jw-online-search';
 import { isLfbStudyLink, resolveLfbStudyLink } from './lfb-reader';
+import { isWcgStudyLink, resolveWcgStudyLink } from './wcg-reader';
 import type { Database } from 'sql.js';
 import { BIBLE_EDITION_LABELS, ensureBiblePath, type BibleEdition } from './bible-edition';
 import { getStudyNotesHtmlForVerse } from './bible-study-notes';
@@ -301,6 +302,10 @@ export async function resolveJwpubLink(
 
     if (href.startsWith('jwpub://p/')) {
       const normalized = normalizeExtractLink(href);
+      if (isWcgStudyLink(href, params.linkLabel)) {
+        const wcg = await resolveWcgStudyLink(cacheDir, href, params.linkLabel);
+        if (wcg.ok) return wcg;
+      }
       if (isLfbStudyLink(href, params.linkLabel)) {
         const lfb = await resolveLfbStudyLink(cacheDir, href, params.linkLabel);
         if (lfb.ok) return lfb;

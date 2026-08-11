@@ -5,6 +5,8 @@ import {
   loadLfbStoriesFromCache,
   type LfbStory,
 } from './lfb-reader';
+import { loadWcgChapterFromCache, WCG_BOOK_LABEL, WCG_ISSUE, WCG_PUB } from './wcg-reader';
+import { buildWcgChapterMeetingHtml } from '../shared/wcg-chapter-parse';
 import { isLfbStudyNoteId } from './lfb-study-notes';
 import { bakePreparedDocumentHtml, rewriteMediaUrlsForExport } from './jcs-read-bake';
 import { buildJcsReadDocumentHtml, buildJcsReadNotesSection } from '../shared/jcs-read-html';
@@ -117,7 +119,75 @@ export async function buildCbsStudyExportHtml(params: {
   linkLabel: string;
   weekLabel: string;
   assetsDir: string;
+  pub?: 'lfb' | 'wcg';
 }): Promise<string | null> {
+  const pub = params.pub ?? 'lfb';
+
+  if (pub === 'wcg') {
+    const jwpubPath = await resolveCachedPubPath(params.cacheDir, WCG_PUB, WCG_ISSUE);
+    if (!jwpubPath) return null;
+
+    let chapter;
+    try {
+      chapter = await loadWcgChapterFromCache(params.cacheDir, params.href, params.linkLabel);
+    } catch {
+      return null;
+    }
+
+    const prefix = documentPrepPrefix(WCG_PUB, WCG_ISSUE, chapter.documentId);
+    const fieldValues = await getFieldValues(params.userDataDir, prefix);
+    const highlights = await getHighlights(
+      params.userDataDir,
+      WCG_PUB,
+      WCG_ISSUE,
+      chapter.documentId,
+    );
+    const notes = await getNotes(params.userDataDir, WCG_PUB, WCG_ISSUE, chapter.documentId);
+
+    let bodyHtml = buildWcgChapterMeetingHtml(chapter.html);
+    bodyHtml = bakePreparedDocumentHtml({
+      html: bodyHtml,
+      pub: WCG_PUB,
+      issue: WCG_ISSUE,
+      documentId: chapter.documentId,
+      fieldValues,
+      highlights,
+    });
+
+    bodyHtml = await copyMediaAssets({
+      jwpubPath,
+      assetsDir: params.assetsDir,
+      html: bodyHtml,
+    });
+
+    const notesHtml = buildJcsReadNotesSection(
+      notes.map((note: PrepNote) => ({
+        id: note.id,
+        title: note.title,
+        body: note.body,
+        anchorText: note.anchorText,
+        tags: note.tags,
+      })),
+    );
+
+    const samplePrepared = await getPreparedDocumentHtml(jwpubPath, chapter.documentId);
+    const chapterTitle = chapter.chapterNumber
+      ? `Cap. ${chapter.chapterNumber} — ${chapter.title}`
+      : chapter.title;
+
+    return buildJcsReadDocumentHtml({
+      title: 'Estudo bíblico de congregação',
+      subtitle: `${params.weekLabel} · ${params.linkLabel}`,
+      bodyHtml: `
+<section class="jcs-cbs-story jcs-wcg-chapter-export">
+  <h2 class="jcs-cbs-story-title">${escapeHtml(chapterTitle)}</h2>
+  <div class="jcs-cbs-story-body jwpub-content">${bodyHtml}</div>
+  ${notesHtml}
+</section>`,
+      publicationCss: samplePrepared.publicationCss,
+    });
+  }
+
   const jwpubPath = await resolveCachedPubPath(params.cacheDir, LFB_PUB, LFB_ISSUE);
   if (!jwpubPath) return null;
 

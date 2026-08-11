@@ -136,6 +136,11 @@ html, body {
   padding: 0 2px;
 }
 .jcs-outline-body ul, .jcs-outline-body ol { margin: 0 0 10px 1.2em; padding: 0; }
+.jcs-bible-ref, a[data-href^="jwpub://b/"] {
+  color: #6d28d9;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .jcs-prepared-part {
   margin: 0 0 28px;
   padding-bottom: 20px;
@@ -178,6 +183,51 @@ html, body {
   font-size: 14px;
   margin: 10px 0 4px;
   color: #374151;
+}
+.jcs-wcg-conductor-guide {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  background: #f5f3ff;
+}
+.jcs-wcg-conductor-guide-title {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  color: #4c1d95;
+  margin: 0 0 8px;
+}
+.jcs-wcg-conductor-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #374151;
+}
+.jcs-wcg-section {
+  margin: 24px 0;
+  padding-top: 16px;
+  border-top: 2px solid #e5e7eb;
+}
+.jcs-wcg-section-step {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+  text-transform: uppercase;
+}
+.jcs-wcg-section-title {
+  margin: 0 0 12px;
+  font-size: 17px;
+  color: #4c1d95;
+}
+.jcs-wcg-aprenda-omitted {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 14px;
 }
 `;
 
