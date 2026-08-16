@@ -101,6 +101,8 @@ export function ElderFieldServicePage({ onBack }: ElderFieldServicePageProps) {
   const [panelTab, setPanelTab] = useState<SidePanelTab>('references');
   const [referenceLoading, setReferenceLoading] = useState(false);
   const [reference, setReference] = useState<ResolveLinkResult | null>(null);
+  const [exportingRead, setExportingRead] = useState(false);
+  const [exportReadMessage, setExportReadMessage] = useState<string | null>(null);
 
   const week = weeks[weekIndex] ?? null;
   const previousWeek = weekIndex > 0 ? weeks[weekIndex - 1] : undefined;
@@ -231,6 +233,26 @@ export function ElderFieldServicePage({ onBack }: ElderFieldServicePageProps) {
     }
   };
 
+  const handleExportForTablet = async () => {
+    if (!week || !window.jcs?.exportReadFieldService) return;
+    setExportingRead(true);
+    setExportReadMessage(null);
+    try {
+      const result = await window.jcs.exportReadFieldService(week, { preferLastFolder: true });
+      if (result.ok) {
+        setExportReadMessage(
+          result.zipPath
+            ? `Exportado para o tablet. ZIP: ${result.zipPath}`
+            : 'Exportado para o tablet (JCS Read).',
+        );
+      } else {
+        setExportReadMessage(result.error ?? 'Não foi possível exportar.');
+      }
+    } finally {
+      setExportingRead(false);
+    }
+  };
+
   const handleUseSuggestion = (item: FieldServiceConsiderationSuggestion) => {
     setSelectedId(item.id);
     const parts = [
@@ -310,6 +332,20 @@ export function ElderFieldServicePage({ onBack }: ElderFieldServicePageProps) {
                 {week.bibleReading ? (
                   <p className="mt-2 text-sm text-jw-muted">Leitura bíblica: {week.bibleReading}</p>
                 ) : null}
+
+                <div className="mt-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    disabled={exportingRead || !window.jcs?.exportReadFieldService}
+                    onClick={() => void handleExportForTablet()}
+                    className="inline-flex items-center gap-2 rounded-full border border-jw-border bg-white px-4 py-2 text-sm font-medium text-jw-text shadow-sm hover:border-jw-purple/40 hover:text-jw-purple disabled:opacity-50"
+                  >
+                    {exportingRead ? 'Exportando…' : 'Exportar para tablet (JCS Read)'}
+                  </button>
+                  {exportReadMessage ? (
+                    <p className="text-xs text-jw-muted">{exportReadMessage}</p>
+                  ) : null}
+                </div>
 
                 {preview ? (
                   <div className="mt-4">

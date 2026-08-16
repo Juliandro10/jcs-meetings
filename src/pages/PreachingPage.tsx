@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { referencePlainText } from '@/components/AssistantChat';
-import { IconCloudDownload } from '@/components/Icons';
+import { IconChevronLeft, IconChevronRight, IconCloudDownload } from '@/components/Icons';
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
 import { readBibleEdition } from '@/lib/bible-edition';
 import { linkifyScriptureRef } from '@/lib/bible-citation';
@@ -9,6 +9,7 @@ import {
   type TeachingKitReaderTarget,
 } from '@/pages/TeachingKitPublicationReaderPage';
 import type {
+  MeetingWeek,
   PreachingContent,
   PreachingPubDocument,
   PreachingTopic,
@@ -22,7 +23,17 @@ import {
   type PreachingTruthPresentation,
 } from '../../shared/preaching-truth-presentations';
 
+function findWeekIndex(weeks: MeetingWeek[]) {
+  const current = weeks.findIndex((week) => week.isCurrentWeek);
+  return current >= 0 ? current : Math.max(0, weeks.length - 1);
+}
+
 export function PreachingPage() {
+  const [weeks, setWeeks] = useState<MeetingWeek[]>([]);
+  const [weekIndex, setWeekIndex] = useState(0);
+  const [loadingWeeks, setLoadingWeeks] = useState(true);
+  const [exportingRead, setExportingRead] = useState(false);
+  const [exportReadMessage, setExportReadMessage] = useState<string | null>(null);
   const [content, setContent] = useState<PreachingContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +46,43 @@ export function PreachingPage() {
   const [readerTarget, setReaderTarget] = useState<TeachingKitReaderTarget | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const week = weeks[weekIndex] ?? null;
+
+  const loadWeeks = useCallback(async () => {
+    if (!window.jcs?.loadMeetingWeeks) {
+      setLoadingWeeks(false);
+      return;
+    }
+    setLoadingWeeks(true);
+    try {
+      const result = await window.jcs.loadMeetingWeeks();
+      const items = result.weeks ?? [];
+      setWeeks(items);
+      setWeekIndex(findWeekIndex(items));
+    } finally {
+      setLoadingWeeks(false);
+    }
+  }, []);
+
+  const handleExportForTablet = useCallback(async () => {
+    if (!week || !window.jcs?.exportReadPreachingPresentations) return;
+    setExportingRead(true);
+    setExportReadMessage(null);
+    try {
+      const result = await window.jcs.exportReadPreachingPresentations(week, { preferLastFolder: true });
+      if (result.ok) {
+        setExportReadMessage(
+          result.zipPath
+            ? `Exportado para o tablet. ZIP: ${result.zipPath}`
+            : 'Exportado para o tablet (JCS Read).',
+        );
+      } else {
+        setExportReadMessage(result.error ?? 'Não foi possível exportar.');
+      }
+    } finally {
+      setExportingRead(false);
+    }
+  }, [week]);
 
   const reload = useCallback(async () => {
     if (!window.jcs?.loadPreaching) {
@@ -71,6 +119,10 @@ export function PreachingPage() {
     setReference(result);
     setReferenceLoading(false);
   }, []);
+
+  useEffect(() => {
+    void loadWeeks();
+  }, [loadWeeks]);
 
   useEffect(() => {
     void reload();
@@ -240,6 +292,52 @@ export function PreachingPage() {
                 {error}
               </div>
             ) : null}
+
+            <section className="mb-8 rounded-xl border border-jw-border bg-jw-surface p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-jw-muted">Semana</p>
+                  {loadingWeeks ? (
+                    <p className="mt-1 text-sm text-jw-muted">Carregando…</p>
+                  ) : week ? (
+                    <div className="mt-1 flex items-center gap-2">
+                      <button
+                        type="button"
+                        aria-label="Semana anterior"
+                        disabled={weekIndex <= 0}
+                        onClick={() => setWeekIndex(Math.max(0, weekIndex - 1))}
+                        className="rounded-lg p-1 text-jw-purple hover:bg-jw-purple-light disabled:opacity-40"
+                      >
+                        <IconChevronLeft className="h-5 w-5" />
+                      </button>
+                      <span className="text-sm font-medium text-jw-text">{week.label}</span>
+                      <button
+                        type="button"
+                        aria-label="Próxima semana"
+                        disabled={weekIndex >= weeks.length - 1}
+                        onClick={() => setWeekIndex(Math.min(weeks.length - 1, weekIndex + 1))}
+                        className="rounded-lg p-1 text-jw-purple hover:bg-jw-purple-light disabled:opacity-40"
+                      >
+                        <IconChevronRight className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm text-jw-muted">Nenhuma semana disponível.</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={exportingRead || !week || !window.jcs?.exportReadPreachingPresentations}
+                  onClick={() => void handleExportForTablet()}
+                  className="inline-flex items-center gap-2 rounded-full border border-jw-border bg-white px-4 py-2 text-sm font-medium text-jw-text shadow-sm hover:border-jw-purple/40 hover:text-jw-purple disabled:opacity-50"
+                >
+                  {exportingRead ? 'Exportando…' : 'Exportar para tablet (JCS Read)'}
+                </button>
+              </div>
+              {exportReadMessage ? (
+                <p className="mt-3 text-xs text-jw-muted">{exportReadMessage}</p>
+              ) : null}
+            </section>
 
             <section>
               <div className="mb-4 flex items-end justify-between gap-4">

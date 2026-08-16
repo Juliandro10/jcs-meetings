@@ -23,6 +23,16 @@ public final class HtmlLoader {
         final String htmlFileName,
         final WebView webView,
         final ProgressBar progress) {
+        loadWeekDocument(activity, weekFolder, htmlFileName, JcsPackage.MEETINGS, webView, progress);
+    }
+
+    public static void loadWeekDocument(
+        final Activity activity,
+        final String weekFolder,
+        final String htmlFileName,
+        final String pkg,
+        final WebView webView,
+        final ProgressBar progress) {
         if (progress != null) {
             progress.setVisibility(View.VISIBLE);
         }
@@ -32,7 +42,7 @@ public final class HtmlLoader {
                     @Override
                     public void run() {
                         try {
-                            final String html = prepareHtml(activity, weekFolder, htmlFileName);
+                            final String html = prepareHtml(activity, weekFolder, htmlFileName, pkg);
                             final LoadTarget target = buildLoadTarget(activity, html);
                             activity.runOnUiThread(
                                 new Runnable() {
@@ -62,11 +72,11 @@ public final class HtmlLoader {
     }
 
     private static String prepareHtml(
-        android.content.Context context, String weekFolder, String htmlFileName)
+        android.content.Context context, String weekFolder, String htmlFileName, String pkg)
         throws Exception {
         JcsRootAccess access = JcsRootAccess.from(context);
-        String html = access.readWeekHtml(weekFolder, htmlFileName);
-        html = access.rewriteAssetUrls(weekFolder, html);
+        String html = access.readWeekHtml(weekFolder, htmlFileName, pkg);
+        html = access.rewriteAssetUrls(weekFolder, html, pkg);
         html = BibleLinkHelper.rewriteHtmlLinks(html);
         html = SongLinkHelper.rewriteHtmlLinks(html);
         return HtmlViewportHelper.lockViewport(html);

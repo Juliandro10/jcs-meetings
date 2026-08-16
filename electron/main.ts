@@ -107,6 +107,10 @@ import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { buildWcgChapterMeetingHtml } from '../shared/wcg-chapter-parse';
 import { formatUnknownError } from '../shared/format-unknown-error';
 import { exportPreparedPartForJcsRead, exportWeekForJcsRead } from './jcs-read-export';
+import {
+  exportFieldServiceForJcsRead,
+  exportPreachingPresentationsForJcsRead,
+} from './jcs-read-preaching-export';
 import { alignChairmanPrepRecordWithMwb, alignDesignationDocumentWithMwb } from './chairman-mwb-align';
 import { enrichChairmanPrepBibleReading } from './chairman-prep-enrich';
 import {
@@ -746,6 +750,57 @@ function registerIpc() {
       } catch (err) {
         const message = formatUnknownError(err, 'Erro ao exportar roteiro para tablet');
         console.error('[jcs:export-read-prepared-part]', err);
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:export-read-preaching-presentations',
+    async (_event, params: { week: MeetingWeek; preferLastFolder?: boolean }) => {
+      try {
+        if (!params?.week?.id) {
+          return { ok: false, error: 'Semana inválida para exportação.' };
+        }
+
+        const resolved = await resolveJcsReadExportRoot(params.preferLastFolder ?? true);
+        if (!resolved.ok) return resolved;
+
+        return await exportPreachingPresentationsForJcsRead({
+          exportRoot: resolved.exportRoot,
+          cacheDir: getCacheDir(),
+          week: params.week,
+        });
+      } catch (err) {
+        const message = formatUnknownError(err, 'Erro ao exportar apresentações para tablet');
+        console.error('[jcs:export-read-preaching-presentations]', err);
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:export-read-field-service',
+    async (_event, params: { week: MeetingWeek; preferLastFolder?: boolean }) => {
+      try {
+        if (!params?.week?.id) {
+          return { ok: false, error: 'Semana inválida para exportação.' };
+        }
+
+        const denied = assertElderUnlocked();
+        if (denied) return denied;
+
+        const resolved = await resolveJcsReadExportRoot(params.preferLastFolder ?? true);
+        if (!resolved.ok) return resolved;
+
+        return await exportFieldServiceForJcsRead({
+          exportRoot: resolved.exportRoot,
+          userDataDir: getUserDataDir(),
+          week: params.week,
+        });
+      } catch (err) {
+        const message = formatUnknownError(err, 'Erro ao exportar saída de campo para tablet');
+        console.error('[jcs:export-read-field-service]', err);
         return { ok: false, error: message };
       }
     },

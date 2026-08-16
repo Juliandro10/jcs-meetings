@@ -10,7 +10,9 @@ export type JcsReadDocumentKind =
   | 'w'
   | 'chairman'
   | 'public-talk'
-  | 'discourse-outline';
+  | 'discourse-outline'
+  | 'preaching'
+  | 'field-service';
 
 export type JcsReadWeekDocument = {
   id: string;

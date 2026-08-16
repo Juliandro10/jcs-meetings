@@ -6,6 +6,10 @@
 
     <string name="meetings_title">Reuniões</string>
 
+    <string name="preaching_title">Pregação</string>
+
+    <string name="preaching_subtitle">Apresentações e saída de campo</string>
+
     <string name="meetings_subtitle">Português (Brasil)</string>
 
     <string name="week_detail_title">Semana</string>
@@ -24,9 +28,19 @@
 
     <string name="section_other">Outras publicações</string>
 
+    <string name="section_preaching">Apresentações</string>
+
+    <string name="section_field_service">Ideias de consideração pra saída de campo</string>
+
+    <string name="doc_preaching">Apresentações</string>
+
+    <string name="doc_field_service">Saída de campo</string>
+
     <string name="doc_prepared_parts">Partes preparadas</string>
 
     <string name="empty_weeks">Nenhuma semana encontrada.\n\nToque em ⋮ e escolha ZIP (recomendado) para importar o jcs-read.zip, ou Pasta para um diretório descompactado.</string>
+
+    <string name="empty_preaching_weeks">Nenhuma semana de pregação exportada.\n\nNo PC, use Pregação ou Saída de campo (Elder) e exporte para o tablet.</string>
 
     <string name="empty_documents">Nenhum documento nesta semana.</string>
 

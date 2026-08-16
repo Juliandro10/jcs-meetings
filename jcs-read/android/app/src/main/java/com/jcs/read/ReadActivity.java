@@ -45,6 +45,8 @@ public class ReadActivity extends Activity {
         String title = getIntent().getStringExtra("title");
         String weekFolder = getIntent().getStringExtra("weekFolder");
         String htmlFile = getIntent().getStringExtra("htmlFile");
+        String pkg = getIntent().getStringExtra("pkg");
+        if (pkg == null) pkg = JcsPackage.MEETINGS;
         if (title != null) {
             readTitle.setText(title);
             setTitle(title);
@@ -101,7 +103,7 @@ public class ReadActivity extends Activity {
             });
 
         if (weekFolder != null && htmlFile != null) {
-            HtmlLoader.loadWeekDocument(this, weekFolder, htmlFile, webView, progress);
+            HtmlLoader.loadWeekDocument(this, weekFolder, htmlFile, pkg, webView, progress);
         } else {
             showMissing(progress);
         }

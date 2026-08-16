@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 export const JCS_READ_ZIP_NAME = 'jcs-read.zip';
 const CATALOG_FILE = 'catalog.json';
 const WEEKS_DIR = 'weeks';
+const PREACHING_DIR = 'preaching';
 
 async function addDirectoryToZip(zip: JSZip, dir: string, zipPrefix: string) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -29,7 +30,7 @@ async function pathExists(filePath: string) {
   }
 }
 
-/** Compacta só catalog.json + weeks/ — ignora APK, backup, jwpub etc. na pasta de export. */
+/** Compacta catalog.json + weeks/ (+ preaching/ se existir) — ignora APK, backup, jwpub etc. */
 export async function writeJcsReadZip(exportRoot: string): Promise<string> {
   const zip = new JSZip();
 
@@ -42,6 +43,11 @@ export async function writeJcsReadZip(exportRoot: string): Promise<string> {
   const weeksPath = path.join(exportRoot, WEEKS_DIR);
   if (await pathExists(weeksPath)) {
     await addDirectoryToZip(zip, weeksPath, WEEKS_DIR);
+  }
+
+  const preachingPath = path.join(exportRoot, PREACHING_DIR);
+  if (await pathExists(preachingPath)) {
+    await addDirectoryToZip(zip, preachingPath, PREACHING_DIR);
   }
 
   const buffer = await zip.generateAsync({

@@ -32,7 +32,7 @@ public class WeekDetailActivity extends Activity {
     private List<JcsStorage.DocumentEntry> documents = new ArrayList<JcsStorage.DocumentEntry>();
 
     private String folder;
-
+    private String pkg = JcsPackage.MEETINGS;
     private WeekDetailListAdapter adapter;
 
 
@@ -48,6 +48,8 @@ public class WeekDetailActivity extends Activity {
 
 
         folder = getIntent().getStringExtra("folder");
+        pkg = getIntent().getStringExtra("pkg");
+        if (pkg == null) pkg = JcsPackage.MEETINGS;
 
         String label = getIntent().getStringExtra("label");
 
@@ -112,7 +114,7 @@ public class WeekDetailActivity extends Activity {
 
         try {
 
-            JcsStorage.WeekDetail detail = JcsStorage.loadWeekDetail(this, entry);
+            JcsStorage.WeekDetail detail = JcsStorage.loadWeekDetail(this, entry, pkg);
 
             documents = detail.documents;
 
@@ -139,6 +141,7 @@ public class WeekDetailActivity extends Activity {
 
 
         adapter = new WeekDetailListAdapter(this);
+        adapter.setPackage(pkg);
 
         adapter.setDocuments(documents, label, bibleReading);
 
@@ -173,6 +176,7 @@ public class WeekDetailActivity extends Activity {
                     intent.putExtra("weekFolder", folder);
 
                     intent.putExtra("htmlFile", doc.file);
+                    intent.putExtra("pkg", pkg);
 
                     startActivity(intent);
 

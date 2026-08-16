@@ -224,6 +224,22 @@ contextBridge.exposeInMainWorld('jcs', {
       noteId,
       preferLastFolder: options?.preferLastFolder ?? true,
     }),
+  exportReadPreachingPresentations: (
+    week: MeetingWeek,
+    options?: { preferLastFolder?: boolean },
+  ): Promise<JcsReadExportResult> =>
+    ipcRenderer.invoke('jcs:export-read-preaching-presentations', {
+      week,
+      preferLastFolder: options?.preferLastFolder ?? true,
+    }),
+  exportReadFieldService: (
+    week: MeetingWeek,
+    options?: { preferLastFolder?: boolean },
+  ): Promise<JcsReadExportResult> =>
+    ipcRenderer.invoke('jcs:export-read-field-service', {
+      week,
+      preferLastFolder: options?.preferLastFolder ?? true,
+    }),
   setPublicTalkNote: (params: { weekId: string; value: string }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('jcs:set-public-talk-note', params),
   getFieldServiceNote: (weekId: string): Promise<FieldServiceNoteResult> =>
@@ -555,6 +571,14 @@ declare global {
       exportReadPreparedPart: (
         week: MeetingWeek,
         noteId: string,
+        options?: { preferLastFolder?: boolean },
+      ) => Promise<JcsReadExportResult>;
+      exportReadPreachingPresentations: (
+        week: MeetingWeek,
+        options?: { preferLastFolder?: boolean },
+      ) => Promise<JcsReadExportResult>;
+      exportReadFieldService: (
+        week: MeetingWeek,
         options?: { preferLastFolder?: boolean },
       ) => Promise<JcsReadExportResult>;
       setPublicTalkNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;

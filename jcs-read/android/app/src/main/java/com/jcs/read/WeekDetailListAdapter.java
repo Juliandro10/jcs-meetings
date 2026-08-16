@@ -21,10 +21,15 @@ public final class WeekDetailListAdapter extends BaseAdapter {
     private final List<Row> rows = new ArrayList<Row>();
     private String weekLabel = "";
     private String bibleReading = "";
+    private String pkg = JcsPackage.MEETINGS;
 
     public WeekDetailListAdapter(Context context) {
         this.context = context;
         inflater = LayoutInflater.from(context);
+    }
+
+    public void setPackage(String pkg) {
+        this.pkg = pkg != null ? pkg : JcsPackage.MEETINGS;
     }
 
     public void setDocuments(
@@ -42,18 +47,39 @@ public final class WeekDetailListAdapter extends BaseAdapter {
         }
 
         List<JcsStorage.DocumentEntry> sorted = new ArrayList<JcsStorage.DocumentEntry>(documents);
+        final boolean preachingMode = JcsPackage.PREACHING.equals(pkg);
         Collections.sort(
             sorted,
             new Comparator<JcsStorage.DocumentEntry>() {
                 @Override
                 public int compare(JcsStorage.DocumentEntry a, JcsStorage.DocumentEntry b) {
-                    String kindA = DocumentUi.resolveKind(a);
-                    String kindB = DocumentUi.resolveKind(b);
-                    String sectionA = DocumentUi.sectionKeyForKind(kindA);
-                    String sectionB = DocumentUi.sectionKeyForKind(kindB);
-                    int order = DocumentUi.sectionOrder(sectionA) - DocumentUi.sectionOrder(sectionB);
+                    String kindA =
+                        preachingMode ? PreachingDocumentUi.resolveKind(a) : DocumentUi.resolveKind(a);
+                    String kindB =
+                        preachingMode ? PreachingDocumentUi.resolveKind(b) : DocumentUi.resolveKind(b);
+                    String sectionA =
+                        preachingMode
+                            ? PreachingDocumentUi.sectionKeyForKind(kindA)
+                            : DocumentUi.sectionKeyForKind(kindA);
+                    String sectionB =
+                        preachingMode
+                            ? PreachingDocumentUi.sectionKeyForKind(kindB)
+                            : DocumentUi.sectionKeyForKind(kindB);
+                    int order =
+                        (preachingMode
+                                ? PreachingDocumentUi.sectionOrder(sectionA)
+                                : DocumentUi.sectionOrder(sectionA))
+                            - (preachingMode
+                                ? PreachingDocumentUi.sectionOrder(sectionB)
+                                : DocumentUi.sectionOrder(sectionB));
                     if (order != 0) return order;
-                    order = DocumentUi.documentOrder(kindA) - DocumentUi.documentOrder(kindB);
+                    order =
+                        (preachingMode
+                                ? PreachingDocumentUi.documentOrder(kindA)
+                                : DocumentUi.documentOrder(kindA))
+                            - (preachingMode
+                                ? PreachingDocumentUi.documentOrder(kindB)
+                                : DocumentUi.documentOrder(kindB));
                     if (order != 0) return order;
                     String titleA = a.title != null ? a.title : "";
                     String titleB = b.title != null ? b.title : "";
@@ -63,13 +89,19 @@ public final class WeekDetailListAdapter extends BaseAdapter {
 
         String lastSection = null;
         for (JcsStorage.DocumentEntry doc : sorted) {
-            String kind = DocumentUi.resolveKind(doc);
-            String sectionKey = DocumentUi.sectionKeyForKind(kind);
+            String kind = preachingMode ? PreachingDocumentUi.resolveKind(doc) : DocumentUi.resolveKind(doc);
+            String sectionKey =
+                preachingMode
+                    ? PreachingDocumentUi.sectionKeyForKind(kind)
+                    : DocumentUi.sectionKeyForKind(kind);
 
             if (!sectionKey.equals(lastSection)) {
                 Row header = new Row();
                 header.type = TYPE_HEADER;
-                header.sectionTitle = DocumentUi.sectionTitleForKey(context, sectionKey);
+                header.sectionTitle =
+                    preachingMode
+                        ? PreachingDocumentUi.sectionTitleForKey(context, sectionKey)
+                        : DocumentUi.sectionTitleForKey(context, sectionKey);
                 rows.add(header);
                 lastSection = sectionKey;
             }
@@ -140,14 +172,22 @@ public final class WeekDetailListAdapter extends BaseAdapter {
         }
 
         JcsStorage.DocumentEntry doc = row.document;
-        String kind = DocumentUi.resolveKind(doc);
+        final boolean preachingMode = JcsPackage.PREACHING.equals(pkg);
+        String kind =
+            preachingMode ? PreachingDocumentUi.resolveKind(doc) : DocumentUi.resolveKind(doc);
 
         TextView docTitle = (TextView) item.findViewById(R.id.docTitle);
         TextView docSubtitle = (TextView) item.findViewById(R.id.docSubtitle);
         View docThumb = item.findViewById(R.id.docThumb);
 
-        docTitle.setText(DocumentUi.displayTitle(context, doc, weekLabel));
-        String subtitle = DocumentUi.displaySubtitle(context, doc, weekLabel, bibleReading);
+        docTitle.setText(
+            preachingMode
+                ? PreachingDocumentUi.displayTitle(context, doc, weekLabel)
+                : DocumentUi.displayTitle(context, doc, weekLabel));
+        String subtitle =
+            preachingMode
+                ? PreachingDocumentUi.displaySubtitle(context, doc, weekLabel, bibleReading)
+                : DocumentUi.displaySubtitle(context, doc, weekLabel, bibleReading);
         if (subtitle != null && subtitle.length() > 0) {
             docSubtitle.setText(subtitle);
             docSubtitle.setVisibility(View.VISIBLE);
@@ -155,7 +195,10 @@ public final class WeekDetailListAdapter extends BaseAdapter {
             docSubtitle.setVisibility(View.GONE);
         }
 
-        docThumb.setBackgroundResource(DocumentUi.thumbDrawableForKind(kind));
+        docThumb.setBackgroundResource(
+            preachingMode
+                ? PreachingDocumentUi.thumbDrawableForKind(kind)
+                : DocumentUi.thumbDrawableForKind(kind));
 
         ViewGroup.LayoutParams params = item.getLayoutParams();
         if (params == null) {

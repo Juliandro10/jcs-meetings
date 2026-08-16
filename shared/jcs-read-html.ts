@@ -128,6 +128,34 @@ html, body {
 }
 .jcs-plain-doc { font-size: 17px; line-height: 1.55; }
 .jcs-plain-doc p { margin: 0 0 12px; }
+.jcs-preaching-topic { margin: 0 0 28px; }
+.jcs-preaching-topic h2 {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5b21b6;
+  margin: 0 0 12px;
+}
+.jcs-preaching-points { margin: 0; padding-left: 1.2em; }
+.jcs-preaching-points > li { margin: 0 0 18px; }
+.jcs-preaching-presentations { margin-top: 12px; padding-top: 10px; border-top: 1px solid #e5e7eb; }
+.jcs-preaching-presentations-label {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin: 0 0 8px;
+}
+.jcs-field-service-encouragement {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  background: #f5f3ff;
+  border-radius: 6px;
+}
 .jcs-outline-body { font-family: "Segoe UI", Arial, sans-serif; font-size: 16px; line-height: 1.55; }
 .jcs-outline-body p { margin: 0 0 10px; }
 .jcs-outline-body strong, .jcs-outline-body b { font-weight: 700; }

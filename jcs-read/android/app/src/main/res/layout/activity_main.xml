@@ -104,6 +104,74 @@
 
 
 
+    <LinearLayout
+
+        android:layout_width="match_parent"
+
+        android:layout_height="wrap_content"
+
+        android:background="@color/jcs_surface"
+
+        android:orientation="horizontal"
+
+        android:paddingLeft="12dp"
+
+        android:paddingRight="12dp"
+
+        android:paddingBottom="8dp">
+
+
+
+        <Button
+
+            android:id="@+id/tabMeetings"
+
+            android:layout_width="0dp"
+
+            android:layout_height="40dp"
+
+            android:layout_marginRight="6dp"
+
+            android:layout_weight="1"
+
+            android:background="@drawable/tab_selected"
+
+            android:text="@string/meetings_title"
+
+            android:textAllCaps="false"
+
+            android:textColor="@color/jcs_white"
+
+            android:textSize="14sp" />
+
+
+
+        <Button
+
+            android:id="@+id/tabPreaching"
+
+            android:layout_width="0dp"
+
+            android:layout_height="40dp"
+
+            android:layout_marginLeft="6dp"
+
+            android:layout_weight="1"
+
+            android:background="@drawable/tab_unselected"
+
+            android:text="@string/preaching_title"
+
+            android:textAllCaps="false"
+
+            android:textColor="@color/jcs_muted"
+
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+
+
     <TextView
 
         android:id="@+id/folderView"

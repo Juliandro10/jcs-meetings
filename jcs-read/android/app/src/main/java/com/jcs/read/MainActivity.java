@@ -21,6 +21,8 @@ import android.view.View;
 
 import android.widget.AdapterView;
 
+import android.widget.Button;
+
 import android.widget.ImageButton;
 
 import android.widget.ListView;
@@ -57,9 +59,19 @@ public class MainActivity extends Activity {
 
     private TextView folderView;
 
+    private TextView titleView;
+
+    private TextView subtitleView;
+
+    private Button tabMeetings;
+
+    private Button tabPreaching;
+
     private WeekListAdapter adapter;
 
     private List<JcsStorage.WeekEntry> weeks = new ArrayList<JcsStorage.WeekEntry>();
+
+    private String currentPackage = JcsPackage.MEETINGS;
 
 
 
@@ -78,6 +90,14 @@ public class MainActivity extends Activity {
         emptyView = (TextView) findViewById(R.id.emptyView);
 
         folderView = (TextView) findViewById(R.id.folderView);
+
+        titleView = (TextView) findViewById(R.id.title);
+
+        subtitleView = (TextView) findViewById(R.id.subtitle);
+
+        tabMeetings = (Button) findViewById(R.id.tabMeetings);
+
+        tabPreaching = (Button) findViewById(R.id.tabPreaching);
 
         ImageButton menuButton = (ImageButton) findViewById(R.id.menuButton);
         menuButton.setColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_ATOP);
@@ -108,6 +128,8 @@ public class MainActivity extends Activity {
 
                     intent.putExtra("bibleReading", entry.bibleReading);
 
+                    intent.putExtra("pkg", currentPackage);
+
                     startActivity(intent);
 
                 }
@@ -132,7 +154,27 @@ public class MainActivity extends Activity {
 
 
 
+        tabMeetings.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    selectPackage(JcsPackage.MEETINGS);
+                }
+            });
+
+        tabPreaching.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    selectPackage(JcsPackage.PREACHING);
+                }
+            });
+
+
+
         updateFolderLabel();
+
+        updateTabUi();
 
         requestStorageIfNeeded();
 
@@ -330,9 +372,37 @@ public class MainActivity extends Activity {
 
 
 
+    private void selectPackage(String pkg) {
+        if (pkg == null) pkg = JcsPackage.MEETINGS;
+        if (pkg.equals(currentPackage)) return;
+        currentPackage = pkg;
+        updateTabUi();
+        reloadWeeks();
+    }
+
+    private void updateTabUi() {
+        boolean meetings = JcsPackage.MEETINGS.equals(currentPackage);
+        tabMeetings.setBackgroundResource(meetings ? R.drawable.tab_selected : R.drawable.tab_unselected);
+        tabPreaching.setBackgroundResource(meetings ? R.drawable.tab_unselected : R.drawable.tab_selected);
+        tabMeetings.setTextColor(getResources().getColor(meetings ? R.color.jcs_white : R.color.jcs_muted));
+        tabPreaching.setTextColor(getResources().getColor(meetings ? R.color.jcs_muted : R.color.jcs_white));
+
+        if (meetings) {
+            titleView.setText(R.string.meetings_title);
+            subtitleView.setText(R.string.meetings_subtitle);
+            emptyView.setText(R.string.empty_weeks);
+        } else {
+            titleView.setText(R.string.preaching_title);
+            subtitleView.setText(R.string.preaching_subtitle);
+            emptyView.setText(R.string.empty_preaching_weeks);
+        }
+    }
+
+
+
     private void reloadWeeks() {
 
-        weeks = JcsStorage.loadWeeks(this);
+        weeks = JcsStorage.loadWeeks(this, currentPackage);
 
         adapter.setWeeks(weeks);
 

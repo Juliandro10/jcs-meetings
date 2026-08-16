@@ -10,11 +10,19 @@ public final class JcsStorage {
     private JcsStorage() {}
 
     public static List<WeekEntry> loadWeeks(Context context) {
-        return JcsRootAccess.from(context).loadWeeks();
+        return loadWeeks(context, JcsPackage.MEETINGS);
+    }
+
+    public static List<WeekEntry> loadWeeks(Context context, String pkg) {
+        return JcsRootAccess.from(context).loadWeeks(pkg);
     }
 
     public static WeekDetail loadWeekDetail(Context context, WeekEntry entry) throws Exception {
-        return JcsRootAccess.from(context).loadWeekDetail(entry);
+        return loadWeekDetail(context, entry, JcsPackage.MEETINGS);
+    }
+
+    public static WeekDetail loadWeekDetail(Context context, WeekEntry entry, String pkg) throws Exception {
+        return JcsRootAccess.from(context).loadWeekDetail(entry, pkg);
     }
 
     public static class WeekEntry {

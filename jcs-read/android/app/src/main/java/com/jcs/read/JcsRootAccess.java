@@ -42,9 +42,15 @@ public final class JcsRootAccess {
     public static boolean looksLikeJcsFolder(File dir) {
         if (dir == null || !dir.isDirectory()) return false;
         if (new File(dir, "catalog.json").isFile()) return true;
+        if (new File(dir, "preaching/catalog.json").isFile()) return true;
         File weeks = new File(dir, "weeks");
-        if (!weeks.isDirectory()) return false;
-        File[] children = weeks.listFiles();
+        if (weeks.isDirectory() && hasWeekManifest(weeks)) return true;
+        File preachingWeeks = new File(dir, "preaching/weeks");
+        return preachingWeeks.isDirectory() && hasWeekManifest(preachingWeeks);
+    }
+
+    private static boolean hasWeekManifest(File weeksDir) {
+        File[] children = weeksDir.listFiles();
         if (children == null) return false;
         for (File child : children) {
             if (child.isDirectory() && new File(child, "week.json").isFile()) {
@@ -55,11 +61,15 @@ public final class JcsRootAccess {
     }
 
     public List<JcsStorage.WeekEntry> loadWeeks() {
+        return loadWeeks(JcsPackage.MEETINGS);
+    }
+
+    public List<JcsStorage.WeekEntry> loadWeeks(String pkg) {
         List<JcsStorage.WeekEntry> weeks = new ArrayList<JcsStorage.WeekEntry>();
         if (treeMode && treeUri != null) {
-            weeks.addAll(loadWeeksFromTree());
+            weeks.addAll(loadWeeksFromTree(pkg));
         } else {
-            weeks.addAll(loadWeeksFromFile());
+            weeks.addAll(loadWeeksFromFile(pkg));
         }
 
         Collections.sort(
@@ -73,9 +83,9 @@ public final class JcsRootAccess {
         return weeks;
     }
 
-    private List<JcsStorage.WeekEntry> loadWeeksFromFile() {
+    private List<JcsStorage.WeekEntry> loadWeeksFromFile(String pkg) {
         List<JcsStorage.WeekEntry> weeks = new ArrayList<JcsStorage.WeekEntry>();
-        File catalogFile = new File(fileRoot, "catalog.json");
+        File catalogFile = new File(fileRoot, JcsPackage.catalogRelativePath(pkg));
         if (catalogFile.isFile()) {
             try {
                 JSONObject catalog = new JSONObject(readTextFile(catalogFile));
@@ -91,14 +101,14 @@ public final class JcsRootAccess {
         }
 
         if (weeks.isEmpty()) {
-            weeks.addAll(scanWeekFoldersFile());
+            weeks.addAll(scanWeekFoldersFile(pkg));
         }
         return weeks;
     }
 
-    private List<JcsStorage.WeekEntry> scanWeekFoldersFile() {
+    private List<JcsStorage.WeekEntry> scanWeekFoldersFile(String pkg) {
         List<JcsStorage.WeekEntry> weeks = new ArrayList<JcsStorage.WeekEntry>();
-        File weeksDir = new File(fileRoot, "weeks");
+        File weeksDir = new File(fileRoot, JcsPackage.weeksRelativeDir(pkg));
         File[] folders = weeksDir.listFiles();
         if (folders == null) return weeks;
 
@@ -116,11 +126,11 @@ public final class JcsRootAccess {
         return weeks;
     }
 
-    private List<JcsStorage.WeekEntry> loadWeeksFromTree() {
+    private List<JcsStorage.WeekEntry> loadWeeksFromTree(String pkg) {
         List<JcsStorage.WeekEntry> weeks = new ArrayList<JcsStorage.WeekEntry>();
         try {
             String rootId = DocumentsContract.getTreeDocumentId(treeUri);
-            TreeNode catalog = findChildByName(rootId, "catalog.json");
+            TreeNode catalog = findRelativePath(rootId, JcsPackage.catalogRelativePath(pkg));
             if (catalog != null && catalog.isFile) {
                 JSONObject catalogJson = new JSONObject(readTreeText(catalog.uri));
                 JSONArray array = catalogJson.optJSONArray("weeks");
@@ -135,16 +145,16 @@ public final class JcsRootAccess {
         }
 
         if (weeks.isEmpty()) {
-            weeks.addAll(scanWeekFoldersTree());
+            weeks.addAll(scanWeekFoldersTree(pkg));
         }
         return weeks;
     }
 
-    private List<JcsStorage.WeekEntry> scanWeekFoldersTree() {
+    private List<JcsStorage.WeekEntry> scanWeekFoldersTree(String pkg) {
         List<JcsStorage.WeekEntry> weeks = new ArrayList<JcsStorage.WeekEntry>();
         try {
             String rootId = DocumentsContract.getTreeDocumentId(treeUri);
-            TreeNode weeksDir = findChildByName(rootId, "weeks");
+            TreeNode weeksDir = findRelativePath(rootId, JcsPackage.weeksRelativeDir(pkg));
             if (weeksDir == null || !weeksDir.isDirectory) return weeks;
 
             for (TreeNode folder : listChildren(weeksDir.documentId)) {
@@ -165,14 +175,18 @@ public final class JcsRootAccess {
     }
 
     public JcsStorage.WeekDetail loadWeekDetail(JcsStorage.WeekEntry entry) throws Exception {
-        if (treeMode && treeUri != null) {
-            return loadWeekDetailTree(entry);
-        }
-        return loadWeekDetailFile(entry);
+        return loadWeekDetail(entry, JcsPackage.MEETINGS);
     }
 
-    private JcsStorage.WeekDetail loadWeekDetailFile(JcsStorage.WeekEntry entry) throws Exception {
-        File weekDir = new File(new File(fileRoot, "weeks"), entry.folder);
+    public JcsStorage.WeekDetail loadWeekDetail(JcsStorage.WeekEntry entry, String pkg) throws Exception {
+        if (treeMode && treeUri != null) {
+            return loadWeekDetailTree(entry, pkg);
+        }
+        return loadWeekDetailFile(entry, pkg);
+    }
+
+    private JcsStorage.WeekDetail loadWeekDetailFile(JcsStorage.WeekEntry entry, String pkg) throws Exception {
+        File weekDir = getWeekDirFile(entry.folder, pkg);
         File manifest = new File(weekDir, "week.json");
         JSONObject json = new JSONObject(readTextFile(manifest));
 
@@ -199,9 +213,9 @@ public final class JcsRootAccess {
         return detail;
     }
 
-    private JcsStorage.WeekDetail loadWeekDetailTree(JcsStorage.WeekEntry entry) throws Exception {
+    private JcsStorage.WeekDetail loadWeekDetailTree(JcsStorage.WeekEntry entry, String pkg) throws Exception {
         String rootId = DocumentsContract.getTreeDocumentId(treeUri);
-        TreeNode weeksDir = findChildByName(rootId, "weeks");
+        TreeNode weeksDir = findRelativePath(rootId, JcsPackage.weeksRelativeDir(pkg));
         if (weeksDir == null) throw new Exception("Pasta weeks não encontrada");
 
         TreeNode weekDir = findChildByName(weeksDir.documentId, entry.folder);
@@ -237,17 +251,25 @@ public final class JcsRootAccess {
     }
 
     public String readWeekHtml(String weekFolder, String htmlFileName) throws Exception {
+        return readWeekHtml(weekFolder, htmlFileName, JcsPackage.MEETINGS);
+    }
+
+    public String readWeekHtml(String weekFolder, String htmlFileName, String pkg) throws Exception {
         if (treeMode && treeUri != null) {
-            TreeNode weekDir = findWeekDirInTree(weekFolder);
+            TreeNode weekDir = findWeekDirInTree(weekFolder, pkg);
             TreeNode htmlNode = findChildByName(weekDir.documentId, htmlFileName);
             if (htmlNode == null) throw new Exception("HTML não encontrado");
             return readTreeText(htmlNode.uri);
         }
-        File htmlFile = new File(getWeekDirFile(weekFolder), htmlFileName);
+        File htmlFile = new File(getWeekDirFile(weekFolder, pkg), htmlFileName);
         return readTextFile(htmlFile);
     }
 
     public String rewriteAssetUrls(String weekFolder, String html) {
+        return rewriteAssetUrls(weekFolder, html, JcsPackage.MEETINGS);
+    }
+
+    public String rewriteAssetUrls(String weekFolder, String html, String pkg) {
         if (html == null || html.length() == 0) return html;
 
         StringBuilder out = new StringBuilder();
@@ -270,7 +292,7 @@ public final class JcsRootAccess {
                 end++;
             }
             String assetName = html.substring(start, end);
-            String resolved = resolveAssetUri(weekFolder, assetName);
+            String resolved = resolveAssetUri(weekFolder, assetName, pkg);
             if (resolved != null) {
                 out.append(resolved);
             } else {
@@ -282,17 +304,21 @@ public final class JcsRootAccess {
     }
 
     private String resolveAssetUri(String weekFolder, String assetFileName) {
+        return resolveAssetUri(weekFolder, assetFileName, JcsPackage.MEETINGS);
+    }
+
+    private String resolveAssetUri(String weekFolder, String assetFileName, String pkg) {
         if (assetFileName == null || assetFileName.length() == 0) return null;
         try {
             if (treeMode && treeUri != null) {
-                TreeNode weekDir = findWeekDirInTree(weekFolder);
+                TreeNode weekDir = findWeekDirInTree(weekFolder, pkg);
                 TreeNode assetsDir = findChildByName(weekDir.documentId, "assets");
                 if (assetsDir == null) return null;
                 TreeNode asset = findChildByName(assetsDir.documentId, assetFileName);
                 if (asset == null) return null;
                 return asset.uri.toString();
             }
-            File asset = new File(new File(getWeekDirFile(weekFolder), "assets"), assetFileName);
+            File asset = new File(new File(getWeekDirFile(weekFolder, pkg), "assets"), assetFileName);
             if (!asset.isFile()) return null;
             return "file://" + asset.getAbsolutePath();
         } catch (Exception ignored) {
@@ -301,16 +327,37 @@ public final class JcsRootAccess {
     }
 
     private File getWeekDirFile(String weekFolder) {
-        return new File(new File(fileRoot, "weeks"), weekFolder);
+        return getWeekDirFile(weekFolder, JcsPackage.MEETINGS);
+    }
+
+    private File getWeekDirFile(String weekFolder, String pkg) {
+        return new File(new File(fileRoot, JcsPackage.weeksRelativeDir(pkg)), weekFolder);
     }
 
     private TreeNode findWeekDirInTree(String weekFolder) throws Exception {
+        return findWeekDirInTree(weekFolder, JcsPackage.MEETINGS);
+    }
+
+    private TreeNode findWeekDirInTree(String weekFolder, String pkg) throws Exception {
         String rootId = DocumentsContract.getTreeDocumentId(treeUri);
-        TreeNode weeksDir = findChildByName(rootId, "weeks");
+        TreeNode weeksDir = findRelativePath(rootId, JcsPackage.weeksRelativeDir(pkg));
         if (weeksDir == null) throw new Exception("Pasta weeks não encontrada");
         TreeNode weekDir = findChildByName(weeksDir.documentId, weekFolder);
         if (weekDir == null) throw new Exception("Semana não encontrada");
         return weekDir;
+    }
+
+    private TreeNode findRelativePath(String rootDocumentId, String relativePath) throws Exception {
+        if (relativePath == null || relativePath.length() == 0) return null;
+        String[] segments = relativePath.split("/");
+        String parentId = rootDocumentId;
+        TreeNode node = null;
+        for (int i = 0; i < segments.length; i++) {
+            node = findChildByName(parentId, segments[i]);
+            if (node == null) return null;
+            parentId = node.documentId;
+        }
+        return node;
     }
 
     private String readTextFile(File file) throws Exception {
