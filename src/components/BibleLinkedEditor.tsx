@@ -68,6 +68,11 @@ export function BibleLinkedEditor({
 
   useEffect(() => {
     if (value === lastEmitted.current) return;
+    const root = editorRef.current;
+    if (root && document.activeElement === root) {
+      // Não sobrescrever o DOM enquanto o usuário digita (ex.: save async com body antigo).
+      return;
+    }
     applyValueToEditor(value);
   }, [applyValueToEditor, value]);
 

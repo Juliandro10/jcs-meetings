@@ -41,10 +41,20 @@ export function DiscourseScriptEditorPage({
   const [referenceLoading, setReferenceLoading] = useState(false);
   const [reference, setReference] = useState<ResolveLinkResult | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const valueRef = useRef(note.body);
+  const titleRef = useRef(note.title);
+  const loadedNoteId = useRef(note.id);
+
+  valueRef.current = value;
+  titleRef.current = title;
 
   useEffect(() => {
+    if (loadedNoteId.current === note.id) return;
+    loadedNoteId.current = note.id;
     setValue(note.body);
     setTitle(note.title);
+    valueRef.current = note.body;
+    titleRef.current = note.title;
   }, [note.body, note.id, note.title]);
 
   const persist = useCallback(
@@ -65,16 +75,18 @@ export function DiscourseScriptEditorPage({
 
   const handleChange = (nextValue: string) => {
     setValue(nextValue);
+    valueRef.current = nextValue;
     setMessage(null);
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      void persist(nextValue, title);
+      void persist(valueRef.current, titleRef.current);
     }, 600);
   };
 
   const handleTitleBlur = () => {
     if (title === note.title) return;
-    void persist(value, title);
+    titleRef.current = title;
+    void persist(valueRef.current, title);
   };
 
   useEffect(() => {
@@ -124,7 +136,7 @@ export function DiscourseScriptEditorPage({
     try {
       if (saveTimer.current) {
         window.clearTimeout(saveTimer.current);
-        await persist(value, title);
+        await persist(valueRef.current, titleRef.current);
       }
       const result = await window.jcs.exportReadPreparedPart(week, note.id, {
         preferLastFolder: true,
@@ -149,7 +161,7 @@ export function DiscourseScriptEditorPage({
     try {
       if (saveTimer.current) {
         window.clearTimeout(saveTimer.current);
-        await persist(value, title);
+        await persist(valueRef.current, titleRef.current);
       }
       const result = await window.jcs.exportDiscourseScript({
         title,
@@ -179,7 +191,10 @@ export function DiscourseScriptEditorPage({
           <input
             type="text"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              titleRef.current = e.target.value;
+            }}
             onBlur={handleTitleBlur}
             className="w-full bg-transparent text-sm font-semibold text-jw-text outline-none"
           />
