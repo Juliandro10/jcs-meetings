@@ -70,3 +70,29 @@ export function normalizeEditorHtml(html: string) {
   if (!trimmed || trimmed === '<br>' || trimmed === '<p><br></p>') return '';
   return trimmed;
 }
+
+export function sanitizeOutlineHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, '');
+}
+
+/** Extrai HTML de esboço de um bloco ```jcs-outline da resposta da IA. */
+export function extractOutlineApplyHtml(reply: string) {
+  const match = reply.match(/```(?:jcs-outline|html)\s*([\s\S]*?)```/i);
+  if (!match) return null;
+  const raw = match[1].trim();
+  if (!raw) return null;
+  const html = isRichOutlineContent(raw) ? raw : plainOutlineToHtml(raw);
+  return sanitizeOutlineHtml(html);
+}
+
+/** Converte uma resposta livre da IA em HTML de editor. */
+export function replyToOutlineHtml(reply: string) {
+  const fenced = extractOutlineApplyHtml(reply);
+  if (fenced) return fenced;
+  const stripped = reply.replace(/```[\s\S]*?```/g, '').trim();
+  if (!stripped) return null;
+  return sanitizeOutlineHtml(plainOutlineToHtml(stripped));
+}

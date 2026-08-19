@@ -18,7 +18,7 @@ export function ElderPage({
   onLockElder,
 }: ElderPageProps) {
   return (
-    <div className="px-6 py-6">
+    <div className="h-full min-h-0 overflow-auto px-6 py-6">
       <div className="mx-auto max-w-3xl">
         <div className="flex items-start justify-between gap-4">
           <p className="text-sm text-jw-muted">Conteúdo confidencial</p>

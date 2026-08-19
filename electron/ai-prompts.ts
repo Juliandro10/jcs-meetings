@@ -418,6 +418,11 @@ export const JW_OUTLINE_AI_RULES = [
   'Sugira ilustrações, transições e aplicações práticas alinhadas ao tema — sem inventar doutrina.',
   'Respostas em português do Brasil, vocabulário das publicações das Testemunhas de Jeová, tom respeitoso e útil na tribuna.',
   'Não reescreva o esboço inteiro salvo se o usuário pedir explicitamente; prefira análise estruturada e sugestões pontuais.',
+  'Quando o usuário pedir para alterar, reescrever, melhorar ou aplicar o texto no editor, devolva o ESBOÇO COMPLETO (não só o trecho) em HTML simples: apenas <p>, <br>, <strong>, <em>, <u>, <mark> e links de texto bíblico. Sem CSS, sem markdown.',
+  'Nesse caso, comece com 1–3 frases do que mudou e coloque o HTML num bloco exatamente assim:',
+  '```jcs-outline',
+  '<p>…</p>',
+  '```',
   'Se só houver o original ou só o preparado, trabalhe com o que tiver e diga o que falta para uma comparação completa.',
 ].join('\n');
 

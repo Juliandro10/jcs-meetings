@@ -321,6 +321,80 @@ export async function exportPreparedPartForJcsRead(params: {
   }
 }
 
+const ELDER_OUTLINES_FOLDER = 'esbocos';
+const ELDER_OUTLINES_WEEK_ID = 'elder-outlines';
+
+function elderOutlinesCatalogWeek(): MeetingWeek {
+  return {
+    id: ELDER_OUTLINES_WEEK_ID,
+    dateIso: '0000-01-01',
+    label: 'Esboços',
+    dateRangeCaps: '',
+    bibleReading: '',
+    watchtowerTitle: '',
+    isCurrentWeek: false,
+  };
+}
+
+export async function exportElderOutlineForJcsRead(params: {
+  exportRoot: string;
+  title: string;
+  pub: string;
+  pubLabel: string;
+  documentId: number;
+  preparedName?: string;
+  value: string;
+}): Promise<JcsReadExportResult> {
+  try {
+    const value = params.value.trim();
+    if (!value) {
+      return { ok: false, error: 'Não há conteúdo no esboço para exportar.' };
+    }
+
+    const week = elderOutlinesCatalogWeek();
+    const weekDir = path.join(params.exportRoot, 'weeks', ELDER_OUTLINES_FOLDER);
+    await ensureDir(weekDir);
+
+    const displayTitle = (params.preparedName ?? params.title).trim() || params.title;
+    const slug = sanitizeJcsReadFileSlug(`outline-${params.pub}-${displayTitle}`) || `outline-${params.documentId}`;
+    const fileName = `${slug}-${params.documentId}.html`;
+    const docId = `discourse-outline-${params.pub.toLowerCase()}-${params.documentId}`;
+    const html = buildJcsReadOutlineHtml({
+      title: `Esboço — ${displayTitle}`,
+      subtitle: params.pubLabel,
+      outlineHtml: outlineValueToBodyHtml(value),
+    });
+
+    await writeTextFile(path.join(weekDir, fileName), html);
+
+    const document: JcsReadWeekDocument = {
+      id: docId,
+      kind: 'discourse-outline',
+      title: displayTitle,
+      file: fileName,
+    };
+
+    const manifest = await mergePreparedPartDocuments({
+      weekDir,
+      week,
+      newDocuments: [document],
+    });
+    await upsertCatalog(params.exportRoot, week, ELDER_OUTLINES_FOLDER);
+    const zipPath = await writeJcsReadZip(params.exportRoot);
+
+    return {
+      ok: true,
+      folderPath: weekDir,
+      zipPath,
+      weekId: week.id,
+      documentCount: manifest.documents.length,
+    };
+  } catch (err) {
+    console.error('[exportElderOutlineForJcsRead]', err);
+    return { ok: false, error: formatUnknownError(err, 'Erro ao exportar esboço para tablet') };
+  }
+}
+
 async function upsertCatalog(exportRoot: string, week: MeetingWeek, folder: string) {
   const catalogPath = path.join(exportRoot, CATALOG_FILE);
   let catalog: JcsReadCatalog = {

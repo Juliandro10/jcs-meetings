@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { extractOutlineApplyHtml, replyToOutlineHtml } from '@/lib/rich-outline-html';
 import type { AiChatContext, AiChatMessage } from '../../electron/types';
 
 type AssistantChatProps = {
   context: AiChatContext;
+  onApplyOutline?: (html: string) => void;
 };
 
 const MEETING_QUICK_PROMPTS = [
@@ -49,7 +51,17 @@ const OUTLINE_QUICK_PROMPTS = [
     message:
       'Revise o esboço preparado para proferimento: linguagem oral, clareza, ordem lógica e tempo. Indique trechos confusos ou repetidos e como melhorar.',
   },
+  {
+    label: 'Aplicar no editor',
+    message:
+      'Reescreva o esboço preparado com melhorias pontuais para a tribuna (clareza, transições, linguagem oral), sem inventar doutrina e sem omitir pontos obrigatórios do original. Preserve a estrutura. Responda com 1–3 frases do que mudou e, em seguida, o esboço COMPLETO em HTML simples (<p>, <br>, <strong>, <em>, <u>, <mark>) dentro de um bloco ```jcs-outline .',
+  },
 ] as const;
+
+function visibleAssistantReply(content: string) {
+  const stripped = content.replace(/```(?:jcs-outline|html)\s*[\s\S]*?```/gi, '').trim();
+  return stripped || content;
+}
 
 function stripHtml(value: string) {
   return value
@@ -58,14 +70,29 @@ function stripHtml(value: string) {
     .trim();
 }
 
-export function AssistantChat({ context }: AssistantChatProps) {
+export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
   const outlineMode = context.contentKind === 'elder-outline';
-  const quickPrompts = outlineMode ? OUTLINE_QUICK_PROMPTS : MEETING_QUICK_PROMPTS;
+  const quickPrompts = outlineMode
+    ? [
+        ...OUTLINE_QUICK_PROMPTS,
+        ...(context.selectedText && onApplyOutline
+          ? [
+              {
+                label: 'Reescrever seleção',
+                message:
+                  'Reescreva o trecho selecionado no esboço preparado (mais claro para a tribuna, sem mudar o sentido). Depois devolva o ESBOÇO COMPLETO já com esse trecho atualizado, em HTML simples, dentro de um bloco ```jcs-outline .',
+              },
+            ]
+          : []),
+      ]
+    : MEETING_QUICK_PROMPTS;
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [keyConfigured, setKeyConfigured] = useState<boolean | null>(null);
+  const [appliedIndex, setAppliedIndex] = useState<number | null>(null);
+  const canApplyOutline = outlineMode && Boolean(onApplyOutline);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -76,6 +103,26 @@ export function AssistantChat({ context }: AssistantChatProps) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, loading]);
+
+  function applyReplyToEditor(content: string, index: number, force = false) {
+    if (!onApplyOutline) return;
+    const html = force ? replyToOutlineHtml(content) : extractOutlineApplyHtml(content) ?? replyToOutlineHtml(content);
+    if (!html) {
+      setError('Não encontrei um esboço aplicável nesta resposta.');
+      return;
+    }
+    const confirmed = window.confirm(
+      'Substituir o esboço preparado no editor por esta versão da IA? Você pode usar Restaurar original depois, se precisar.',
+    );
+    if (!confirmed) return;
+    onApplyOutline(html);
+    setAppliedIndex(index);
+    setError(null);
+  }
 
   async function sendMessage(text: string) {
     const message = text.trim();
@@ -113,7 +160,7 @@ export function AssistantChat({ context }: AssistantChatProps) {
     <div className="flex h-full min-h-[280px] flex-col">
       <p className="text-xs text-jw-muted">
         {outlineMode
-          ? 'Compara o esboço original (.jwpub) com sua versão preparada, referências do painel e publicações baixadas — vocabulário JW.'
+          ? 'Compara o esboço original com sua versão preparada. Use “Aplicar no editor” quando quiser que a IA reescreva o texto direto no esboço.'
           : 'Respostas baseadas na matéria aberta, referências do painel e publicações baixadas no app — vocabulário das publicações JW (jw.org / JW Library).'}
       </p>
 
@@ -156,7 +203,7 @@ export function AssistantChat({ context }: AssistantChatProps) {
         {messages.length === 0 && !loading ? (
           <p className="text-sm text-jw-muted">
             {outlineMode
-              ? 'O assistente vê o esboço original e sua versão preparada. Selecione um trecho no editor para focar a análise, ou use os atalhos acima.'
+              ? 'O assistente vê o esboço original e sua versão preparada. Peça uma alteração e toque em “Aplicar no editor” na resposta para colocar o texto no esboço.'
               : 'Selecione um trecho na matéria ou abra uma referência no painel. O assistente usa só o conteúdo JW disponível aqui — não inventa matéria de fora.'}
           </p>
         ) : null}
@@ -172,7 +219,22 @@ export function AssistantChat({ context }: AssistantChatProps) {
             ].join(' ')}
           >
             {msg.role === 'assistant' ? (
-              <div className="whitespace-pre-wrap">{msg.content}</div>
+              <div>
+                <div className="whitespace-pre-wrap">{visibleAssistantReply(msg.content)}</div>
+                {canApplyOutline && extractOutlineApplyHtml(msg.content) ? (
+                  <p className="mt-2 text-[11px] text-jw-muted">Esta resposta inclui uma versão pronta para o editor.</p>
+                ) : null}
+                {canApplyOutline ? (
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => applyReplyToEditor(msg.content, index)}
+                    className="mt-2 rounded-md border border-jw-purple/40 bg-jw-purple-light px-2.5 py-1 text-[11px] font-medium text-jw-purple hover:bg-jw-purple hover:text-white disabled:opacity-50"
+                  >
+                    {appliedIndex === index ? 'Aplicado no editor' : 'Aplicar no editor'}
+                  </button>
+                ) : null}
+              </div>
             ) : (
               msg.content
             )}

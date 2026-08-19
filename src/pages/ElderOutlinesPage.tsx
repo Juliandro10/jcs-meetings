@@ -187,7 +187,7 @@ export function ElderOutlinesPage({
           {catalogContent}
         </ElderJwBrowserSplit>
       ) : (
-        catalogContent
+        <div className="min-h-0 flex-1 overflow-auto">{catalogContent}</div>
       )}
     </div>
   );

@@ -65,7 +65,7 @@ export function ElderCircuitVisitsPage({
   };
 
   return (
-    <div className="px-6 py-4">
+    <div className="h-full min-h-0 overflow-auto px-6 py-4">
       <div className="mx-auto max-w-3xl">
         <button
           type="button"

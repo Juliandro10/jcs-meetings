@@ -34,6 +34,7 @@ type SidePanelProps = {
   onDocumentNoteSelect?: (noteId: string) => void;
   /** Oculta aba Assistente IA (ex.: modo proferimento). */
   hideAssistant?: boolean;
+  onApplyOutline?: (html: string) => void;
 };
 
 export function SidePanel({
@@ -59,6 +60,7 @@ export function SidePanel({
   documentNotes,
   onDocumentNoteSelect,
   hideAssistant = false,
+  onApplyOutline,
 }: SidePanelProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isStudyBook = reference?.kind === 'study-book';
@@ -215,6 +217,7 @@ export function SidePanel({
               referenceText:
                 reference?.ok ? referencePlainText(reference.html) : assistantContext.referenceText,
             }}
+            onApplyOutline={onApplyOutline}
           />
         )}
       </div>

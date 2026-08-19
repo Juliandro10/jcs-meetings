@@ -33,11 +33,11 @@ final class BibleLinkHelper {
             String tnme = toTnmeUri(bibleUrl);
             String replacement =
                 "<a"
-                    + dataHref.group(1)
-                    + "href=\""
+                    + stripHrefAttr(dataHref.group(1))
+                    + " href=\""
                     + (tnme != null ? tnme : bibleUrl)
                     + "\""
-                    + dataHref.group(4)
+                    + stripHrefAttr(dataHref.group(4))
                     + ">";
             dataHref.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
@@ -58,6 +58,12 @@ final class BibleLinkHelper {
         }
         href.appendTail(sb);
         return sb.toString();
+    }
+
+    /** Evita href="#" + href="tnme-bible://…" — o WebView usa o primeiro. */
+    private static String stripHrefAttr(String attrs) {
+        if (attrs == null || attrs.length() == 0) return "";
+        return attrs.replaceAll("(?i)(?:^|\\s)href\\s*=\\s*(['\"]).*?\\1", " ");
     }
 
     private static String toTnmeUri(String jwpubUrl) {

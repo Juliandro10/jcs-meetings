@@ -67,6 +67,37 @@ export function jwpubBibleToTnme(href: string): string | null {
   return `tnme-bible://${bookStart}/${chapterStart}/${verseStart}-${verseEnd}`;
 }
 
+function readHtmlAttr(attrs: string, name: string) {
+  const match = attrs.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(['"])([\\s\\S]*?)\\1`, 'i'));
+  return match?.[2] ?? null;
+}
+
+function stripHtmlAttr(attrs: string, name: string) {
+  return attrs.replace(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(['"])[\\s\\S]*?\\1`, 'gi'), ' ');
+}
+
+/**
+ * No editor os textos bíblicos usam href="#" + data-href="jwpub://b/…".
+ * No tablet o WebView segue o primeiro href — precisa ser tnme-bible://.
+ */
+export function rewriteJcsReadBibleLinks(html: string) {
+  return html.replace(/<a\b([^>]*)>/gi, (full, attrs: string) => {
+    const dataHref = readHtmlAttr(attrs, 'data-href');
+    const href = readHtmlAttr(attrs, 'href');
+    const source =
+      dataHref?.startsWith('jwpub://b/') ? dataHref : href?.startsWith('jwpub://b/') ? href : null;
+    if (!source) return full;
+
+    const tnme = jwpubBibleToTnme(source);
+    if (!tnme) return full;
+
+    const next = stripHtmlAttr(stripHtmlAttr(attrs, 'href'), 'data-href')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return next ? `<a href="${tnme}" ${next}>` : `<a href="${tnme}">`;
+  });
+}
+
 /** Link para abrir a leitura inteira no tablet (jwpub quando cruza capítulos). */
 export function chairmanBibleReadingLinkHref(jwpubHref: string): string {
   const range = parseJwpubBibleHref(jwpubHref);

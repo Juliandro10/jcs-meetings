@@ -106,7 +106,7 @@ import { generateChairmanPrepContent } from './chairman-prep-generate';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { buildWcgChapterMeetingHtml } from '../shared/wcg-chapter-parse';
 import { formatUnknownError } from '../shared/format-unknown-error';
-import { exportPreparedPartForJcsRead, exportWeekForJcsRead } from './jcs-read-export';
+import { exportElderOutlineForJcsRead, exportPreparedPartForJcsRead, exportWeekForJcsRead } from './jcs-read-export';
 import {
   exportFieldServiceForJcsRead,
   exportPreachingPresentationsForJcsRead,
@@ -750,6 +750,45 @@ function registerIpc() {
       } catch (err) {
         const message = formatUnknownError(err, 'Erro ao exportar roteiro para tablet');
         console.error('[jcs:export-read-prepared-part]', err);
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:export-read-elder-outline',
+    async (
+      _event,
+      params: {
+        title: string;
+        pub: string;
+        pubLabel: string;
+        documentId: number;
+        preparedName?: string;
+        value: string;
+        preferLastFolder?: boolean;
+      },
+    ) => {
+      try {
+        if (!params?.title?.trim() || params.documentId == null || !params.pub?.trim()) {
+          return { ok: false, error: 'Esboço inválido para exportação.' };
+        }
+
+        const resolved = await resolveJcsReadExportRoot(params.preferLastFolder ?? true);
+        if (!resolved.ok) return resolved;
+
+        return await exportElderOutlineForJcsRead({
+          exportRoot: resolved.exportRoot,
+          title: params.title,
+          pub: params.pub,
+          pubLabel: params.pubLabel,
+          documentId: params.documentId,
+          preparedName: params.preparedName,
+          value: params.value,
+        });
+      } catch (err) {
+        const message = formatUnknownError(err, 'Erro ao exportar esboço para tablet');
+        console.error('[jcs:export-read-elder-outline]', err);
         return { ok: false, error: message };
       }
     },

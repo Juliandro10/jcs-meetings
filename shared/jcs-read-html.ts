@@ -1,3 +1,4 @@
+import { rewriteJcsReadBibleLinks } from './chairman-bible-links';
 import { DISCOURSE_SCRIPT_TAG } from './discourse-script';
 import { prepareDiscourseBodyHtml } from './discourse-manuscript-html';
 
@@ -164,7 +165,7 @@ html, body {
   padding: 0 2px;
 }
 .jcs-outline-body ul, .jcs-outline-body ol { margin: 0 0 10px 1.2em; padding: 0; }
-.jcs-bible-ref, a[data-href^="jwpub://b/"] {
+.jcs-bible-ref, a[data-href^="jwpub://b/"], a[href^="tnme-bible://"], a[href^="jwpub://b/"] {
   color: #6d28d9;
   text-decoration: underline;
   cursor: pointer;
@@ -344,7 +345,7 @@ export function buildJcsReadDocumentHtml(params: {
 }) {
   const notesHtml = params.notes && params.notes.length > 0 ? buildJcsReadNotesSection(params.notes) : '';
 
-  return `<!DOCTYPE html>
+  return rewriteJcsReadBibleLinks(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -367,7 +368,7 @@ ${params.publicationCss ?? ''}
     ${notesHtml}
   </div>
 </body>
-</html>`;
+</html>`);
 }
 
 export function buildJcsReadPlainHtml(params: {
@@ -382,7 +383,7 @@ export function buildJcsReadPlainHtml(params: {
     .map((part) => `<p>${nl2br(part)}</p>`)
     .join('\n');
 
-  return `<!DOCTYPE html>
+  return rewriteJcsReadBibleLinks(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -401,5 +402,5 @@ export function buildJcsReadPlainHtml(params: {
     </div>
   </div>
 </body>
-</html>`;
+</html>`);
 }

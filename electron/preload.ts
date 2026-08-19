@@ -224,6 +224,21 @@ contextBridge.exposeInMainWorld('jcs', {
       noteId,
       preferLastFolder: options?.preferLastFolder ?? true,
     }),
+  exportReadElderOutline: (
+    params: {
+      title: string;
+      pub: string;
+      pubLabel: string;
+      documentId: number;
+      preparedName?: string;
+      value: string;
+    },
+    options?: { preferLastFolder?: boolean },
+  ): Promise<JcsReadExportResult> =>
+    ipcRenderer.invoke('jcs:export-read-elder-outline', {
+      ...params,
+      preferLastFolder: options?.preferLastFolder ?? true,
+    }),
   exportReadPreachingPresentations: (
     week: MeetingWeek,
     options?: { preferLastFolder?: boolean },
@@ -571,6 +586,17 @@ declare global {
       exportReadPreparedPart: (
         week: MeetingWeek,
         noteId: string,
+        options?: { preferLastFolder?: boolean },
+      ) => Promise<JcsReadExportResult>;
+      exportReadElderOutline: (
+        params: {
+          title: string;
+          pub: string;
+          pubLabel: string;
+          documentId: number;
+          preparedName?: string;
+          value: string;
+        },
         options?: { preferLastFolder?: boolean },
       ) => Promise<JcsReadExportResult>;
       exportReadPreachingPresentations: (

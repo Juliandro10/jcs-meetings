@@ -27,6 +27,8 @@ type BibleLinkedEditorProps = {
   fillHeight?: boolean;
   /** Barra de formatação (negrito, grifo, fontes). */
   richText?: boolean;
+  /** Incrementar para forçar o DOM a receber `value` (ex.: aplicação da IA). */
+  revision?: number;
   onChange: (value: string) => void;
   onBibleLinkClick: (href: string, label: string) => void;
 };
@@ -37,12 +39,15 @@ export function BibleLinkedEditor({
   placeholder,
   fillHeight = false,
   richText = false,
+  revision,
   onChange,
   onBibleLinkClick,
 }: BibleLinkedEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   /** null = ainda não sincronizou o DOM com value (evita pular a carga inicial). */
   const lastEmitted = useRef<string | null>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   const applyValueToEditor = useCallback(
     (nextValue: string) => {
@@ -75,6 +80,11 @@ export function BibleLinkedEditor({
     }
     applyValueToEditor(value);
   }, [applyValueToEditor, value]);
+
+  useEffect(() => {
+    if (revision == null) return;
+    applyValueToEditor(valueRef.current);
+  }, [applyValueToEditor, revision]);
 
   const runAndEmit = useCallback(
     (action: () => void) => {
@@ -136,17 +146,20 @@ export function BibleLinkedEditor({
 
   return (
     <div className={boxClass}>
-      <RichTextToolbar
-        disabled={disabled}
-        onBold={() => runAndEmit(toggleBold)}
-        onItalic={() => runAndEmit(toggleItalic)}
-        onUnderline={() => runAndEmit(toggleUnderline)}
-        onHighlight={(color: RichHighlightColor) => runAndEmit(() => applyHighlight(color))}
-        onClearHighlight={() => runAndEmit(clearHighlight)}
-        onFontFamily={(family: RichFontFamily) => runAndEmit(() => applyFontFamily(family))}
-        onFontSize={(size: RichFontSize) => runAndEmit(() => applyFontSize(size))}
-        onClearFormat={() => runAndEmit(removeFormatting)}
-      />
+      <div className="shrink-0 border-b border-jw-border bg-[#ececea] px-3 py-2">
+        <RichTextToolbar
+          embedded
+          disabled={disabled}
+          onBold={() => runAndEmit(toggleBold)}
+          onItalic={() => runAndEmit(toggleItalic)}
+          onUnderline={() => runAndEmit(toggleUnderline)}
+          onHighlight={(color: RichHighlightColor) => runAndEmit(() => applyHighlight(color))}
+          onClearHighlight={() => runAndEmit(clearHighlight)}
+          onFontFamily={(family: RichFontFamily) => runAndEmit(() => applyFontFamily(family))}
+          onFontSize={(size: RichFontSize) => runAndEmit(() => applyFontSize(size))}
+          onClearFormat={() => runAndEmit(removeFormatting)}
+        />
+      </div>
       <div
         ref={editorRef}
         contentEditable={!disabled}
@@ -158,7 +171,7 @@ export function BibleLinkedEditor({
         onBlur={handleBlur}
         onClick={handleClick}
         className={[
-          'jcs-rich-editor min-h-0 flex-1 overflow-y-auto px-4 py-3 text-sm leading-relaxed text-jw-text outline-none',
+          'jcs-rich-editor min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 text-sm leading-relaxed text-jw-text outline-none',
           'empty:before:pointer-events-none empty:before:text-jw-muted empty:before:content-[attr(data-placeholder)]',
           '[&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-bible-ref]:font-medium [&_a.jcs-bible-ref]:text-jw-purple [&_a.jcs-bible-ref]:underline',
         ].join(' ')}

@@ -42,6 +42,7 @@ async function loadOutlineSourceText(pub: string, documentId: number): Promise<s
 
 export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPageProps) {
   const [editorValue, setEditorValue] = useState('');
+  const [editorRevision, setEditorRevision] = useState(0);
   const [preparedId, setPreparedId] = useState<string | undefined>(target.preparedId);
   const [preparedName, setPreparedName] = useState<string | undefined>(target.preparedName);
   const [loading, setLoading] = useState(true);
@@ -49,7 +50,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
   const [savingPrepared, setSavingPrepared] = useState(false);
   const [saveConflict, setSaveConflict] = useState<PreparedElderOutline | null>(null);
   const [exportWithFormatting, setExportWithFormatting] = useState(true);
-  const [exporting, setExporting] = useState<'doc' | 'pdf' | null>(null);
+  const [exporting, setExporting] = useState<'doc' | 'pdf' | 'tablet' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('edit');
   const [panelOpen, setPanelOpen] = useState(true);
@@ -207,6 +208,20 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
     return `${base} (cópia)`;
   }, []);
 
+  const handleApplyOutlineFromAssistant = useCallback(
+    (html: string) => {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      setEditorValue(html);
+      setEditorRevision((current) => current + 1);
+      setMessage('Assistente aplicou o texto no esboço preparado.');
+      void persist(html);
+    },
+    [persist],
+  );
+
   const handleEditorChange = (nextValue: string) => {
     setEditorValue(nextValue);
     setMessage(null);
@@ -268,6 +283,43 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
     }),
     [editorValue, reference, selectedText, target.documentId, target.pub, target.pubLabel, target.title],
   );
+
+  const handleExportTablet = async () => {
+    if (!window.jcs?.exportReadElderOutline) {
+      setMessage('Exportação para tablet disponível apenas no app Electron.');
+      return;
+    }
+    if (!editorValue.trim()) {
+      setMessage('Não há conteúdo no esboço para exportar.');
+      return;
+    }
+    setExporting('tablet');
+    setMessage(null);
+    try {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        await persist(editorValue);
+      }
+      const result = await window.jcs.exportReadElderOutline(
+        {
+          title: target.title,
+          pub: target.pub,
+          pubLabel: target.pubLabel,
+          documentId: target.documentId,
+          preparedName,
+          value: editorValue,
+        },
+        { preferLastFolder: true },
+      );
+      if (result.ok) {
+        setMessage('Esboço exportado para o tablet. Envie jcs-read.zip ao JCS Read.');
+      } else {
+        setMessage(result.error ?? 'Não foi possível exportar para o tablet.');
+      }
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const handleExport = async (format: 'doc' | 'pdf') => {
     if (!window.jcs?.exportElderOutlineNote) {
@@ -443,6 +495,14 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
           </label>
           <button
             type="button"
+            disabled={!!exporting || loading || !editorValue.trim()}
+            onClick={() => void handleExportTablet()}
+            className="rounded-lg border border-jw-purple px-3 py-1.5 text-sm font-medium text-jw-purple hover:bg-jw-purple hover:text-white disabled:opacity-50"
+          >
+            {exporting === 'tablet' ? 'Exportando…' : 'Exportar pro tablet'}
+          </button>
+          <button
+            type="button"
             disabled={!!exporting || loading}
             onClick={() => void handleExport('doc')}
             className="rounded-lg border border-jw-border px-3 py-1.5 text-sm text-jw-text hover:border-jw-purple disabled:opacity-50"
@@ -473,7 +533,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="elder-outline-editor flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 py-4 sm:px-6">
+        <div className="elder-outline-editor flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pl-6 pr-4 py-4 sm:pl-8 sm:pr-6">
           {message ? (
             <p className="mb-3 shrink-0 rounded-lg border border-jw-border bg-jw-surface px-3 py-2 text-sm text-jw-muted">
               {message}
@@ -492,6 +552,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
               key={`${target.pub}-${target.documentId}-${target.preparedId ?? 'draft'}`}
               fillHeight
               richText
+              revision={editorRevision}
               value={editorValue}
               onChange={handleEditorChange}
               onBibleLinkClick={(href, label) => void openReference(href, label)}
@@ -512,6 +573,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
             onLinkClick={(href, label) => void openReference(href, label)}
             onDownloadPublication={() => undefined}
             assistantContext={assistantContext}
+            onApplyOutline={handleApplyOutlineFromAssistant}
           />
         ) : null}
       </div>

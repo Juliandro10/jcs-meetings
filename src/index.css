@@ -434,6 +434,17 @@ body {
   height: auto;
 }
 
+.jcs-rich-editor ul,
+.jcs-rich-editor ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.5rem;
+  list-style-position: outside;
+}
+
+.jcs-rich-editor li {
+  margin: 0 0 0.25rem;
+}
+
 .jcs-rich-editor p {
   margin: 0 0 0.75rem;
 }

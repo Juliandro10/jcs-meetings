@@ -44,11 +44,11 @@ final class SongLinkHelper {
             }
             String replacement =
                 "<a"
-                    + dataHref.group(1)
-                    + "href=\""
+                    + stripHrefAttr(dataHref.group(1))
+                    + " href=\""
                     + tnme
                     + "\""
-                    + dataHref.group(4)
+                    + stripHrefAttr(dataHref.group(4))
                     + ">";
             dataHref.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
@@ -71,6 +71,11 @@ final class SongLinkHelper {
         }
         href.appendTail(sb);
         return sb.toString();
+    }
+
+    private static String stripHrefAttr(String attrs) {
+        if (attrs == null || attrs.length() == 0) return "";
+        return attrs.replaceAll("(?i)(?:^|\\s)href\\s*=\\s*(['\"]).*?\\1", " ");
     }
 
     static String toTnmeUri(String url) {

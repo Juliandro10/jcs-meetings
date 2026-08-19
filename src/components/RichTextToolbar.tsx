@@ -2,6 +2,7 @@ import type { RichFontFamily, RichFontSize, RichHighlightColor } from '@/lib/ric
 
 type RichTextToolbarProps = {
   disabled?: boolean;
+  embedded?: boolean;
   onBold: () => void;
   onItalic: () => void;
   onUnderline: () => void;
@@ -21,6 +22,7 @@ const HIGHLIGHTS: { id: RichHighlightColor; className: string; label: string }[]
 
 export function RichTextToolbar({
   disabled,
+  embedded = false,
   onBold,
   onItalic,
   onUnderline,
@@ -31,7 +33,13 @@ export function RichTextToolbar({
   onClearFormat,
 }: RichTextToolbarProps) {
   return (
-    <div className="mb-2 flex shrink-0 flex-wrap items-center gap-1 rounded-lg border border-jw-border bg-[#ececea] px-2 py-1.5">
+    <div
+      className={
+        embedded
+          ? 'flex flex-wrap items-center gap-1'
+          : 'mb-2 flex shrink-0 flex-wrap items-center gap-1 rounded-lg border border-jw-border bg-[#ececea] px-2 py-1.5'
+      }
+    >
       <ToolButton disabled={disabled} title="Negrito" onClick={onBold}>
         <strong>B</strong>
       </ToolButton>
