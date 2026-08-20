@@ -1,4 +1,4 @@
-import { linkifyBibleCitationsHtml } from '@/lib/bible-citation';
+import { linkifyBibleCitationsHtml, unwrapBibleCitationAnchors } from '@/lib/bible-citation';
 
 export function isRichOutlineContent(value: string) {
   return /<(p|div|span|strong|em|u|mark|br|a)\b/i.test(value);
@@ -36,10 +36,20 @@ export function stripOutlineHtml(html: string) {
 
 /** Linkifica citações bíblicas em nós de texto, preservando formatação existente. */
 export function linkifyBibleCitationsInHtml(html: string, mode: 'strict' | 'all' = 'all') {
-  if (typeof document === 'undefined') return linkifyBibleCitationsHtml(html, mode);
+  const unwrapped = unwrapBibleCitationAnchors(html);
+  if (typeof document === 'undefined') {
+    return unwrapped
+      .split(/(<[^>]+>)/g)
+      .map((segment) => {
+        if (!segment || segment.startsWith('<')) return segment;
+        return linkifyBibleCitationsHtml(segment, mode);
+      })
+      .join('');
+  }
 
   const host = document.createElement('div');
-  host.innerHTML = html;
+  host.innerHTML = unwrapped;
+  host.normalize();
 
   const textNodes: Text[] = [];
   const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);

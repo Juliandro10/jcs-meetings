@@ -76,13 +76,21 @@ const BOOK_ALIASES: Array<{ bookNumber: number; aliases: string[] }> = [
   { bookNumber: 66, aliases: ['apocalipse', 'ap'] },
 ];
 
+const ORDINAL_CHARS = 'º°ªᵒ';
+
 function normalizeAlias(value: string) {
   return value
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
+    .replace(new RegExp(`^(\\d+)[${ORDINAL_CHARS}]?\\.?\\s*`), '$1 ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function bookAliasToPattern(alias: string) {
+  const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escaped.replace(/^(\d+)(?:\s+)?/, `$1[${ORDINAL_CHARS}]?\\.?\\s*`);
 }
 
 const ALIAS_TO_BOOK = new Map<string, number>();
@@ -95,25 +103,49 @@ for (const entry of BOOK_ALIASES) {
 
     for (const variant of [alias.toLowerCase().trim(), normalized]) {
       if (!variant) continue;
-      BOOK_PATTERN_PARTS.add(variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      BOOK_PATTERN_PARTS.add(bookAliasToPattern(variant));
     }
   }
 }
 
 const BOOK_PATTERN = [...BOOK_PATTERN_PARTS].sort((a, b) => b.length - a.length).join('|');
 
+const VERSE_CLUSTER = String.raw`(\d{1,3}(?:\s*[-–—]\s*\d{1,3})?(?:\s*,\s*\d{1,3}(?:\s*[-–—]\s*\d{1,3})?)*(?:\s+e\s+\d{1,3})?)`;
+
 const CITATION_RE_STRICT = new RegExp(
-  `(?:^|[\\s(,;])((?:${BOOK_PATTERN}))(?:\\.)?\\s+(\\d{1,3})\\s*[:.]\\s*(\\d{1,3})(?:\\s*[-–—]\\s*(\\d{1,3}))?(?=\\s|[,;.!?)]|\\n)`,
+  `(?:^|[\\s(,;])((?:${BOOK_PATTERN}))(?:\\.)?\\s+(\\d{1,3})\\s*[:.]\\s*${VERSE_CLUSTER}(?=\\s|[,;.!?)]|\\n)`,
   'giu',
 );
 
 const CITATION_RE_ALL = new RegExp(
-  `(?:^|[\\s(,;])((?:${BOOK_PATTERN}))(?:\\.)?\\s+(\\d{1,3})\\s*[:.]\\s*(\\d{1,3})(?:\\s*[-–—]\\s*(\\d{1,3}))?(?=\\s|[,;.!?)]|\\n|$)`,
+  `(?:^|[\\s(,;])((?:${BOOK_PATTERN}))(?:\\.)?\\s+(\\d{1,3})\\s*[:.]\\s*${VERSE_CLUSTER}(?=\\s|[,;.!?)]|\\n|$)`,
   'giu',
 );
 
 function resolveBookNumber(bookRaw: string) {
   return ALIAS_TO_BOOK.get(normalizeAlias(bookRaw.replace(/\./g, '').trim()));
+}
+
+function parseVerseSpec(versePart: string): number[] {
+  const tokens = versePart.split(/\s*,\s*|\s+e\s+/iu);
+  const verses: number[] = [];
+
+  for (const token of tokens) {
+    const trimmed = token.trim();
+    if (!trimmed) continue;
+    const rangeMatch = trimmed.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      if (!start || !end || end < start) continue;
+      for (let verse = start; verse <= end; verse += 1) verses.push(verse);
+      continue;
+    }
+    const verse = Number(trimmed);
+    if (Number.isFinite(verse) && verse > 0) verses.push(verse);
+  }
+
+  return [...new Set(verses)].sort((a, b) => a - b);
 }
 
 export function buildBibleHref(citation: Pick<BibleCitation, 'bookNumber' | 'chapter' | 'verseStart' | 'verseEnd'>) {
@@ -140,26 +172,8 @@ export function parseScriptureRef(ref: string): ScriptureRefParts | null {
   if (!bookNumber) return null;
 
   const chapter = Number(bookMatch[2]);
-  const versePart = bookMatch[3].trim();
-  if (!chapter || !versePart) return null;
-
-  let verses: number[] = [];
-
-  const rangeMatch = versePart.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
-  if (rangeMatch) {
-    const start = Number(rangeMatch[1]);
-    const end = Number(rangeMatch[2]);
-    for (let verse = start; verse <= end; verse += 1) verses.push(verse);
-  } else if (/^\d+\s+e\s+\d+$/iu.test(versePart)) {
-    verses = versePart.split(/\s+e\s+/iu).map((value) => Number(value.trim()));
-  } else if (versePart.includes(',')) {
-    verses = versePart.split(',').map((value) => Number(value.trim()));
-  } else {
-    verses = [Number(versePart)];
-  }
-
-  verses = [...new Set(verses.filter((value) => Number.isFinite(value) && value > 0))].sort((a, b) => a - b);
-  if (verses.length === 0) return null;
+  const verses = parseVerseSpec(bookMatch[3] ?? '');
+  if (!chapter || verses.length === 0) return null;
 
   return { bookNumber, chapter, verses, raw: trimmed };
 }
@@ -197,12 +211,13 @@ export function parseBibleCitations(text: string): BibleCitation[] {
     if (!bookNumber) continue;
 
     const chapter = Number(match[2]);
-    const verseStart = Number(match[3]);
-    const verseEnd = match[4] ? Number(match[4]) : verseStart;
+    const verses = parseVerseSpec(match[3] ?? '');
+    const verseStart = verses[0];
+    const verseEnd = verses[verses.length - 1];
     if (!chapter || !verseStart) continue;
 
     const raw = match[0].trim().replace(/^[\s(,;]+/, '');
-    const key = `${bookNumber}:${chapter}:${verseStart}-${verseEnd}:${raw.toLowerCase()}`;
+    const key = `${bookNumber}:${chapter}:${verses.join(',')}:${raw.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -252,20 +267,20 @@ function linkifyWithPattern(text: string, pattern: RegExp) {
     const full = match[0];
     const bookRaw = match[1];
     const chapter = match[2];
-    const verseStart = match[3];
-    const verseEndRaw = match[4];
+    const verseCluster = match[3];
     const start = match.index ?? 0;
 
     const bookNumber = resolveBookNumber(bookRaw);
     if (!bookNumber) continue;
 
     const ch = Number(chapter);
-    const vs = Number(verseStart);
-    const ve = verseEndRaw ? Number(verseEndRaw) : vs;
+    const verses = parseVerseSpec(verseCluster ?? '');
+    if (!ch || verses.length === 0) continue;
+
     const prefixLen = full.indexOf(bookRaw);
     const prefix = full.slice(0, Math.max(0, prefixLen));
-    const raw = `${bookRaw} ${chapter}:${verseStart}${verseEndRaw ? `-${verseEndRaw}` : ''}`.replace(/\s+/g, ' ');
-    const href = buildBibleHref({ bookNumber, chapter: ch, verseStart: vs, verseEnd: ve });
+    const raw = full.slice(Math.max(0, prefixLen)).trim();
+    const href = buildBibleHrefFromParts({ bookNumber, chapter: ch, verses, raw });
 
     parts.push(escaped.slice(lastIndex, start));
     parts.push(
@@ -280,6 +295,33 @@ function linkifyWithPattern(text: string, pattern: RegExp) {
 
 export function linkifyBibleCitationsHtml(text: string, mode: 'strict' | 'all' = 'strict') {
   return linkifyWithPattern(text, mode === 'all' ? CITATION_RE_ALL : CITATION_RE_STRICT);
+}
+
+/** Remove âncoras bíblicas já geradas para o detector poder reler a citação inteira (ex.: Êxodo 8:16,17,19). */
+export function unwrapBibleCitationAnchors(html: string) {
+  if (!html) return html;
+  return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (full, attrs: string, inner: string) => {
+    const haystack = String(attrs);
+    if (
+      /jcs-bible-ref/i.test(haystack) ||
+      /jwpub:\/\/b\//i.test(haystack) ||
+      /tnme-bible:\/\//i.test(haystack)
+    ) {
+      return inner;
+    }
+    return full;
+  });
+}
+
+/** Linkifica citações em HTML sem DOM, trecho a trecho. */
+export function linkifyBibleCitationsInMarkup(html: string, mode: 'strict' | 'all' = 'all') {
+  return unwrapBibleCitationAnchors(html)
+    .split(/(<[^>]+>)/g)
+    .map((segment) => {
+      if (!segment || segment.startsWith('<')) return segment;
+      return linkifyBibleCitationsHtml(segment, mode);
+    })
+    .join('');
 }
 
 export function plainTextFromHtml(element: HTMLElement) {

@@ -1,5 +1,6 @@
 package com.jcs.tnme.cantico;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.zip.Inflater;
@@ -44,10 +45,23 @@ final class JwpubCrypto {
 
         Inflater inflater = new Inflater();
         inflater.setInput(decrypted);
-        byte[] buffer = new byte[Math.max(decrypted.length * 4, 8192)];
-        int length = inflater.inflate(buffer);
-        inflater.end();
-        return new String(buffer, 0, length, StandardCharsets.UTF_8);
+        ByteArrayOutputStream output = new ByteArrayOutputStream(Math.max(decrypted.length * 8, 16384));
+        byte[] buffer = new byte[8192];
+        try {
+            while (!inflater.finished()) {
+                int count = inflater.inflate(buffer);
+                if (count > 0) {
+                    output.write(buffer, 0, count);
+                    continue;
+                }
+                if (inflater.needsInput() || inflater.needsDictionary()) {
+                    break;
+                }
+            }
+        } finally {
+            inflater.end();
+        }
+        return output.toString("UTF-8");
     }
 
     private static byte[] sha256(byte[] input) {

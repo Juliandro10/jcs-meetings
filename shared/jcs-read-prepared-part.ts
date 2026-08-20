@@ -1,3 +1,4 @@
+import { unwrapBibleCitationAnchors } from '../src/lib/bible-citation';
 import { prepareDiscourseBodyHtml } from './discourse-manuscript-html';
 import { sanitizeJcsReadFileSlug } from './jcs-read-discourse';
 import { isRichOutlineContent, outlineValueToBodyHtml } from './jcs-read-html';
@@ -15,7 +16,7 @@ export function linkifyBibleCitationsInExportHtml(
   html: string,
   linkifySegment: (text: string) => string,
 ) {
-  return html
+  return unwrapBibleCitationAnchors(html)
     .split(/(<[^>]+>)/g)
     .map((segment) => {
       if (!segment || segment.startsWith('<')) return segment;
@@ -47,10 +48,6 @@ export function buildPreparedPartInnerHtml(
     ? outlineValueToBodyHtml(body)
     : `<p>${escapeHtml(body).replace(/\n/g, '<br>')}</p>`;
   const withHighlights = prepareDiscourseBodyHtml(rich);
-
-  if (withHighlights.includes('jcs-bible-ref')) {
-    return withHighlights;
-  }
 
   if (linkifySegment) {
     return linkifyBibleCitationsInExportHtml(withHighlights, linkifySegment);
