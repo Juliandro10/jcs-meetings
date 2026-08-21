@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSelectionActions } from '@/context/SelectionActionsContext';
 import { extractOutlineApplyHtml, replyToOutlineHtml } from '@/lib/rich-outline-html';
+import { isValidDictionaryQuery, isValidSearchQuery } from '../../shared/selection-text';
 import type { AiChatContext, AiChatMessage } from '../../electron/types';
 
 type AssistantChatProps = {
@@ -71,6 +73,7 @@ function stripHtml(value: string) {
 }
 
 export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
+  const selectionActions = useSelectionActions();
   const outlineMode = context.contentKind === 'elder-outline';
   const quickPrompts = outlineMode
     ? [
@@ -176,6 +179,28 @@ export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
           <span className="font-medium text-jw-purple">Seleção: </span>
           {context.selectedText.slice(0, 220)}
           {context.selectedText.length > 220 ? '…' : ''}
+          {selectionActions ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {isValidDictionaryQuery(context.selectedText) ? (
+                <button
+                  type="button"
+                  onClick={() => selectionActions.dictionaryLookup(context.selectedText ?? '')}
+                  className="rounded-full border border-jw-border bg-jw-bg px-2.5 py-1 text-[11px] text-jw-text hover:border-jw-purple hover:text-jw-purple"
+                >
+                  Consultar no dicionário
+                </button>
+              ) : null}
+              {isValidSearchQuery(context.selectedText) ? (
+                <button
+                  type="button"
+                  onClick={() => selectionActions.searchSelection(context.selectedText ?? '')}
+                  className="rounded-full border border-jw-border bg-jw-bg px-2.5 py-1 text-[11px] text-jw-text hover:border-jw-purple hover:text-jw-purple"
+                >
+                  Buscar nas publicações
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

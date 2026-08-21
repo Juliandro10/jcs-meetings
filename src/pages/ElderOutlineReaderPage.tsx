@@ -542,7 +542,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
           <div className="mb-2 shrink-0">
             <h3 className="text-sm font-semibold text-jw-text">Esboço de trabalho</h3>
             <p className="text-xs text-jw-muted">
-              Cópia editável do esboço — o original permanece intacto. Citações bíblicas viram links clicáveis.
+              Cópia editável do esboço — o original permanece intacto. Citações bíblicas viram links. Botão direito numa palavra consulta o dicionário.
             </p>
           </div>
           {loading ? (

@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { linkifyBibleCitationsHtml } from '@/lib/bible-citation';
 import { RichTextToolbar } from '@/components/RichTextToolbar';
+import { SelectionContextMenu } from '@/components/SelectionContextMenu';
+import { useSelectionActions } from '@/context/SelectionActionsContext';
+import { cleanSelectionText, resolveReaderContextText } from '../../shared/selection-text';
 import {
   applyFontFamily,
   applyFontSize,
@@ -19,6 +22,23 @@ import {
   normalizeEditorHtml,
   outlineContentToHtml,
 } from '@/lib/rich-outline-html';
+
+type LookupMenuState = { open: boolean; x: number; y: number; text: string };
+
+const CLOSED_LOOKUP_MENU: LookupMenuState = { open: false, x: 0, y: 0, text: '' };
+
+function resolveTextareaContextText(textarea: HTMLTextAreaElement): string {
+  const selected = cleanSelectionText(textarea.value.slice(textarea.selectionStart, textarea.selectionEnd));
+  if (selected) return selected;
+
+  const value = textarea.value;
+  const caret = textarea.selectionStart;
+  const left = value.slice(0, caret);
+  const right = value.slice(caret);
+  const prefix = left.match(/[\p{L}\-]+$/u)?.[0] ?? '';
+  const suffix = right.match(/^[\p{L}\-]*/u)?.[0] ?? '';
+  return cleanSelectionText(`${prefix}${suffix}`);
+}
 
 type BibleLinkedEditorProps = {
   value: string;
@@ -44,6 +64,8 @@ export function BibleLinkedEditor({
   onBibleLinkClick,
 }: BibleLinkedEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const selectionActions = useSelectionActions();
+  const [lookupMenu, setLookupMenu] = useState<LookupMenuState>(CLOSED_LOOKUP_MENU);
   /** null = ainda não sincronizou o DOM com value (evita pular a carga inicial). */
   const lastEmitted = useRef<string | null>(null);
   const valueRef = useRef(value);
@@ -126,6 +148,32 @@ export function BibleLinkedEditor({
     [onBibleLinkClick],
   );
 
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!selectionActions || disabled) return;
+      const root = editorRef.current;
+      if (!root) return;
+      event.preventDefault();
+      const text = resolveReaderContextText(root, event.nativeEvent);
+      if (!text) return;
+      setLookupMenu({ open: true, x: event.clientX, y: event.clientY, text });
+    },
+    [disabled, selectionActions],
+  );
+
+  const lookupMenuNode =
+    selectionActions && lookupMenu.open ? (
+      <SelectionContextMenu
+        open={lookupMenu.open}
+        x={lookupMenu.x}
+        y={lookupMenu.y}
+        text={lookupMenu.text}
+        onClose={() => setLookupMenu(CLOSED_LOOKUP_MENU)}
+        onSearch={(text) => selectionActions.searchSelection(text)}
+        onDictionary={(text) => selectionActions.dictionaryLookup(text)}
+      />
+    ) : null;
+
   const boxClass = [
     'flex flex-col overflow-hidden rounded-xl border border-jw-border bg-jw-surface',
     fillHeight ? 'min-h-0 flex-1' : 'h-[420px] min-h-[280px]',
@@ -145,7 +193,7 @@ export function BibleLinkedEditor({
   }
 
   return (
-    <div className={boxClass}>
+    <div className={`relative ${boxClass}`}>
       <div className="shrink-0 border-b border-jw-border bg-[#ececea] px-3 py-2">
         <RichTextToolbar
           embedded
@@ -170,12 +218,14 @@ export function BibleLinkedEditor({
         onInput={handleInput}
         onBlur={handleBlur}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
         className={[
           'jcs-rich-editor min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 text-sm leading-relaxed text-jw-text outline-none',
           'empty:before:pointer-events-none empty:before:text-jw-muted empty:before:content-[attr(data-placeholder)]',
           '[&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-bible-ref]:font-medium [&_a.jcs-bible-ref]:text-jw-purple [&_a.jcs-bible-ref]:underline',
         ].join(' ')}
       />
+      {lookupMenuNode}
     </div>
   );
 }
@@ -191,6 +241,8 @@ function PlainTextEditor({
 }: Omit<BibleLinkedEditorProps, 'richText'>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
+  const selectionActions = useSelectionActions();
+  const [lookupMenu, setLookupMenu] = useState<LookupMenuState>(CLOSED_LOOKUP_MENU);
   const linkedHtml = useMemo(() => linkifyBibleCitationsHtml(value, 'all'), [value]);
 
   const syncScroll = () => {
@@ -231,6 +283,15 @@ function PlainTextEditor({
         spellCheck
         onChange={(event) => onChange(event.target.value)}
         onScroll={syncScroll}
+        onContextMenu={(event) => {
+          if (!selectionActions || disabled) return;
+          const textarea = textareaRef.current;
+          if (!textarea) return;
+          event.preventDefault();
+          const text = resolveTextareaContextText(textarea);
+          if (!text) return;
+          setLookupMenu({ open: true, x: event.clientX, y: event.clientY, text });
+        }}
         placeholder={placeholder}
         className={[
           layerClass,
@@ -259,6 +320,17 @@ function PlainTextEditor({
           dangerouslySetInnerHTML={{ __html: linkedHtml || '<span><br></span>' }}
         />
       </div>
+      {selectionActions && lookupMenu.open ? (
+        <SelectionContextMenu
+          open={lookupMenu.open}
+          x={lookupMenu.x}
+          y={lookupMenu.y}
+          text={lookupMenu.text}
+          onClose={() => setLookupMenu(CLOSED_LOOKUP_MENU)}
+          onSearch={(text) => selectionActions.searchSelection(text)}
+          onDictionary={(text) => selectionActions.dictionaryLookup(text)}
+        />
+      ) : null}
     </div>
   );
 }
