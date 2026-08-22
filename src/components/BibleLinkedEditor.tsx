@@ -7,6 +7,7 @@ import { cleanSelectionText, resolveReaderContextText } from '../../shared/selec
 import {
   applyFontFamily,
   applyFontSize,
+  restoreEditorSelection,
   applyHighlight,
   clearHighlight,
   removeFormatting,
@@ -112,6 +113,7 @@ export function BibleLinkedEditor({
     (action: () => void) => {
       if (disabled) return;
       editorRef.current?.focus();
+      restoreEditorSelection();
       action();
       const root = editorRef.current;
       if (root) {

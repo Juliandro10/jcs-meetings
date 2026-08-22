@@ -1,4 +1,5 @@
 import type { RichFontFamily, RichFontSize, RichHighlightColor } from '@/lib/rich-text-commands';
+import { captureEditorSelection, RICH_FONT_SIZES } from '@/lib/rich-text-commands';
 
 type RichTextToolbarProps = {
   disabled?: boolean;
@@ -75,6 +76,7 @@ export function RichTextToolbar({
       <select
         disabled={disabled}
         defaultValue="Segoe UI"
+        onMouseDown={() => captureEditorSelection()}
         onChange={(event) => onFontFamily(event.target.value as RichFontFamily)}
         className="max-w-[9rem] rounded-md border border-jw-border bg-jw-surface px-2 py-1 text-xs text-jw-text outline-none focus:border-jw-purple"
         title="Fonte"
@@ -87,14 +89,17 @@ export function RichTextToolbar({
 
       <select
         disabled={disabled}
-        defaultValue="md"
-        onChange={(event) => onFontSize(event.target.value as RichFontSize)}
+        defaultValue="14"
+        onMouseDown={() => captureEditorSelection()}
+        onChange={(event) => onFontSize(Number(event.target.value) as RichFontSize)}
         className="rounded-md border border-jw-border bg-jw-surface px-2 py-1 text-xs text-jw-text outline-none focus:border-jw-purple"
-        title="Tamanho"
+        title="Tamanho da letra"
       >
-        <option value="sm">Pequeno</option>
-        <option value="md">Normal</option>
-        <option value="lg">Grande</option>
+        {RICH_FONT_SIZES.map((size) => (
+          <option key={size} value={size}>
+            {size} px
+          </option>
+        ))}
       </select>
 
       <Divider />
