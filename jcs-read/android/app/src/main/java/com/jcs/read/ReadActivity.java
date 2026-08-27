@@ -70,13 +70,14 @@ public class ReadActivity extends Activity {
             });
         refreshTextSizeUi();
 
-        ReadingWebViewHelper.configure(webView, false);
+        ReadingWebViewHelper.configure(webView, true);
 
         webView.setWebViewClient(
             new WebViewClient() {
                 @Override
                 public void onPageFinished(WebView view, String url) {
                     progress.setVisibility(View.GONE);
+                    ReadingWebViewHelper.applyTextZoom(view);
                 }
 
                 @Override

@@ -12,8 +12,10 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -358,6 +360,157 @@ public final class JcsRootAccess {
             parentId = node.documentId;
         }
         return node;
+    }
+
+    public boolean deleteWeekDocument(String weekFolder, String htmlFileName, String pkg) {
+        if (weekFolder == null || htmlFileName == null || htmlFileName.length() == 0) {
+            return false;
+        }
+        try {
+            if (treeMode && treeUri != null) {
+                return deleteWeekDocumentTree(weekFolder, htmlFileName, pkg);
+            }
+            return deleteWeekDocumentFile(weekFolder, htmlFileName, pkg);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean deleteWeekDocumentFile(String weekFolder, String htmlFileName, String pkg)
+        throws Exception {
+        File weekDir = getWeekDirFile(weekFolder, pkg);
+        File manifest = new File(weekDir, "week.json");
+        if (!manifest.isFile()) return false;
+
+        JSONObject json = new JSONObject(readTextFile(manifest));
+        JSONArray docs = json.optJSONArray("documents");
+        JSONArray next = new JSONArray();
+        boolean found = false;
+        if (docs != null) {
+            for (int i = 0; i < docs.length(); i++) {
+                JSONObject doc = docs.optJSONObject(i);
+                if (doc == null) continue;
+                if (htmlFileName.equals(doc.optString("file"))) {
+                    found = true;
+                    continue;
+                }
+                next.put(doc);
+            }
+        }
+        if (!found) return false;
+        json.put("documents", next);
+        writeTextFile(manifest, json.toString(2));
+
+        File htmlFile = new File(weekDir, htmlFileName);
+        if (htmlFile.isFile()) {
+            String html = readTextFile(htmlFile);
+            File assetsDir = new File(weekDir, "assets");
+            for (String assetName : assetNamesFromHtml(html)) {
+                File asset = new File(assetsDir, assetName);
+                if (asset.isFile()) asset.delete();
+            }
+            htmlFile.delete();
+        }
+        return true;
+    }
+
+    private boolean deleteWeekDocumentTree(String weekFolder, String htmlFileName, String pkg)
+        throws Exception {
+        TreeNode weekDir = findWeekDirInTree(weekFolder, pkg);
+        TreeNode manifestNode = findChildByName(weekDir.documentId, "week.json");
+        if (manifestNode == null || !manifestNode.isFile) return false;
+
+        JSONObject json = new JSONObject(readTreeText(manifestNode.uri));
+        JSONArray docs = json.optJSONArray("documents");
+        JSONArray next = new JSONArray();
+        boolean found = false;
+        if (docs != null) {
+            for (int i = 0; i < docs.length(); i++) {
+                JSONObject doc = docs.optJSONObject(i);
+                if (doc == null) continue;
+                if (htmlFileName.equals(doc.optString("file"))) {
+                    found = true;
+                    continue;
+                }
+                next.put(doc);
+            }
+        }
+        if (!found) return false;
+        json.put("documents", next);
+        writeTreeText(manifestNode.uri, json.toString(2));
+
+        TreeNode htmlNode = findChildByName(weekDir.documentId, htmlFileName);
+        if (htmlNode != null && htmlNode.isFile) {
+            String html = readTreeText(htmlNode.uri);
+            TreeNode assetsDir = findChildByName(weekDir.documentId, "assets");
+            if (assetsDir != null && assetsDir.isDirectory) {
+                for (String assetName : assetNamesFromHtml(html)) {
+                    TreeNode asset = findChildByName(assetsDir.documentId, assetName);
+                    if (asset != null && asset.isFile) {
+                        DocumentsContract.deleteDocument(context.getContentResolver(), asset.uri);
+                    }
+                }
+            }
+            DocumentsContract.deleteDocument(context.getContentResolver(), htmlNode.uri);
+        }
+        return true;
+    }
+
+    private static List<String> assetNamesFromHtml(String html) {
+        List<String> names = new ArrayList<String>();
+        if (html == null || html.length() == 0) return names;
+        String marker = "assets/";
+        int from = 0;
+        while (from < html.length()) {
+            int idx = html.indexOf(marker, from);
+            if (idx < 0) break;
+            int start = idx + marker.length();
+            int end = start;
+            while (end < html.length()) {
+                char c = html.charAt(end);
+                if (c == '"' || c == '\'' || c == ')' || c == ' ' || c == '<' || c == '?' || c == '&') {
+                    break;
+                }
+                end++;
+            }
+            if (end > start) names.add(html.substring(start, end));
+            from = end;
+        }
+        return names;
+    }
+
+    private void writeTextFile(File file, String text) throws Exception {
+        FileOutputStream stream = new FileOutputStream(file);
+        try {
+            OutputStreamWriter writer = new OutputStreamWriter(stream, UTF8);
+            try {
+                writer.write(text);
+                writer.flush();
+            } finally {
+                writer.close();
+            }
+        } finally {
+            stream.close();
+        }
+    }
+
+    private void writeTreeText(Uri uri, String text) throws Exception {
+        android.os.ParcelFileDescriptor pfd =
+            context.getContentResolver().openFileDescriptor(uri, "w");
+        if (pfd == null) throw new Exception("Não foi possível gravar o arquivo");
+        FileOutputStream stream = new FileOutputStream(pfd.getFileDescriptor());
+        try {
+            OutputStreamWriter writer = new OutputStreamWriter(stream, UTF8);
+            try {
+                writer.write(text);
+                writer.flush();
+            } finally {
+                writer.close();
+            }
+        } finally {
+            stream.close();
+            pfd.close();
+        }
     }
 
     private String readTextFile(File file) throws Exception {

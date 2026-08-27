@@ -9,7 +9,6 @@ final class SongLinkHelper {
     /** Faixa de MepsDocumentId do Cante de Coração (sjj) — 2024+. */
     private static final long SJJ_MEPS_MIN = 1_102_016_801L;
     private static final long SJJ_MEPS_MAX = 1_102_030_000L;
-    private static final long SJJ_MEPS_BASE = 1_102_016_800L;
 
     private static final Pattern JW_PUB_SONG =
         Pattern.compile("jwpub://p/T:(\\d+)", Pattern.CASE_INSENSITIVE);
@@ -20,8 +19,24 @@ final class SongLinkHelper {
 
     private SongLinkHelper() {}
 
+    static String toTnmeUri(String url) {
+        if (url == null || url.length() == 0) return null;
+        String decoded = Uri.decode(url);
+
+        Matcher tnme = TNME_CANTICO.matcher(decoded);
+        if (tnme.find()) {
+            long value = Long.parseLong(tnme.group(1));
+            if (isSongMepsId(value)) return "tnme-cantico://" + value;
+            if (value >= 1 && value <= 999) return "tnme-cantico://" + value;
+        }
+
+        Long mepsId = resolveMepsDocumentId(url);
+        if (mepsId == null) return null;
+        return "tnme-cantico://" + mepsId;
+    }
+
     static boolean isSongLink(String url) {
-        return resolveMepsDocumentId(url) != null;
+        return toTnmeUri(url) != null;
     }
 
     static String rewriteHtmlLinks(String html) {
@@ -31,7 +46,7 @@ final class SongLinkHelper {
 
         Matcher dataHref =
             Pattern.compile(
-                    "<a\\b([^>]*?)\\bdata-href=(['\"])(jwpub://p/T:\\d+[^'\"]*)\\2([^>]*)>",
+                    "<a\\b([^>]*?)\\bdata-href=(['\"])((?:jwpub://p/T:\\d+|tnme-cantico://)[^'\"]*)\\2([^>]*)>",
                     Pattern.CASE_INSENSITIVE)
                 .matcher(out);
         StringBuffer sb = new StringBuffer();
@@ -56,7 +71,9 @@ final class SongLinkHelper {
         out = sb.toString();
 
         Matcher href =
-            Pattern.compile("href=(['\"])(jwpub://p/T:\\d+[^'\"]*)\\1", Pattern.CASE_INSENSITIVE)
+            Pattern.compile(
+                    "href=(['\"])((?:jwpub://p/T:\\d+|tnme-cantico://)[^'\"]*)\\1",
+                    Pattern.CASE_INSENSITIVE)
                 .matcher(out);
         sb = new StringBuffer();
         while (href.find()) {
@@ -78,12 +95,6 @@ final class SongLinkHelper {
         return attrs.replaceAll("(?i)(?:^|\\s)href\\s*=\\s*(['\"]).*?\\1", " ");
     }
 
-    static String toTnmeUri(String url) {
-        Long mepsId = resolveMepsDocumentId(url);
-        if (mepsId == null) return null;
-        return "tnme-cantico://" + mepsId;
-    }
-
     static Long resolveMepsDocumentId(String url) {
         if (url == null || url.length() == 0) return null;
         String decoded = Uri.decode(url);
@@ -92,7 +103,6 @@ final class SongLinkHelper {
         if (tnme.find()) {
             long value = Long.parseLong(tnme.group(1));
             if (isSongMepsId(value)) return value;
-            if (value >= 1 && value <= 999) return SJJ_MEPS_BASE + value;
         }
 
         Matcher finder = FINDER_DOCID.matcher(decoded);

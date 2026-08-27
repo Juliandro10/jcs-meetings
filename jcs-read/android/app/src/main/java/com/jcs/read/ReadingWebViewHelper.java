@@ -39,6 +39,8 @@ public final class ReadingWebViewHelper {
     }
 
     public static void applyTextZoom(WebView webView) {
-        webView.getSettings().setTextZoom(JcsPrefs.getTextZoomPercent(webView.getContext()));
+        int percent = JcsPrefs.getTextZoomPercent(webView.getContext());
+        webView.getSettings().setTextZoom(percent);
+        PageZoomHelper.applyToWebView(webView, percent);
     }
 }

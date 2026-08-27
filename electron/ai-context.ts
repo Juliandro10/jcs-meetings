@@ -147,9 +147,7 @@ export async function enrichAiContext(
 
 
 function isRichOutlineContent(value: string) {
-
-  return /<(p|div|span|strong|em|u|mark|br|a)\b/i.test(value);
-
+  return /<(p|div|span|strong|em|u|mark|br|a|img|figure)\b/i.test(value);
 }
 
 

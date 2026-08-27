@@ -1,10 +1,12 @@
 package com.jcs.read;
 
 import android.content.Context;
+import android.graphics.PorterDuff;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -22,6 +24,15 @@ public final class WeekDetailListAdapter extends BaseAdapter {
     private String weekLabel = "";
     private String bibleReading = "";
     private String pkg = JcsPackage.MEETINGS;
+    private boolean hideSectionHeaders;
+    private boolean showDelete;
+    private DocumentClickListener clickListener;
+
+    public interface DocumentClickListener {
+        void onOpenDocument(JcsStorage.DocumentEntry document);
+
+        void onDeleteDocument(JcsStorage.DocumentEntry document);
+    }
 
     public WeekDetailListAdapter(Context context) {
         this.context = context;
@@ -30,6 +41,18 @@ public final class WeekDetailListAdapter extends BaseAdapter {
 
     public void setPackage(String pkg) {
         this.pkg = pkg != null ? pkg : JcsPackage.MEETINGS;
+    }
+
+    public void setHideSectionHeaders(boolean hideSectionHeaders) {
+        this.hideSectionHeaders = hideSectionHeaders;
+    }
+
+    public void setShowDelete(boolean showDelete) {
+        this.showDelete = showDelete;
+    }
+
+    public void setClickListener(DocumentClickListener clickListener) {
+        this.clickListener = clickListener;
     }
 
     public void setDocuments(
@@ -96,13 +119,15 @@ public final class WeekDetailListAdapter extends BaseAdapter {
                     : DocumentUi.sectionKeyForKind(kind);
 
             if (!sectionKey.equals(lastSection)) {
-                Row header = new Row();
-                header.type = TYPE_HEADER;
-                header.sectionTitle =
-                    preachingMode
-                        ? PreachingDocumentUi.sectionTitleForKey(context, sectionKey)
-                        : DocumentUi.sectionTitleForKey(context, sectionKey);
-                rows.add(header);
+                if (!hideSectionHeaders) {
+                    Row header = new Row();
+                    header.type = TYPE_HEADER;
+                    header.sectionTitle =
+                        preachingMode
+                            ? PreachingDocumentUi.sectionTitleForKey(context, sectionKey)
+                            : DocumentUi.sectionTitleForKey(context, sectionKey);
+                    rows.add(header);
+                }
                 lastSection = sectionKey;
             }
 
@@ -199,6 +224,34 @@ public final class WeekDetailListAdapter extends BaseAdapter {
             preachingMode
                 ? PreachingDocumentUi.thumbDrawableForKind(kind)
                 : DocumentUi.thumbDrawableForKind(kind));
+
+        ImageView deleteButton = (ImageView) item.findViewById(R.id.docDeleteButton);
+        item.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (clickListener != null && doc != null) {
+                        clickListener.onOpenDocument(doc);
+                    }
+                }
+            });
+        if (showDelete) {
+            deleteButton.setVisibility(View.VISIBLE);
+            deleteButton.setColorFilter(
+                context.getResources().getColor(R.color.jcs_muted), PorterDuff.Mode.SRC_ATOP);
+            deleteButton.setOnClickListener(
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (clickListener != null && doc != null) {
+                            clickListener.onDeleteDocument(doc);
+                        }
+                    }
+                });
+        } else {
+            deleteButton.setVisibility(View.GONE);
+            deleteButton.setOnClickListener(null);
+        }
 
         ViewGroup.LayoutParams params = item.getLayoutParams();
         if (params == null) {

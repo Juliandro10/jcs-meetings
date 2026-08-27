@@ -294,6 +294,8 @@ export async function exportJcsMeetingsBackup(
     await addDirectoryToZip(zip, elderDir, `${DATA_PREFIX}elder`);
     await addFileIfExists(zip, path.join(userDataRoot, 'elder-auth.json'), `${DATA_PREFIX}elder-auth.json`);
     await addFileIfExists(zip, path.join(userDataRoot, 'jcs-read-export.json'), `${DATA_PREFIX}jcs-read-export.json`);
+    await addFileIfExists(zip, path.join(userDataRoot, 'imported-documents.json'), `${DATA_PREFIX}imported-documents.json`);
+    await addDirectoryToZip(zip, path.join(userDataRoot, 'imported-document-files'), `${DATA_PREFIX}imported-document-files`);
     await addFileIfExists(zip, path.join(userDataRoot, 'download-registry.json'), `${DATA_PREFIX}download-registry.json`);
 
     if (includePublications) {
@@ -347,6 +349,8 @@ export async function importJcsMeetingsBackup(
     await extractDirectoryFromZip(zip, `${DATA_PREFIX}elder`, path.join(tempDir, 'elder'));
     await extractZipEntry(zip, `${DATA_PREFIX}elder-auth.json`, path.join(tempDir, 'elder-auth.json'));
     await extractZipEntry(zip, `${DATA_PREFIX}jcs-read-export.json`, path.join(tempDir, 'jcs-read-export.json'));
+    await extractZipEntry(zip, `${DATA_PREFIX}imported-documents.json`, path.join(tempDir, 'imported-documents.json'));
+    await extractDirectoryFromZip(zip, `${DATA_PREFIX}imported-document-files`, path.join(tempDir, 'imported-document-files'));
     await extractZipEntry(zip, `${DATA_PREFIX}download-registry.json`, path.join(tempDir, 'download-registry.json'));
     if (manifest.includePublications) {
       await extractDirectoryFromZip(zip, `${DATA_PREFIX}publications`, path.join(tempDir, 'publications'));
@@ -431,6 +435,20 @@ export async function importJcsMeetingsBackup(
     const incomingJcsRead = path.join(tempDir, 'jcs-read-export.json');
     if (await pathExists(incomingJcsRead)) {
       await fs.copyFile(incomingJcsRead, path.join(userDataRoot, 'jcs-read-export.json'));
+    }
+
+    const incomingImportedDocs = path.join(tempDir, 'imported-documents.json');
+    if (await pathExists(incomingImportedDocs)) {
+      await fs.copyFile(incomingImportedDocs, path.join(userDataRoot, 'imported-documents.json'));
+    }
+
+    const incomingImportedFiles = path.join(tempDir, 'imported-document-files');
+    if (await pathExists(incomingImportedFiles)) {
+      await fs.mkdir(path.join(userDataRoot, 'imported-document-files'), { recursive: true });
+      await fs.cp(incomingImportedFiles, path.join(userDataRoot, 'imported-document-files'), {
+        recursive: true,
+        force: true,
+      });
     }
 
     if (manifest.includePublications) {

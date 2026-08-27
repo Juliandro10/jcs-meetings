@@ -1,7 +1,7 @@
 {
   "name": "jcs-meetings",
   "productName": "JCS Meetings",
-  "version": "0.1.0",
+        "version": "0.1.1",
   "private": true,
   "description": "Preparação de reuniões com paridade JW Library + IA",
   "main": "dist-electron/main.js",

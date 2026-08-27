@@ -320,6 +320,33 @@ export type ElderOutlineNoteResult = {
   error?: string;
 };
 
+export type ImportedDocumentKind = 'pdf' | 'doc' | 'docx' | 'txt' | 'other';
+
+export type ImportedDocument = {
+  id: string;
+  title: string;
+  sourceFileName: string;
+  sourceKind: ImportedDocumentKind;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImportedDocumentListItem = Omit<ImportedDocument, 'body'>;
+
+export type ListImportedDocumentsResult = {
+  ok: boolean;
+  items?: ImportedDocumentListItem[];
+  error?: string;
+};
+
+export type ImportedDocumentResult = {
+  ok: boolean;
+  item?: ImportedDocument;
+  cancelled?: boolean;
+  error?: string;
+};
+
 export type PreparedElderOutline = {
   id: string;
   name: string;

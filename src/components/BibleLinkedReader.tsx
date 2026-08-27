@@ -3,7 +3,7 @@ import {
   isRichOutlineContent,
   linkifyBibleCitationsInHtml,
 } from '@/lib/rich-outline-html';
-import { linkifyBibleCitationsHtml } from '@/lib/bible-citation';
+import { linkifyJcsReadRefsInPlainText } from '../../shared/jcs-read-ref-links';
 
 type BibleLinkedReaderProps = {
   value: string;
@@ -17,11 +17,11 @@ export function BibleLinkedReader({ value, onBibleLinkClick, size = 'normal' }: 
     if (isRichOutlineContent(value)) {
       return linkifyBibleCitationsInHtml(value, 'all');
     }
-    return linkifyBibleCitationsHtml(value, 'all');
+    return linkifyJcsReadRefsInPlainText(value, 'all');
   }, [value]);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref');
+    const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
     if (!anchor) return;
     event.preventDefault();
     const href = anchor.getAttribute('data-href');
@@ -38,6 +38,7 @@ export function BibleLinkedReader({ value, onBibleLinkClick, size = 'normal' }: 
         isRichOutlineContent(value) ? '' : 'whitespace-pre-wrap',
         size === 'large' ? 'text-xl leading-relaxed sm:text-2xl sm:leading-relaxed' : 'text-sm leading-relaxed',
         '[&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-bible-ref]:font-medium [&_a.jcs-bible-ref]:text-jw-purple [&_a.jcs-bible-ref]:underline [&_a.jcs-bible-ref]:decoration-jw-purple/40',
+        '[&_a.jcs-song-ref]:cursor-pointer [&_a.jcs-song-ref]:font-medium [&_a.jcs-song-ref]:text-jw-purple [&_a.jcs-song-ref]:underline [&_a.jcs-song-ref]:decoration-jw-purple/40',
       ].join(' ')}
       dangerouslySetInnerHTML={{ __html: linkedHtml }}
     />

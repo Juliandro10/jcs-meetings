@@ -1,4 +1,4 @@
-import { rewriteJcsReadBibleLinks } from './chairman-bible-links';
+import { rewriteJcsReadAppLinks } from './chairman-bible-links';
 import { DISCOURSE_SCRIPT_TAG } from './discourse-script';
 import { prepareDiscourseBodyHtml } from './discourse-manuscript-html';
 
@@ -49,6 +49,10 @@ html, body {
   background: #fff;
   min-height: 100%;
 }
+.jcs-read-shell.jcs-has-pages {
+  max-width: none;
+  padding: 8px;
+}
 .jcs-read-header {
   border-bottom: 3px solid #6d28d9;
   padding-bottom: 12px;
@@ -68,7 +72,47 @@ html, body {
   margin: 0;
 }
 .jcs-read-body { font-size: 18px; line-height: 1.55; }
+.jcs-read-body a,
+.jcs-read-body a.jcs-bible-ref,
+.jcs-read-body a.jcs-song-ref {
+  color: #6d28d9;
+  text-decoration: underline;
+}
 .jcs-read-body img { max-width: 100%; height: auto; }
+.jcs-read-body img.jcs-imported-page,
+.jcs-read-body figure.jcs-imported-page img,
+.jcs-read-body figure.jcs-imported-image img {
+  width: 100%;
+  height: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+.jcs-read-body figure.jcs-imported-page,
+.jcs-read-body figure.jcs-imported-image {
+  margin: 12px 0;
+}
+.jcs-imported-page-stack {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.jcs-imported-page-stack img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #e5e7eb;
+}
+.jcs-page-hotspot {
+  position: absolute;
+  display: block;
+  background: rgba(109, 40, 217, 0.16);
+  border-bottom: 2px solid #6d28d9;
+  overflow: hidden;
+  text-decoration: none;
+  color: transparent;
+  font-size: 1px;
+  line-height: 1px;
+}
 .jcs-read-body figure { margin: 12px 0; }
 .jcs-read-body textarea { display: none; }
 .jcs-field-value {
@@ -129,6 +173,10 @@ html, body {
 }
 .jcs-plain-doc { font-size: 17px; line-height: 1.55; }
 .jcs-plain-doc p { margin: 0 0 12px; }
+.jcs-plain-doc a {
+  color: #6d28d9;
+  text-decoration: underline;
+}
 .jcs-preaching-topic { margin: 0 0 28px; }
 .jcs-preaching-topic h2 {
   font-family: "Segoe UI", Arial, sans-serif;
@@ -265,7 +313,7 @@ export function highlightSwatch(color: string) {
 }
 
 export function isRichOutlineContent(value: string) {
-  return /<(p|div|span|strong|em|u|mark|br|a)\b/i.test(value);
+  return /<(p|div|span|strong|em|u|mark|br|a|img|figure)\b/i.test(value);
 }
 
 export function plainOutlineToHtml(text: string) {
@@ -344,8 +392,10 @@ export function buildJcsReadDocumentHtml(params: {
   notes?: JcsReadNote[];
 }) {
   const notesHtml = params.notes && params.notes.length > 0 ? buildJcsReadNotesSection(params.notes) : '';
+  const hasPages = (params.bodyHtml || '').includes('jcs-imported-page-stack');
+  const shellClass = hasPages ? 'jcs-read-shell jcs-has-pages' : 'jcs-read-shell';
 
-  return rewriteJcsReadBibleLinks(`<!DOCTYPE html>
+  return rewriteJcsReadAppLinks(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
@@ -357,7 +407,7 @@ ${params.publicationCss ?? ''}
   </style>
 </head>
 <body>
-  <div class="jcs-read-shell">
+  <div class="${shellClass}">
     <header class="jcs-read-header">
       <h1>${escapeHtml(params.title)}</h1>
       ${params.subtitle ? `<p class="meta">${escapeHtml(params.subtitle)}</p>` : ''}
@@ -383,7 +433,7 @@ export function buildJcsReadPlainHtml(params: {
     .map((part) => `<p>${nl2br(part)}</p>`)
     .join('\n');
 
-  return rewriteJcsReadBibleLinks(`<!DOCTYPE html>
+  return rewriteJcsReadAppLinks(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">

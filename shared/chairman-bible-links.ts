@@ -1,3 +1,5 @@
+import { isSongMepsId } from './chairman-song-links';
+
 export type BibleHrefRange = {
   bookStart: number;
   chapterStart: number;
@@ -67,6 +69,18 @@ export function jwpubBibleToTnme(href: string): string | null {
   return `tnme-bible://${bookStart}/${chapterStart}/${verseStart}-${verseEnd}`;
 }
 
+function songHrefToTnme(href: string): string | null {
+  const tnme = href.match(/^tnme-cantico:\/\/(?:song\/)?(\d+)/i);
+  if (tnme) return `tnme-cantico://${tnme[1]}`;
+  const jwpub = href.match(/^jwpub:\/\/p\/T:(\d+)/i);
+  if (jwpub) {
+    const documentId = Number(jwpub[1]);
+    if (!Number.isFinite(documentId) || !isSongMepsId(documentId)) return null;
+    return `tnme-cantico://${documentId}`;
+  }
+  return null;
+}
+
 function readHtmlAttr(attrs: string, name: string) {
   const match = attrs.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(['"])([\\s\\S]*?)\\1`, 'i'));
   return match?.[2] ?? null;
@@ -74,6 +88,11 @@ function readHtmlAttr(attrs: string, name: string) {
 
 function stripHtmlAttr(attrs: string, name: string) {
   return attrs.replace(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(['"])[\\s\\S]*?\\1`, 'gi'), ' ');
+}
+
+function rewriteAnchorHref(attrs: string, nextHref: string) {
+  const next = stripHtmlAttr(stripHtmlAttr(attrs, 'href'), 'data-href').replace(/\s+/g, ' ').trim();
+  return next ? `<a href="${nextHref}" ${next}>` : `<a href="${nextHref}">`;
 }
 
 /**
@@ -90,12 +109,29 @@ export function rewriteJcsReadBibleLinks(html: string) {
 
     const tnme = jwpubBibleToTnme(source);
     if (!tnme) return full;
-
-    const next = stripHtmlAttr(stripHtmlAttr(attrs, 'href'), 'data-href')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return next ? `<a href="${tnme}" ${next}>` : `<a href="${tnme}">`;
+    return rewriteAnchorHref(attrs, tnme);
   });
+}
+
+export function rewriteJcsReadSongLinks(html: string) {
+  return html.replace(/<a\b([^>]*)>/gi, (full, attrs: string) => {
+    const dataHref = readHtmlAttr(attrs, 'data-href');
+    const href = readHtmlAttr(attrs, 'href');
+    const source =
+      dataHref && (dataHref.startsWith('tnme-cantico://') || dataHref.startsWith('jwpub://p/'))
+        ? dataHref
+        : href && (href.startsWith('tnme-cantico://') || href.startsWith('jwpub://p/'))
+          ? href
+          : null;
+    if (!source) return full;
+    const tnme = songHrefToTnme(source);
+    if (!tnme) return full;
+    return rewriteAnchorHref(attrs, tnme);
+  });
+}
+
+export function rewriteJcsReadAppLinks(html: string) {
+  return rewriteJcsReadSongLinks(rewriteJcsReadBibleLinks(html));
 }
 
 /** Link para abrir a leitura inteira no tablet (jwpub quando cruza capítulos). */

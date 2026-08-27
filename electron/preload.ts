@@ -45,6 +45,8 @@ import type {
   WeekMeetingSummaryResult,
   JcsReadExportResult,
   ElderOutlineNoteResult,
+  ImportedDocumentResult,
+  ListImportedDocumentsResult,
   ListPreparedElderOutlinesResult,
   PreparedElderOutline,
   SavePreparedElderOutlineResult,
@@ -236,6 +238,26 @@ contextBridge.exposeInMainWorld('jcs', {
     options?: { preferLastFolder?: boolean },
   ): Promise<JcsReadExportResult> =>
     ipcRenderer.invoke('jcs:export-read-elder-outline', {
+      ...params,
+      preferLastFolder: options?.preferLastFolder ?? true,
+    }),
+  listImportedDocuments: (): Promise<ListImportedDocumentsResult> =>
+    ipcRenderer.invoke('jcs:list-imported-documents'),
+  getImportedDocument: (id: string): Promise<ImportedDocumentResult> =>
+    ipcRenderer.invoke('jcs:get-imported-document', id),
+  importDocumentFile: (): Promise<ImportedDocumentResult> => ipcRenderer.invoke('jcs:import-document-file'),
+  saveImportedDocument: (params: {
+    id: string;
+    title?: string;
+    body: string;
+  }): Promise<ImportedDocumentResult> => ipcRenderer.invoke('jcs:save-imported-document', params),
+  deleteImportedDocument: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:delete-imported-document', id),
+  exportReadImportedDocument: (
+    params: { id: string; title: string; sourceFileName?: string; value: string },
+    options?: { preferLastFolder?: boolean },
+  ): Promise<JcsReadExportResult> =>
+    ipcRenderer.invoke('jcs:export-read-imported-document', {
       ...params,
       preferLastFolder: options?.preferLastFolder ?? true,
     }),
@@ -597,6 +619,19 @@ declare global {
           preparedName?: string;
           value: string;
         },
+        options?: { preferLastFolder?: boolean },
+      ) => Promise<JcsReadExportResult>;
+      listImportedDocuments: () => Promise<ListImportedDocumentsResult>;
+      getImportedDocument: (id: string) => Promise<ImportedDocumentResult>;
+      importDocumentFile: () => Promise<ImportedDocumentResult>;
+      saveImportedDocument: (params: {
+        id: string;
+        title?: string;
+        body: string;
+      }) => Promise<ImportedDocumentResult>;
+      deleteImportedDocument: (id: string) => Promise<{ ok: boolean; error?: string }>;
+      exportReadImportedDocument: (
+        params: { id: string; title: string; sourceFileName?: string; value: string },
         options?: { preferLastFolder?: boolean },
       ) => Promise<JcsReadExportResult>;
       exportReadPreachingPresentations: (

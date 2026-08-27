@@ -3,6 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/card_background"
+    android:descendantFocusability="blocksDescendants"
     android:gravity="center_vertical"
     android:orientation="horizontal"
     android:padding="12dp">
@@ -40,4 +41,18 @@
             android:textColor="@color/jcs_accent_blue"
             android:textSize="16sp" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/docDeleteButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginLeft="4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:contentDescription="@string/delete_document"
+        android:focusable="false"
+        android:focusableInTouchMode="false"
+        android:padding="8dp"
+        android:src="@android:drawable/ic_menu_delete"
+        android:visibility="gone" />
 </LinearLayout>

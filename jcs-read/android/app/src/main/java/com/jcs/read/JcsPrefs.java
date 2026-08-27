@@ -91,7 +91,7 @@ public final class JcsPrefs {
     }
 
     private static final String KEY_TEXT_ZOOM_INDEX = "text_zoom_index";
-    private static final int[] TEXT_ZOOM_LEVELS = {85, 100, 115, 130};
+    private static final int[] TEXT_ZOOM_LEVELS = {90, 100, 125, 160};
     private static final int DEFAULT_TEXT_ZOOM_INDEX = 1;
 
     public static int getTextZoomIndex(Context context) {

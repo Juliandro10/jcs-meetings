@@ -9,6 +9,11 @@ import java.util.List;
 public final class JcsStorage {
     private JcsStorage() {}
 
+    public static boolean deleteWeekDocument(
+        Context context, String weekFolder, String htmlFile, String pkg) {
+        return JcsRootAccess.from(context).deleteWeekDocument(weekFolder, htmlFile, pkg);
+    }
+
     public static List<WeekEntry> loadWeeks(Context context) {
         return loadWeeks(context, JcsPackage.MEETINGS);
     }

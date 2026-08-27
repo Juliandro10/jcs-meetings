@@ -142,9 +142,23 @@ public class WeekDetailActivity extends Activity {
 
         adapter = new WeekDetailListAdapter(this);
         adapter.setPackage(pkg);
+        adapter.setClickListener(
+            new WeekDetailListAdapter.DocumentClickListener() {
+                @Override
+                public void onOpenDocument(JcsStorage.DocumentEntry document) {
+                    if (document == null) return;
+                    Intent intent = new Intent(WeekDetailActivity.this, ReadActivity.class);
+                    intent.putExtra("title", document.title);
+                    intent.putExtra("weekFolder", folder);
+                    intent.putExtra("htmlFile", document.file);
+                    intent.putExtra("pkg", pkg);
+                    startActivity(intent);
+                }
 
+                @Override
+                public void onDeleteDocument(JcsStorage.DocumentEntry document) {}
+            });
         adapter.setDocuments(documents, label, bibleReading);
-
         documentList.setAdapter(adapter);
 
 

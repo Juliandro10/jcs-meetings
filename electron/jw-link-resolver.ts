@@ -300,6 +300,23 @@ export async function resolveJwpubLink(
       );
     }
 
+    if (href.startsWith('tnme-cantico://')) {
+      const raw = href.match(/^tnme-cantico:\/\/(?:song\/)?(\d+)/i)?.[1];
+      const value = raw ? Number(raw) : 0;
+      const songNumber =
+        value >= 1 && value <= 999 ? value : value >= 1_102_016_801 && value <= 1_102_030_000
+          ? value - 1_102_016_800
+          : 0;
+      const title = songNumber > 0 ? `Cântico ${songNumber}` : (params.linkLabel ?? '').trim() || 'Cântico';
+      return {
+        ok: true,
+        kind: 'publication',
+        title,
+        subtitle: 'TNME Cântico',
+        html: `<p>No tablet, o JCS Read abre este cântico no aplicativo TNME Cântico.</p>`,
+      };
+    }
+
     if (href.startsWith('jwpub://p/')) {
       const normalized = normalizeExtractLink(href);
       if (isWcgStudyLink(href, params.linkLabel)) {

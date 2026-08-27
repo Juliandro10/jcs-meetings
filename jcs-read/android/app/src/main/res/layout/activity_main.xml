@@ -1,256 +1,213 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-
     android:layout_width="match_parent"
-
     android:layout_height="match_parent"
-
     android:background="@color/jcs_bg"
-
     android:orientation="vertical">
 
-
-
     <LinearLayout
-
         android:layout_width="match_parent"
-
         android:layout_height="wrap_content"
-
         android:background="@color/jcs_surface"
-
         android:gravity="center_vertical"
-
         android:minHeight="56dp"
-
         android:orientation="horizontal"
-
         android:paddingLeft="16dp"
-
         android:paddingRight="8dp">
 
-
-
         <LinearLayout
-
             android:layout_width="0dp"
-
             android:layout_height="wrap_content"
-
             android:layout_weight="1"
-
             android:orientation="vertical"
-
             android:paddingTop="10dp"
-
             android:paddingBottom="10dp">
 
-
-
             <TextView
-
                 android:id="@+id/title"
-
                 android:layout_width="wrap_content"
-
                 android:layout_height="wrap_content"
-
                 android:text="@string/meetings_title"
-
                 android:textColor="@color/jcs_white"
-
                 android:textSize="22sp"
-
                 android:textStyle="bold" />
 
-
-
             <TextView
-
                 android:id="@+id/subtitle"
-
                 android:layout_width="wrap_content"
-
                 android:layout_height="wrap_content"
-
                 android:layout_marginTop="2dp"
-
                 android:text="@string/meetings_subtitle"
-
                 android:textColor="@color/jcs_muted"
-
                 android:textSize="13sp" />
-
         </LinearLayout>
 
-
-
         <ImageButton
-
             android:id="@+id/menuButton"
-
             android:layout_width="48dp"
-
             android:layout_height="48dp"
-
             android:background="@android:color/transparent"
-
             android:contentDescription="@string/menu_more"
-
             android:src="@android:drawable/ic_menu_more" />
-
     </LinearLayout>
-
-
 
     <LinearLayout
-
         android:layout_width="match_parent"
-
         android:layout_height="wrap_content"
-
         android:background="@color/jcs_surface"
-
-        android:orientation="horizontal"
-
+        android:orientation="vertical"
         android:paddingLeft="12dp"
-
         android:paddingRight="12dp"
-
         android:paddingBottom="8dp">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
 
+            <Button
+                android:id="@+id/tabMeetings"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginRight="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/tab_selected"
+                android:text="@string/meetings_title"
+                android:textAllCaps="false"
+                android:textColor="@color/jcs_white"
+                android:textSize="13sp" />
 
-        <Button
+            <Button
+                android:id="@+id/tabPreaching"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginLeft="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/tab_unselected"
+                android:text="@string/preaching_title"
+                android:textAllCaps="false"
+                android:textColor="@color/jcs_muted"
+                android:textSize="13sp" />
+        </LinearLayout>
 
-            android:id="@+id/tabMeetings"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
 
-            android:layout_width="0dp"
+            <Button
+                android:id="@+id/tabTalks"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginRight="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/tab_unselected"
+                android:text="@string/talks_title"
+                android:textAllCaps="false"
+                android:textColor="@color/jcs_muted"
+                android:textSize="13sp" />
 
-            android:layout_height="40dp"
-
-            android:layout_marginRight="6dp"
-
-            android:layout_weight="1"
-
-            android:background="@drawable/tab_selected"
-
-            android:text="@string/meetings_title"
-
-            android:textAllCaps="false"
-
-            android:textColor="@color/jcs_white"
-
-            android:textSize="14sp" />
-
-
-
-        <Button
-
-            android:id="@+id/tabPreaching"
-
-            android:layout_width="0dp"
-
-            android:layout_height="40dp"
-
-            android:layout_marginLeft="6dp"
-
-            android:layout_weight="1"
-
-            android:background="@drawable/tab_unselected"
-
-            android:text="@string/preaching_title"
-
-            android:textAllCaps="false"
-
-            android:textColor="@color/jcs_muted"
-
-            android:textSize="14sp" />
-
+            <Button
+                android:id="@+id/tabDocs"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_marginLeft="6dp"
+                android:layout_weight="1"
+                android:background="@drawable/tab_unselected"
+                android:text="@string/docs_title"
+                android:textAllCaps="false"
+                android:textColor="@color/jcs_muted"
+                android:textSize="13sp" />
+        </LinearLayout>
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/weekNav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/jcs_surface"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="4dp"
+        android:paddingRight="4dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
 
+        <TextView
+            android:id="@+id/weekPrev"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="‹"
+            android:textColor="@color/jcs_white"
+            android:textSize="28sp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/week_prev" />
+
+        <TextView
+            android:id="@+id/weekNavLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:maxLines="2"
+            android:textColor="@color/jcs_purple_bright"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/weekNext"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="›"
+            android:textColor="@color/jcs_white"
+            android:textSize="28sp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/week_next" />
+    </LinearLayout>
 
     <TextView
-
         android:id="@+id/folderView"
-
         android:layout_width="match_parent"
-
         android:layout_height="wrap_content"
-
         android:paddingLeft="16dp"
-
-        android:paddingTop="10dp"
-
+        android:paddingTop="8dp"
         android:paddingRight="16dp"
-
-        android:paddingBottom="6dp"
-
+        android:paddingBottom="4dp"
         android:text="@string/storage_hint"
-
         android:textColor="@color/jcs_muted"
-
         android:textIsSelectable="true"
-
         android:textSize="12sp" />
 
-
-
     <ListView
-
         android:id="@+id/weekList"
-
         android:layout_width="match_parent"
-
         android:layout_height="0dp"
-
         android:layout_weight="1"
-
         android:clipToPadding="false"
-
         android:divider="@android:color/transparent"
-
         android:dividerHeight="0dp"
-
         android:listSelector="@android:color/transparent"
-
         android:paddingLeft="12dp"
-
         android:paddingTop="4dp"
-
         android:paddingRight="12dp"
-
         android:paddingBottom="16dp"
-
         android:scrollbars="none" />
 
-
-
     <TextView
-
         android:id="@+id/emptyView"
-
         android:layout_width="match_parent"
-
         android:layout_height="0dp"
-
         android:layout_weight="1"
-
         android:gravity="center"
-
         android:lineSpacingExtra="4dp"
-
         android:padding="32dp"
-
         android:text="@string/empty_weeks"
-
         android:textColor="@color/jcs_muted"
-
         android:textSize="15sp"
-
         android:visibility="gone" />
-
 </LinearLayout>
-

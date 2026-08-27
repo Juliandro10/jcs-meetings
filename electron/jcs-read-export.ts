@@ -14,7 +14,6 @@ import {
   buildJcsReadDocumentHtml,
   buildJcsReadOutlineHtml,
   buildJcsReadRichNoteHtml,
-  isRichOutlineContent,
   outlineValueToBodyHtml,
 } from '../shared/jcs-read-html';
 import type {
@@ -25,6 +24,8 @@ import type {
 } from '../shared/jcs-read-types';
 import { JCS_READ_FORMAT } from '../shared/jcs-read-types';
 import { formatUnknownError } from '../shared/format-unknown-error';
+import { linkifyJcsReadRefsInHtml } from '../shared/jcs-read-ref-links';
+import { importedAssetFilePath } from './imported-documents-store';
 import { writeJcsReadZip } from './jcs-read-zip';
 import { alignChairmanPrepRecordWithMwb } from './chairman-mwb-align';
 import { enrichChairmanPrepBibleReading } from './chairman-prep-enrich';
@@ -328,7 +329,7 @@ function elderOutlinesCatalogWeek(): MeetingWeek {
   return {
     id: ELDER_OUTLINES_WEEK_ID,
     dateIso: '0000-01-01',
-    label: 'Esboços',
+    label: 'Discursos públicos',
     dateRangeCaps: '',
     bibleReading: '',
     watchtowerTitle: '',
@@ -362,7 +363,7 @@ export async function exportElderOutlineForJcsRead(params: {
     const html = buildJcsReadOutlineHtml({
       title: `Esboço — ${displayTitle}`,
       subtitle: params.pubLabel,
-      outlineHtml: outlineValueToBodyHtml(value),
+      outlineHtml: linkifyJcsReadRefsInHtml(outlineValueToBodyHtml(value)),
     });
 
     await writeTextFile(path.join(weekDir, fileName), html);
@@ -392,6 +393,122 @@ export async function exportElderOutlineForJcsRead(params: {
   } catch (err) {
     console.error('[exportElderOutlineForJcsRead]', err);
     return { ok: false, error: formatUnknownError(err, 'Erro ao exportar esboço para tablet') };
+  }
+}
+
+const IMPORTED_DOCS_FOLDER = 'importados';
+const IMPORTED_DOCS_WEEK_ID = 'imported-docs';
+
+function importedDocsCatalogWeek(): MeetingWeek {
+  return {
+    id: IMPORTED_DOCS_WEEK_ID,
+    dateIso: '0000-01-02',
+    label: 'Documentos importados',
+    dateRangeCaps: '',
+    bibleReading: '',
+    watchtowerTitle: '',
+    isCurrentWeek: false,
+  };
+}
+
+async function rewriteImportedImagesForExport(params: {
+  html: string;
+  userDataRoot: string;
+  documentId: string;
+  assetsDir: string;
+  namePrefix: string;
+}) {
+  const copied = new Map<string, string>();
+  const pattern = /jcs-imported:\/\/([0-9a-fA-F-]+)\/([A-Za-z0-9._-]+)/g;
+
+  const matches = [...params.html.matchAll(pattern)];
+  for (const match of matches) {
+    const sourceId = match[1];
+    const fileName = match[2];
+    const key = `${sourceId}/${fileName}`;
+    if (copied.has(key)) continue;
+    const sourcePath = importedAssetFilePath(params.userDataRoot, sourceId, fileName);
+    if (!sourcePath) continue;
+    const localName = `${params.namePrefix}-${fileName}`;
+    try {
+      await fs.copyFile(sourcePath, path.join(params.assetsDir, localName));
+      copied.set(key, localName);
+    } catch (err) {
+      console.error('[rewriteImportedImagesForExport]', sourcePath, err);
+    }
+  }
+
+  return params.html.replace(pattern, (_full, sourceId: string, fileName: string) => {
+    const localName = copied.get(`${sourceId}/${fileName}`);
+    return localName ? `assets/${localName}` : _full;
+  });
+}
+
+export async function exportImportedDocumentForJcsRead(params: {
+  exportRoot: string;
+  userDataRoot: string;
+  id: string;
+  title: string;
+  sourceFileName?: string;
+  value: string;
+}): Promise<JcsReadExportResult> {
+  try {
+    const value = params.value.trim();
+    if (!value) {
+      return { ok: false, error: 'Não há conteúdo no documento para exportar.' };
+    }
+
+    const week = importedDocsCatalogWeek();
+    const weekDir = path.join(params.exportRoot, 'weeks', IMPORTED_DOCS_FOLDER);
+    const assetsDir = path.join(weekDir, 'assets');
+    await ensureDir(weekDir);
+    await ensureDir(assetsDir);
+
+    const displayTitle = params.title.trim() || 'Documento';
+    const slug = sanitizeJcsReadFileSlug(`doc-${displayTitle}`) || `doc-${params.id.slice(0, 8)}`;
+    const fileName = `${slug}-${params.id.slice(0, 8)}.html`;
+    const bodyHtml = outlineValueToBodyHtml(value);
+    const withRefs = /jcs-imported-page-stack/.test(bodyHtml) ? bodyHtml : linkifyJcsReadRefsInHtml(bodyHtml);
+    const outlineHtml = await rewriteImportedImagesForExport({
+      html: withRefs,
+      userDataRoot: params.userDataRoot,
+      documentId: params.id,
+      assetsDir,
+      namePrefix: params.id.slice(0, 8),
+    });
+    const html = buildJcsReadOutlineHtml({
+      title: displayTitle,
+      subtitle: params.sourceFileName ? `Importado de ${params.sourceFileName}` : 'Documento importado',
+      outlineHtml,
+    });
+
+    await writeTextFile(path.join(weekDir, fileName), html);
+
+    const document: JcsReadWeekDocument = {
+      id: `imported-doc-${params.id}`,
+      kind: 'imported-doc',
+      title: displayTitle,
+      file: fileName,
+    };
+
+    const manifest = await mergePreparedPartDocuments({
+      weekDir,
+      week,
+      newDocuments: [document],
+    });
+    await upsertCatalog(params.exportRoot, week, IMPORTED_DOCS_FOLDER);
+    const zipPath = await writeJcsReadZip(params.exportRoot);
+
+    return {
+      ok: true,
+      folderPath: weekDir,
+      zipPath,
+      weekId: week.id,
+      documentCount: manifest.documents.length,
+    };
+  } catch (err) {
+    console.error('[exportImportedDocumentForJcsRead]', err);
+    return { ok: false, error: formatUnknownError(err, 'Erro ao exportar documento para tablet') };
   }
 }
 

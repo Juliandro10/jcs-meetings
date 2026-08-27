@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { linkifyBibleCitationsHtml } from '@/lib/bible-citation';
+import { linkifyJcsReadRefsInPlainText } from '../../shared/jcs-read-ref-links';
 import { RichTextToolbar } from '@/components/RichTextToolbar';
 import { SelectionContextMenu } from '@/components/SelectionContextMenu';
 import { useSelectionActions } from '@/context/SelectionActionsContext';
@@ -81,9 +81,15 @@ export function BibleLinkedEditor({
       if (linked !== root.innerHTML) {
         root.innerHTML = linked;
       }
-      lastEmitted.current = nextValue;
+      const normalized = normalizeEditorHtml(root.innerHTML);
+      const shouldPersistRefs =
+        !disabled &&
+        /jcs-(?:bible|song)-ref/i.test(normalized) &&
+        normalized !== nextValue;
+      lastEmitted.current = shouldPersistRefs ? normalized : nextValue;
+      if (shouldPersistRefs) onChange(normalized);
     },
-    [],
+    [disabled, onChange],
   );
 
   const emitChange = useCallback(() => {
@@ -140,7 +146,7 @@ export function BibleLinkedEditor({
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref');
+      const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
       if (!anchor) return;
       event.preventDefault();
       const href = anchor.getAttribute('data-href');
@@ -225,6 +231,7 @@ export function BibleLinkedEditor({
           'jcs-rich-editor min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 text-sm leading-relaxed text-jw-text outline-none',
           'empty:before:pointer-events-none empty:before:text-jw-muted empty:before:content-[attr(data-placeholder)]',
           '[&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-bible-ref]:font-medium [&_a.jcs-bible-ref]:text-jw-purple [&_a.jcs-bible-ref]:underline',
+          '[&_a.jcs-song-ref]:cursor-pointer [&_a.jcs-song-ref]:font-medium [&_a.jcs-song-ref]:text-jw-purple [&_a.jcs-song-ref]:underline',
         ].join(' ')}
       />
       {lookupMenuNode}
@@ -245,7 +252,7 @@ function PlainTextEditor({
   const mirrorRef = useRef<HTMLDivElement>(null);
   const selectionActions = useSelectionActions();
   const [lookupMenu, setLookupMenu] = useState<LookupMenuState>(CLOSED_LOOKUP_MENU);
-  const linkedHtml = useMemo(() => linkifyBibleCitationsHtml(value, 'all'), [value]);
+  const linkedHtml = useMemo(() => linkifyJcsReadRefsInPlainText(value, 'all'), [value]);
 
   const syncScroll = () => {
     const textarea = textareaRef.current;
@@ -257,7 +264,7 @@ function PlainTextEditor({
 
   const handleMirrorClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref');
+      const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
       if (!anchor) return;
       event.preventDefault();
       event.stopPropagation();
@@ -307,7 +314,7 @@ function PlainTextEditor({
         aria-hidden
         onClick={handleMirrorClick}
         onMouseDown={(event) => {
-          const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref');
+          const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
           if (anchor) return;
           event.preventDefault();
           textareaRef.current?.focus();
@@ -318,7 +325,7 @@ function PlainTextEditor({
         ].join(' ')}
       >
         <div
-          className="pointer-events-none min-h-full [&_a.jcs-bible-ref]:pointer-events-auto [&_a.jcs-bible-ref]:cursor-pointer"
+          className="pointer-events-none min-h-full [&_a.jcs-bible-ref]:pointer-events-auto [&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-song-ref]:pointer-events-auto [&_a.jcs-song-ref]:cursor-pointer"
           dangerouslySetInnerHTML={{ __html: linkedHtml || '<span><br></span>' }}
         />
       </div>

@@ -11,6 +11,7 @@ export type JcsReadDocumentKind =
   | 'chairman'
   | 'public-talk'
   | 'discourse-outline'
+  | 'imported-doc'
   | 'preaching'
   | 'field-service';
 

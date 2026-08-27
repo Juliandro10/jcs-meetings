@@ -106,7 +106,23 @@ import { generateChairmanPrepContent } from './chairman-prep-generate';
 import { buildChairmanPrepHtml } from '../shared/chairman-prep-html';
 import { buildWcgChapterMeetingHtml } from '../shared/wcg-chapter-parse';
 import { formatUnknownError } from '../shared/format-unknown-error';
-import { exportElderOutlineForJcsRead, exportPreparedPartForJcsRead, exportWeekForJcsRead } from './jcs-read-export';
+import {
+  exportElderOutlineForJcsRead,
+  exportImportedDocumentForJcsRead,
+  exportPreparedPartForJcsRead,
+  exportWeekForJcsRead,
+} from './jcs-read-export';
+import {
+  createImportedDocument,
+  deleteImportedDocument,
+  getImportedDocument,
+  importedAssetFilePath,
+  isSafeImportedAssetName,
+  isSafeImportedId,
+  listImportedDocuments,
+  saveImportedDocument,
+} from './imported-documents-store';
+import { extractImportedDocument } from './imported-document-extract';
 import {
   exportFieldServiceForJcsRead,
   exportPreachingPresentationsForJcsRead,
@@ -200,9 +216,19 @@ import type {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-protocol.registerSchemesAsPrivileged([
+    protocol.registerSchemesAsPrivileged([
   {
     scheme: 'jcs-media',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+  {
+    scheme: 'jcs-imported',
     privileges: {
       standard: true,
       secure: true,
@@ -789,6 +815,128 @@ function registerIpc() {
       } catch (err) {
         const message = formatUnknownError(err, 'Erro ao exportar esboço para tablet');
         console.error('[jcs:export-read-elder-outline]', err);
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcMain.handle('jcs:list-imported-documents', async () => {
+    try {
+      const items = await listImportedDocuments(getUserDataRoot());
+      return { ok: true, items };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao listar documentos importados') };
+    }
+  });
+
+  ipcMain.handle('jcs:get-imported-document', async (_event, id: string) => {
+    try {
+      if (!id?.trim()) return { ok: false, error: 'Documento inválido.' };
+      const item = await getImportedDocument(getUserDataRoot(), id);
+      if (!item) return { ok: false, error: 'Documento não encontrado.' };
+      return { ok: true, item };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao abrir documento') };
+    }
+  });
+
+  ipcMain.handle('jcs:import-document-file', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Importar documento',
+      defaultPath: app.getPath('desktop'),
+      properties: ['openFile'],
+      filters: [
+        { name: 'Documentos', extensions: ['pdf', 'doc', 'docx', 'txt'] },
+        { name: 'PDF', extensions: ['pdf'] },
+        { name: 'Word', extensions: ['doc', 'docx'] },
+        { name: 'Texto', extensions: ['txt'] },
+        { name: 'Todos os arquivos', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePaths[0]) {
+      return { ok: false, cancelled: true };
+    }
+
+    try {
+      const filePath = result.filePaths[0];
+      const fileName = path.basename(filePath);
+      const buffer = await fs.readFile(filePath);
+      const extracted = await extractImportedDocument(fileName, buffer);
+      if (!extracted.hasText && !extracted.hasImages) {
+        return {
+          ok: false,
+          error:
+            'Não foi possível extrair texto nem imagens. PDFs digitalizados sem conteúdo visível não podem ser importados.',
+        };
+      }
+      const item = await createImportedDocument(getUserDataRoot(), {
+        sourceFileName: fileName,
+        body: extracted.html,
+        assets: extracted.assets,
+      });
+      return { ok: true, item };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao importar documento') };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:save-imported-document',
+    async (_event, params: { id: string; title?: string; body: string }) => {
+      try {
+        if (!params?.id || params.body == null) {
+          return { ok: false, error: 'Documento inválido.' };
+        }
+        const item = await saveImportedDocument(getUserDataRoot(), params);
+        if (!item) return { ok: false, error: 'Documento não encontrado.' };
+        return { ok: true, item };
+      } catch (err) {
+        return { ok: false, error: formatUnknownError(err, 'Erro ao salvar documento') };
+      }
+    },
+  );
+
+  ipcMain.handle('jcs:delete-imported-document', async (_event, id: string) => {
+    try {
+      if (!id?.trim()) return { ok: false, error: 'Documento inválido.' };
+      const deleted = await deleteImportedDocument(getUserDataRoot(), id);
+      if (!deleted) return { ok: false, error: 'Documento não encontrado.' };
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao excluir documento') };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:export-read-imported-document',
+    async (
+      _event,
+      params: {
+        id: string;
+        title: string;
+        sourceFileName?: string;
+        value: string;
+        preferLastFolder?: boolean;
+      },
+    ) => {
+      try {
+        if (!params?.id?.trim()) {
+          return { ok: false, error: 'Documento inválido para exportação.' };
+        }
+        const resolved = await resolveJcsReadExportRoot(params.preferLastFolder ?? true);
+        if (!resolved.ok) return resolved;
+        return await exportImportedDocumentForJcsRead({
+          exportRoot: resolved.exportRoot,
+          userDataRoot: getUserDataRoot(),
+          id: params.id,
+          title: params.title,
+          sourceFileName: params.sourceFileName,
+          value: params.value,
+        });
+      } catch (err) {
+        const message = formatUnknownError(err, 'Erro ao exportar documento para tablet');
+        console.error('[jcs:export-read-imported-document]', err);
         return { ok: false, error: message };
       }
     },
@@ -2195,6 +2343,38 @@ function registerMediaProtocol() {
       });
     } catch {
       return new Response('Erro ao carregar mídia', { status: 500 });
+    }
+  });
+
+  protocol.handle('jcs-imported', async (request) => {
+    try {
+      const url = new URL(request.url);
+      const id = url.hostname;
+      const fileName = decodeURIComponent(url.pathname.replace(/^\//, ''));
+      if (!isSafeImportedId(id) || !isSafeImportedAssetName(fileName)) {
+        return new Response('Arquivo inválido', { status: 400 });
+      }
+      const filePath = importedAssetFilePath(getUserDataRoot(), id, fileName);
+      if (!filePath) {
+        return new Response('Arquivo inválido', { status: 400 });
+      }
+      const buffer = await fs.readFile(filePath);
+      const ext = path.extname(fileName).toLowerCase();
+      const mime =
+        ext === '.png'
+          ? 'image/png'
+          : ext === '.jpg' || ext === '.jpeg'
+            ? 'image/jpeg'
+            : ext === '.gif'
+              ? 'image/gif'
+              : ext === '.webp'
+                ? 'image/webp'
+                : ext === '.bmp'
+                  ? 'image/bmp'
+                  : 'application/octet-stream';
+      return new Response(buffer, { headers: { 'Content-Type': mime } });
+    } catch {
+      return new Response('Arquivo não encontrado', { status: 404 });
     }
   });
 

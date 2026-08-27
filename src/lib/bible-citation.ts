@@ -30,7 +30,7 @@ const BOOK_ALIASES: Array<{ bookNumber: number; aliases: string[] }> = [
   { bookNumber: 20, aliases: ['provérbios', 'proverbios', 'pr'] },
   { bookNumber: 21, aliases: ['eclesiastes', 'ec'] },
   { bookNumber: 22, aliases: ['cântico', 'cantico', 'cânt', 'cant', 'cân'] },
-  { bookNumber: 23, aliases: ['isaías', 'isaias', 'is'] },
+  { bookNumber: 23, aliases: ['isaías', 'isaias', 'isa', 'is'] },
   { bookNumber: 24, aliases: ['jeremias', 'jer'] },
   { bookNumber: 25, aliases: ['lamentações', 'lamentacoes', 'lam'] },
   { bookNumber: 26, aliases: ['ezequiel', 'eze'] },
@@ -188,6 +188,179 @@ export function buildBibleHrefFromParts(parts: ScriptureRefParts) {
   return `jwpub://b/T/${bookNumber}:${chapter}:${verseStartToken}-${bookNumber}:${chapter}:${max}`;
 }
 
+export type BibleRefSpan = {
+  start: number;
+  end: number;
+  href: string;
+  label: string;
+};
+
+const CHAPTER_RANGE_RE = new RegExp(
+  `(?:^|[\\s(,;])((?:${BOOK_PATTERN}))(?:\\.)?\\s+(\\d{1,3})\\s*[:.]\\s*(\\d{1,3})\\s*[-–—]\\s*(\\d{1,3})\\s*[:.]\\s*(\\d{1,3})`,
+  'giu',
+);
+
+const CONTINUATION_RE = new RegExp(
+  `^(\\s*;\\s*)(?!(?:${BOOK_PATTERN})\\b)(\\d{1,3})\\s*[:.]\\s*${VERSE_CLUSTER}`,
+  'iu',
+);
+
+const CONTINUATION_CHAPTER_RANGE_RE = new RegExp(
+  `^(\\s*;\\s*)(?!(?:${BOOK_PATTERN})\\b)(\\d{1,3})\\s*[:.]\\s*(\\d{1,3})\\s*[-–—]\\s*(\\d{1,3})\\s*[:.]\\s*(\\d{1,3})`,
+  'iu',
+);
+
+const SPACING_ACCENT_RE = /[´'`'^~¨¸˜ˆˇ']/;
+
+export type CitationSearchMap = {
+  text: string;
+  orig: number[];
+};
+
+/** Tira acentos soltos e espaços no meio de palavra (Isa ´ias → Isaias) para achar a citação. */
+export function prepareCitationSearch(text: string): CitationSearchMap {
+  const chars: string[] = [];
+  const orig: number[] = [];
+
+  const baseChar = (ch: string) => ch.normalize('NFD').replace(/\p{M}/gu, '');
+
+  const peekNextLetter = (from: number) => {
+    for (let j = from; j < text.length; j += 1) {
+      const ch = text[j]!;
+      if (SPACING_ACCENT_RE.test(ch)) continue;
+      const base = baseChar(ch);
+      if (!base || /\s/.test(base)) continue;
+      return base;
+    }
+    return '';
+  };
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]!;
+    if (SPACING_ACCENT_RE.test(ch)) continue;
+    const base = baseChar(ch);
+    if (!base) continue;
+    if (/\s/.test(base)) {
+      const prev = chars[chars.length - 1] ?? '';
+      const next = peekNextLetter(i + 1);
+      if (/\p{L}/u.test(prev) && /\p{L}/u.test(next)) continue;
+    }
+    for (const piece of base) {
+      chars.push(piece);
+      orig.push(i);
+    }
+  }
+
+  return { text: chars.join(''), orig };
+}
+
+function mapSearchSpan(search: CitationSearchMap, start: number, end: number, original: string) {
+  const from = search.orig[start];
+  const last = search.orig[end - 1];
+  if (from == null || last == null || end <= start) return null;
+  return { start: from, end: last + 1, label: original.slice(from, last + 1) };
+}
+
+function spanOccupied(occupied: boolean[], start: number, end: number) {
+  for (let i = start; i < end; i += 1) {
+    if (occupied[i]) return true;
+  }
+  return false;
+}
+
+function markOccupied(occupied: boolean[], start: number, end: number) {
+  for (let i = start; i < end; i += 1) occupied[i] = true;
+}
+
+/** Citações, faixas entre capítulos (Marcos 1:21—3:19) e continuações (Salmo 16:11; 100:2). */
+export function findBibleRefSpans(text: string): BibleRefSpan[] {
+  if (!text) return [];
+  const search = prepareCitationSearch(text);
+  const haystack = search.text;
+  const occupied = Array.from({ length: text.length }, () => false);
+  const spans: BibleRefSpan[] = [];
+
+  const addMapped = (searchStart: number, searchEnd: number, href: string) => {
+    const mapped = mapSearchSpan(search, searchStart, searchEnd, text);
+    if (!mapped) return;
+    if (spanOccupied(occupied, mapped.start, mapped.end)) return;
+    markOccupied(occupied, mapped.start, mapped.end);
+    spans.push({ start: mapped.start, end: mapped.end, href, label: mapped.label.replace(/\s+/g, ' ').trim() });
+  };
+
+  const rangeRe = new RegExp(CHAPTER_RANGE_RE.source, CHAPTER_RANGE_RE.flags);
+  for (const match of haystack.matchAll(rangeRe)) {
+    const bookRaw = match[1];
+    const bookNumber = resolveBookNumber(bookRaw);
+    const chStart = Number(match[2]);
+    const vStart = Number(match[3]);
+    if (!bookNumber || !chStart || !vStart) continue;
+    const full = match[0];
+    const matchStart = match.index ?? 0;
+    const start = matchStart + full.indexOf(bookRaw);
+    addMapped(
+      start,
+      matchStart + full.length,
+      buildBibleHref({ bookNumber, chapter: chStart, verseStart: vStart, verseEnd: vStart }),
+    );
+  }
+
+  const citeRe = new RegExp(CITATION_RE_ALL.source, CITATION_RE_ALL.flags);
+  for (const match of haystack.matchAll(citeRe)) {
+    const bookRaw = match[1];
+    const bookNumber = resolveBookNumber(bookRaw);
+    const chapter = Number(match[2]);
+    const verses = parseVerseSpec(match[3] ?? '');
+    if (!bookNumber || !chapter || verses.length === 0) continue;
+
+    const full = match[0];
+    const matchStart = match.index ?? 0;
+    const start = matchStart + full.indexOf(bookRaw);
+    const end = matchStart + full.length;
+    addMapped(start, end, buildBibleHrefFromParts({ bookNumber, chapter, verses, raw: bookRaw }));
+
+    let cursor = end;
+    const lastBook = bookNumber;
+    while (cursor < haystack.length) {
+      const rest = haystack.slice(cursor);
+      const rangeCont = rest.match(CONTINUATION_CHAPTER_RANGE_RE);
+      if (rangeCont) {
+        const contChapter = Number(rangeCont[2]);
+        const contVerse = Number(rangeCont[3]);
+        if (!contChapter || !contVerse) break;
+        const prefix = rangeCont[1] ?? '';
+        addMapped(
+          cursor + prefix.length,
+          cursor + rangeCont[0].length,
+          buildBibleHref({ bookNumber: lastBook, chapter: contChapter, verseStart: contVerse, verseEnd: contVerse }),
+        );
+        cursor += rangeCont[0].length;
+        continue;
+      }
+
+      const cont = rest.match(CONTINUATION_RE);
+      if (!cont) break;
+      const contChapter = Number(cont[2]);
+      const contVerses = parseVerseSpec(cont[3] ?? '');
+      if (!contChapter || contVerses.length === 0) break;
+      const prefix = cont[1] ?? '';
+      addMapped(
+        cursor + prefix.length,
+        cursor + cont[0].length,
+        buildBibleHrefFromParts({
+          bookNumber: lastBook,
+          chapter: contChapter,
+          verses: contVerses,
+          raw: haystack.slice(cursor + prefix.length, cursor + cont[0].length),
+        }),
+      );
+      cursor += cont[0].length;
+    }
+  }
+
+  return spans.sort((a, b) => a.start - b.start);
+}
+
 /** Um único link para a referência inteira (leitura contínua no painel). */
 export function linkifyScriptureRef(ref: string) {
   const trimmed = ref.trim();
@@ -255,46 +428,42 @@ function escapeHtml(value: string) {
     .replace(/"/g, '&quot;');
 }
 
-function linkifyWithPattern(text: string, pattern: RegExp) {
-  if (!text) return '';
-
-  const escaped = escapeHtml(text);
-  const re = new RegExp(pattern.source, pattern.flags);
-  const parts: string[] = [];
-  let lastIndex = 0;
-
-  for (const match of escaped.matchAll(re)) {
-    const full = match[0];
-    const bookRaw = match[1];
-    const chapter = match[2];
-    const verseCluster = match[3];
-    const start = match.index ?? 0;
-
-    const bookNumber = resolveBookNumber(bookRaw);
-    if (!bookNumber) continue;
-
-    const ch = Number(chapter);
-    const verses = parseVerseSpec(verseCluster ?? '');
-    if (!ch || verses.length === 0) continue;
-
-    const prefixLen = full.indexOf(bookRaw);
-    const prefix = full.slice(0, Math.max(0, prefixLen));
-    const raw = full.slice(Math.max(0, prefixLen)).trim();
-    const href = buildBibleHrefFromParts({ bookNumber, chapter: ch, verses, raw });
-
-    parts.push(escaped.slice(lastIndex, start));
-    parts.push(
-      `${prefix}<a href="#" class="jcs-bible-ref" contenteditable="false" tabindex="-1" data-href="${escapeHtml(href)}" data-label="${escapeHtml(raw)}">${escapeHtml(raw)}</a>`,
-    );
-    lastIndex = start + full.length;
-  }
-
-  parts.push(escaped.slice(lastIndex));
-  return parts.join('').replace(/\n/g, '<br>');
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 }
 
-export function linkifyBibleCitationsHtml(text: string, mode: 'strict' | 'all' = 'strict') {
-  return linkifyWithPattern(text, mode === 'all' ? CITATION_RE_ALL : CITATION_RE_STRICT);
+function renderTextWithBibleSpans(text: string, spans: BibleRefSpan[]) {
+  if (spans.length === 0) {
+    return escapeHtml(text).replace(/\n/g, '<br>');
+  }
+
+  let html = '';
+  let cursor = 0;
+  for (const span of spans) {
+    html += escapeHtml(text.slice(cursor, span.start)).replace(/\n/g, '<br>');
+    html += `<a href="#" class="jcs-bible-ref" contenteditable="false" tabindex="-1" data-href="${escapeHtml(span.href)}" data-label="${escapeHtml(span.label)}">${escapeHtml(span.label)}</a>`;
+    cursor = span.end;
+  }
+  html += escapeHtml(text.slice(cursor)).replace(/\n/g, '<br>');
+  return html;
+}
+
+function linkifyWithPattern(text: string, options?: { alreadyEscaped?: boolean }) {
+  if (!text) return '';
+  const source = options?.alreadyEscaped ? decodeHtmlEntities(text) : text;
+  return renderTextWithBibleSpans(source, findBibleRefSpans(source));
+}
+
+export function linkifyBibleCitationsHtml(
+  text: string,
+  _mode: 'strict' | 'all' = 'strict',
+  options?: { alreadyEscaped?: boolean },
+) {
+  return linkifyWithPattern(text, options);
 }
 
 /** Remove âncoras bíblicas já geradas para o detector poder reler a citação inteira (ex.: Êxodo 8:16,17,19). */
@@ -302,6 +471,7 @@ export function unwrapBibleCitationAnchors(html: string) {
   if (!html) return html;
   return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (full, attrs: string, inner: string) => {
     const haystack = String(attrs);
+    if (/jcs-page-hotspot/i.test(haystack)) return full;
     if (
       /jcs-bible-ref/i.test(haystack) ||
       /jwpub:\/\/b\//i.test(haystack) ||
@@ -319,7 +489,7 @@ export function linkifyBibleCitationsInMarkup(html: string, mode: 'strict' | 'al
     .split(/(<[^>]+>)/g)
     .map((segment) => {
       if (!segment || segment.startsWith('<')) return segment;
-      return linkifyBibleCitationsHtml(segment, mode);
+      return linkifyBibleCitationsHtml(segment, mode, { alreadyEscaped: true });
     })
     .join('');
 }

@@ -18,6 +18,7 @@ public final class DocumentUi {
             if ("chairman".equals(doc.id)) return "chairman";
             if ("public-talk".equals(doc.id)) return "public-talk";
             if (doc.id.startsWith("discourse-outline")) return "discourse-outline";
+            if (doc.id.startsWith("imported-doc")) return "imported-doc";
         }
         if (doc.file != null) {
             if ("mwb.html".equals(doc.file)) return "mwb";
@@ -35,6 +36,7 @@ public final class DocumentUi {
         if ("mwb".equals(kind) || "prepared-parts".equals(kind) || "prepared-part".equals(kind)) return "mwb";
         if ("cbs".equals(kind)) return "cbs";
         if ("w".equals(kind)) return "w";
+        if ("imported-doc".equals(kind)) return "imported";
         return "other";
     }
 
@@ -60,6 +62,9 @@ public final class DocumentUi {
         }
         if ("w".equals(sectionKey)) {
             return context.getString(R.string.section_watchtower);
+        }
+        if ("imported".equals(sectionKey)) {
+            return context.getString(R.string.section_imported);
         }
         return context.getString(R.string.section_other);
     }

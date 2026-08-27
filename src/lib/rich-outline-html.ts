@@ -1,7 +1,12 @@
-import { linkifyBibleCitationsHtml, unwrapBibleCitationAnchors } from '@/lib/bible-citation';
+import {
+  joinBrokenJcsReadRefsInHtml,
+  linkifyJcsReadRefsInHtml,
+  linkifyJcsReadRefsInPlainText,
+  unwrapJcsReadRefAnchors,
+} from '../../shared/jcs-read-ref-links';
 
 export function isRichOutlineContent(value: string) {
-  return /<(p|div|span|strong|em|u|mark|br|a)\b/i.test(value);
+  return /<(p|div|span|strong|em|u|mark|br|a|img|figure)\b/i.test(value);
 }
 
 function escapeHtml(value: string) {
@@ -34,21 +39,14 @@ export function stripOutlineHtml(html: string) {
   return host.innerText.replace(/\u00a0/g, ' ').trim();
 }
 
-/** Linkifica citações bíblicas em nós de texto, preservando formatação existente. */
+/** Linkifica citações bíblicas e “Cântico 54” em nós de texto, preservando formatação existente. */
 export function linkifyBibleCitationsInHtml(html: string, mode: 'strict' | 'all' = 'all') {
-  const unwrapped = unwrapBibleCitationAnchors(html);
   if (typeof document === 'undefined') {
-    return unwrapped
-      .split(/(<[^>]+>)/g)
-      .map((segment) => {
-        if (!segment || segment.startsWith('<')) return segment;
-        return linkifyBibleCitationsHtml(segment, mode);
-      })
-      .join('');
+    return linkifyJcsReadRefsInHtml(html, mode);
   }
 
   const host = document.createElement('div');
-  host.innerHTML = unwrapped;
+  host.innerHTML = unwrapJcsReadRefAnchors(joinBrokenJcsReadRefsInHtml(html));
   host.normalize();
 
   const textNodes: Text[] = [];
@@ -56,7 +54,7 @@ export function linkifyBibleCitationsInHtml(html: string, mode: 'strict' | 'all'
   let node = walker.nextNode();
   while (node) {
     const parent = node.parentElement;
-    if (!parent?.closest('a.jcs-bible-ref')) {
+    if (!parent?.closest('a.jcs-bible-ref, a.jcs-song-ref, a.jcs-page-hotspot, .jcs-imported-page-stack')) {
       textNodes.push(node as Text);
     }
     node = walker.nextNode();
@@ -65,8 +63,8 @@ export function linkifyBibleCitationsInHtml(html: string, mode: 'strict' | 'all'
   for (const textNode of textNodes) {
     const raw = textNode.textContent ?? '';
     if (!raw.trim()) continue;
-    const linked = linkifyBibleCitationsHtml(raw, mode);
-    if (!linked.includes('jcs-bible-ref')) continue;
+    const linked = linkifyJcsReadRefsInPlainText(raw, mode);
+    if (!/jcs-bible-ref|jcs-song-ref/.test(linked)) continue;
     const wrapper = document.createElement('span');
     wrapper.innerHTML = linked;
     textNode.replaceWith(...[...wrapper.childNodes]);

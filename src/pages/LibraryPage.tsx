@@ -6,6 +6,7 @@ import {
   TeachingKitPublicationReaderPage,
   type TeachingKitReaderTarget,
 } from '@/pages/TeachingKitPublicationReaderPage';
+import { ImportedDocumentsPage } from '@/pages/ImportedDocumentsPage';
 import type { LibraryPublicationItem, PreachingPubDocument } from '../../electron/types';
 
 type LibraryPageProps = {
@@ -25,7 +26,7 @@ export function LibraryPage({
   downloading,
   downloadProgressMap,
 }: LibraryPageProps) {
-  const [tab, setTab] = useState<'publications' | 'downloaded'>('publications');
+  const [tab, setTab] = useState<'publications' | 'downloaded' | 'documents'>('publications');
   const [view, setView] = useState<LibraryView>({ kind: 'grid' });
   const [items, setItems] = useState<LibraryPublicationItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,6 +88,7 @@ export function LibraryPage({
   }, []);
 
   useEffect(() => {
+    if (tab === 'documents') return;
     if (tab === 'downloaded') {
       void loadDownloaded();
       return;
@@ -168,12 +170,24 @@ export function LibraryPage({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto px-6 py-4">
-      <div className="mb-4 flex gap-6 border-b border-jw-border">
+    <div
+      className={[
+        'flex h-full min-h-0 flex-col px-6 py-4',
+        tab === 'documents' ? 'overflow-hidden' : 'overflow-auto',
+      ].join(' ')}
+    >
+      <div className="mb-4 flex shrink-0 gap-6 border-b border-jw-border">
         <LibraryTab active={tab === 'publications'} onClick={() => { setTab('publications'); setView({ kind: 'grid' }); }} label="PUBLICAÇÕES" />
         <LibraryTab active={tab === 'downloaded'} onClick={() => setTab('downloaded')} label="BAIXADOS" />
+        <LibraryTab active={tab === 'documents'} onClick={() => setTab('documents')} label="MEUS DOCUMENTOS" />
       </div>
 
+      {tab === 'documents' ? (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <ImportedDocumentsPage />
+        </div>
+      ) : (
+        <>
       {tab === 'publications' && view.kind === 'list' ? (
         <div className="mb-4">
           <button
@@ -270,6 +284,8 @@ export function LibraryPage({
             </section>
           ) : null}
         </div>
+      )}
+        </>
       )}
     </div>
   );

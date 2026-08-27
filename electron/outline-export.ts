@@ -15,7 +15,7 @@ function escapeHtml(value: string) {
 }
 
 function isRichOutlineContent(value: string) {
-  return /<(p|div|span|strong|em|u|mark|br|font|a)\b/i.test(value);
+  return /<(p|div|span|strong|em|u|mark|br|font|a|img|figure)\b/i.test(value);
 }
 
 function plainOutlineToHtml(text: string) {

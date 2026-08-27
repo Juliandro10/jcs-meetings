@@ -34,10 +34,10 @@ public final class SongLinkParser {
             int value = Integer.parseInt(tnme.group(1));
             if (value >= 1000000) {
                 target.mepsDocumentId = value;
-            } else if (value >= 200) {
-                target.documentId = value;
-            } else {
+            } else if (value >= 1 && value <= 999) {
                 target.songNumber = value;
+            } else {
+                target.documentId = value;
             }
             return target;
         }

@@ -27,6 +27,7 @@
     <string name="section_watchtower">Estudo de A Sentinela</string>
 
     <string name="section_other">Outras publicações</string>
+    <string name="section_imported">Documentos importados</string>
 
     <string name="section_preaching">Apresentações</string>
 
@@ -38,7 +39,18 @@
 
     <string name="doc_prepared_parts">Partes preparadas</string>
 
+    <string name="talks_title">Discursos</string>
+    <string name="talks_title_full">Discursos públicos</string>
+    <string name="talks_subtitle">Esboços preparados</string>
+    <string name="docs_title">Documentos</string>
+    <string name="docs_subtitle">Importados do Meetings</string>
+    <string name="this_week">Esta semana</string>
+    <string name="week_prev">Semana anterior</string>
+    <string name="week_next">Próxima semana</string>
+
     <string name="empty_weeks">Nenhuma semana encontrada.\n\nToque em ⋮ e escolha ZIP (recomendado) para importar o jcs-read.zip, ou Pasta para um diretório descompactado.</string>
+    <string name="empty_talks">Nenhum discurso público exportado.\n\nNo PC, abra o esboço e use Exportar pro tablet.</string>
+    <string name="empty_imported_docs">Nenhum documento importado.\n\nNo PC, use Biblioteca → Meus documentos e exporte para o tablet.</string>
 
     <string name="empty_preaching_weeks">Nenhuma semana de pregação exportada.\n\nNo PC, use Pregação ou Saída de campo (Elder) e exporte para o tablet.</string>
 
@@ -81,6 +93,14 @@
 
     <string name="bible_app_missing">Instale o TNME Bíblia para abrir referências bíblicas.</string>
     <string name="cantico_app_missing">Instale o TNME Cânticos para abrir cânticos.</string>
+
+    <string name="delete_document">Apagar documento</string>
+    <string name="delete_document_title">Apagar documento</string>
+    <string name="delete_document_message">Apagar \"%1$s\" deste tablet?\n\nO arquivo no computador não é alterado. Se exportar de novo, ele volta.</string>
+    <string name="delete_document_confirm">Apagar</string>
+    <string name="delete_document_cancel">Cancelar</string>
+    <string name="delete_document_ok">Documento apagado</string>
+    <string name="delete_document_failed">Não foi possível apagar o documento.</string>
 
 </resources>
 

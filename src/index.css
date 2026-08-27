@@ -82,14 +82,16 @@ body {
   text-decoration: underline;
 }
 
-.jcs-bible-ref {
+.jcs-bible-ref,
+.jcs-song-ref {
   color: #5c3d6e;
   text-decoration: underline;
   cursor: pointer;
   user-select: none;
 }
 
-.jcs-bible-ref:hover {
+.jcs-bible-ref:hover,
+.jcs-song-ref:hover {
   color: #4a315c;
 }
 
@@ -443,6 +445,48 @@ body {
 
 .jcs-rich-editor li {
   margin: 0 0 0.25rem;
+}
+
+.jcs-rich-editor img {
+  max-width: 100%;
+  height: auto;
+}
+
+.jcs-rich-editor figure.jcs-imported-page,
+.jcs-rich-editor figure.jcs-imported-image {
+  margin: 12px 0;
+}
+
+.jcs-rich-editor figure.jcs-imported-page img,
+.jcs-rich-editor figure.jcs-imported-image img {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+.jcs-imported-page-stack {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.jcs-imported-page-stack img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.jcs-page-hotspot {
+  position: absolute;
+  display: block;
+  background: rgb(109 40 217 / 0.16);
+  border-bottom: 2px solid #6d28d9;
+  overflow: hidden;
+  text-decoration: none;
+  color: transparent;
+  font-size: 1px;
+  line-height: 1px;
+  cursor: pointer;
 }
 
 .jcs-rich-editor p {
