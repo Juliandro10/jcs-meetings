@@ -180,7 +180,8 @@ async function exportPreparedPartDocuments(params: {
   }
   if (notes.length === 0) return [];
 
-  const linkifySegment = (text: string) => linkifyBibleCitationsHtml(text, 'all');
+  const linkifySegment = (text: string) =>
+    linkifyBibleCitationsHtml(text, 'all', { alreadyEscaped: true });
   const documents: JcsReadWeekDocument[] = [];
 
   for (const note of notes) {

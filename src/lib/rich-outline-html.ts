@@ -3,6 +3,7 @@ import {
   linkifyJcsReadRefsInHtml,
   linkifyJcsReadRefsInPlainText,
 } from '../../shared/jcs-read-ref-links';
+import { htmlSpaceEntitiesToAscii } from '../../shared/text-normalize';
 
 export function isRichOutlineContent(value: string) {
   return /<(p|div|span|strong|em|u|mark|br|a|img|figure)\b/i.test(value);
@@ -20,13 +21,14 @@ export function plainOutlineToHtml(text: string) {
   if (!text.trim()) return '<p><br></p>';
   return text
     .split(/\n{2,}/)
-    .map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, '<br>')}</p>`)
+    .map((part) => `<p>${escapeHtml(htmlSpaceEntitiesToAscii(part.trim())).replace(/\n/g, '<br>')}</p>`)
     .join('');
 }
 
 export function outlineContentToHtml(value: string) {
   if (!value.trim()) return '<p><br></p>';
-  return isRichOutlineContent(value) ? value : plainOutlineToHtml(value);
+  const html = isRichOutlineContent(value) ? value : plainOutlineToHtml(value);
+  return htmlSpaceEntitiesToAscii(html);
 }
 
 export function stripOutlineHtml(html: string) {
@@ -96,10 +98,12 @@ export function normalizeEditorHtml(html: string) {
 }
 
 export function sanitizeOutlineHtml(html: string) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, '');
+  return htmlSpaceEntitiesToAscii(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, ''),
+  );
 }
 
 /** Extrai HTML de esboço de um bloco ```jcs-outline da resposta da IA. */

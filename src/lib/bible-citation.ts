@@ -1,3 +1,5 @@
+import { htmlSpaceEntitiesToAscii } from '../../shared/text-normalize';
+
 export type BibleCitation = {
   raw: string;
   bookNumber: number;
@@ -429,7 +431,7 @@ function escapeHtml(value: string) {
 }
 
 function decodeHtmlEntities(value: string) {
-  return value
+  return htmlSpaceEntitiesToAscii(value)
     .replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -454,7 +456,9 @@ function renderTextWithBibleSpans(text: string, spans: BibleRefSpan[]) {
 
 function linkifyWithPattern(text: string, options?: { alreadyEscaped?: boolean }) {
   if (!text) return '';
-  const source = options?.alreadyEscaped ? decodeHtmlEntities(text) : text;
+  // Sempre normaliza &nbsp; — o editor insere NBSP após pontuação, e o escape
+  // seguinte transformava "&nbsp;" em "&amp;nbsp;" visível no tablet.
+  const source = options?.alreadyEscaped ? decodeHtmlEntities(text) : htmlSpaceEntitiesToAscii(text);
   return renderTextWithBibleSpans(source, findBibleRefSpans(source));
 }
 

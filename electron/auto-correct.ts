@@ -64,6 +64,36 @@ function builtinAccent(norm: string) {
   return PT_ACCENT_UNIQUES[norm] ?? null;
 }
 
+/** True se `plural` é flexão de número (plural / 3ª pessoa do plural) de `singular`. */
+function isPluralOf(plural: string, singular: string) {
+  if (!plural || !singular || plural === singular) return false;
+  if (plural === `${singular}s` || plural === `${singular}es`) return true;
+  if (singular.endsWith('m') && plural === `${singular.slice(0, -1)}ns`) return true;
+  if (singular.endsWith('ao')) {
+    const stem = singular.slice(0, -2);
+    if (plural === `${singular}s` || plural === `${stem}aes` || plural === `${stem}oes`) return true;
+  }
+  if (singular.endsWith('al') && plural === `${singular.slice(0, -1)}is`) return true;
+  if (singular.endsWith('el') && plural === `${singular.slice(0, -1)}is`) return true;
+  if (singular.endsWith('ol') && plural === `${singular.slice(0, -1)}is`) return true;
+  if (singular.endsWith('ul') && plural === `${singular.slice(0, -1)}is`) return true;
+  if (singular.endsWith('il')) {
+    const stem = singular.slice(0, -2);
+    if (plural === `${singular.slice(0, -1)}s` || plural === `${stem}eis` || plural === `${stem}is`) return true;
+  }
+  // falam → fala, comem → come (3ª pessoa do plural)
+  if (/[aeo]$/.test(singular) && plural === `${singular}m`) return true;
+  return false;
+}
+
+/** Não troca casas→casa, irmãos→irmão, animais→animal, falam→fala. */
+function isNumberInflectionChange(typed: string, candidate: string) {
+  const typedNorm = normalizeForSearch(typed);
+  const candidateNorm = normalizeForSearch(candidate);
+  if (typedNorm === candidateNorm) return false;
+  return isPluralOf(typedNorm, candidateNorm) || isPluralOf(candidateNorm, typedNorm);
+}
+
 export async function suggestPortugueseAutoCorrect(
   userDataRoot: string,
   rawWord: string,
@@ -75,9 +105,16 @@ export async function suggestPortugueseAutoCorrect(
   const norm = normalizeForSearch(typed);
   if (norm.length < 2) return {};
 
+  const accept = (candidate: string, reason: AutoCorrectWordResult['reason']) => {
+    if (!candidate || !reason) return {};
+    if (candidate.toLocaleLowerCase('pt-BR') === typed.toLocaleLowerCase('pt-BR')) return {};
+    if (isNumberInflectionChange(typed, candidate)) return {};
+    return { replacement: fitCasing(typed, candidate), reason };
+  };
+
   const builtin = builtinAccent(norm);
   if (builtin && typed.toLocaleLowerCase('pt-BR') !== builtin.toLocaleLowerCase('pt-BR')) {
-    return { replacement: fitCasing(typed, builtin), reason: 'accent' };
+    return accept(builtin, 'accent');
   }
 
   if (await dictionaryHasExactWord(userDataRoot, typed)) return {};
@@ -85,10 +122,9 @@ export async function suggestPortugueseAutoCorrect(
   const exactNormWords = uniqueWords(await distinctDictionaryWordsForNorms(userDataRoot, [norm]));
   if (exactNormWords.length === 1) {
     const candidate = exactNormWords[0]!;
-    if (candidate.toLocaleLowerCase('pt-BR') === typed.toLocaleLowerCase('pt-BR')) return {};
     if (normalizeForSearch(candidate) !== norm) return {};
     if (norm.length < 3 && !builtin) return {};
-    return { replacement: fitCasing(typed, candidate), reason: 'accent' };
+    return accept(candidate, 'accent');
   }
   if (exactNormWords.length > 1) return {};
 
@@ -100,8 +136,7 @@ export async function suggestPortugueseAutoCorrect(
   if (neighbors.length !== 1) return {};
 
   const candidate = neighbors[0]!;
-  if (candidate.toLocaleLowerCase('pt-BR') === typed.toLocaleLowerCase('pt-BR')) return {};
   const candidateNorm = normalizeForSearch(candidate);
   if (Math.abs(candidateNorm.length - norm.length) > 1) return {};
-  return { replacement: fitCasing(typed, candidate), reason: 'typo' };
+  return accept(candidate, 'typo');
 }

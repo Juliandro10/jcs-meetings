@@ -1,4 +1,5 @@
 import { findBibleRefSpans, prepareCitationSearch, linkifyBibleCitationsHtml, unwrapBibleCitationAnchors } from '../src/lib/bible-citation';
+import { htmlSpaceEntitiesToAscii } from './text-normalize';
 
 const SONG_MENTION_RE =
   /c[aâ]ntico(?:s)?(?:\s+n[uú]mero|\s+n\.?\s*[º°ª]|\s+nº|\s+n°|\s+n\.)?\s*(\d{1,3})(?!\s*:)/gi;
@@ -128,13 +129,13 @@ function linkifyRefsInTextSegment(text: string, alreadyEscaped: boolean, mode: '
 /** Texto puro (value do editor / textContent), não HTML já escapado. */
 export function linkifyJcsReadRefsInPlainText(text: string, mode: 'strict' | 'all' = 'all') {
   if (!text) return text;
-  return linkifyRefsInTextSegment(joinBrokenJcsReadRefsInText(text), false, mode);
+  return linkifyRefsInTextSegment(joinBrokenJcsReadRefsInText(htmlSpaceEntitiesToAscii(text)), false, mode);
 }
 
 /** Citações bíblicas e “Cântico 54” em HTML, sem mexer em tags já existentes (imagens, grifos). */
 export function linkifyJcsReadRefsInHtml(html: string, mode: 'strict' | 'all' = 'all') {
   if (!html) return html;
-  return unwrapJcsReadRefAnchors(joinBrokenJcsReadRefsInHtml(html))
+  return unwrapJcsReadRefAnchors(joinBrokenJcsReadRefsInHtml(htmlSpaceEntitiesToAscii(html)))
     .split(/(<[^>]+>)/g)
     .map((segment) => {
       if (!segment || segment.startsWith('<')) return segment;

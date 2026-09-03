@@ -1,3 +1,5 @@
+import { htmlSpaceEntitiesToAscii } from '../../shared/text-normalize';
+
 function readHtmlAttr(attrs: string, name: string) {
   const match = attrs.match(new RegExp(`(?:^|\\s)${name}\\s*=\\s*(['"])([\\s\\S]*?)\\1`, 'i'));
   return match?.[2] ?? '';
@@ -64,5 +66,5 @@ export function refsToExportAnchors(html: string) {
 }
 
 export function normalizeRichEditorHtml(html: string) {
-  return refsToExportAnchors(stripEditorBlockers(html));
+  return htmlSpaceEntitiesToAscii(refsToExportAnchors(stripEditorBlockers(html)));
 }

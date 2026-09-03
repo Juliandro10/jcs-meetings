@@ -32,6 +32,7 @@ import {
 import { requestAutoCorrect } from '@/lib/auto-correct-client';
 import {
   replaceRangeWithText,
+  sameVisibleText,
   wordBeforeCaretInEditor,
   wordBeforeCaretInTextarea,
 } from '@/lib/editor-auto-correct';
@@ -131,9 +132,10 @@ export function BibleLinkedEditor({
     try {
       const snapshot = found.range.cloneRange();
       const word = found.word;
+      const suffix = found.suffix;
       const replacement = await requestAutoCorrect(word, autoCorrectMode);
-      if (!replacement || snapshot.toString() !== word) return;
-      replaceRangeWithText(snapshot, replacement);
+      if (!replacement || !sameVisibleText(snapshot.toString(), `${word}${suffix}`)) return;
+      replaceRangeWithText(snapshot, `${replacement}${suffix}`);
       emitChange();
     } finally {
       correctingRef.current = false;
@@ -344,8 +346,10 @@ function PlainTextEditor({
       if (!replacement) return;
       const current = textarea.value.slice(found.start, found.end);
       if (current !== found.word) return;
+      const afterWord = textarea.value.slice(found.end, found.end + found.suffix.length);
+      if (afterWord !== found.suffix) return;
       const nextValue = `${textarea.value.slice(0, found.start)}${replacement}${textarea.value.slice(found.end)}`;
-      const caret = found.start + replacement.length + (textarea.selectionStart - found.end);
+      const caret = found.start + replacement.length + found.suffix.length;
       onChange(nextValue);
       window.requestAnimationFrame(() => {
         textarea.setSelectionRange(caret, caret);

@@ -1,6 +1,7 @@
 import { rewriteJcsReadAppLinks } from './chairman-bible-links';
 import { DISCOURSE_SCRIPT_TAG } from './discourse-script';
 import { prepareDiscourseBodyHtml } from './discourse-manuscript-html';
+import { htmlSpaceEntitiesToAscii } from './text-normalize';
 
 export type JcsReadNote = {
   id: string;
@@ -354,14 +355,15 @@ export function plainOutlineToHtml(text: string) {
   if (!text.trim()) return '<p></p>';
   return text
     .split(/\n{2,}/)
-    .map((part) => `<p>${escapeHtml(part.trim()).replace(/\n/g, '<br>')}</p>`)
+    .map((part) => `<p>${escapeHtml(htmlSpaceEntitiesToAscii(part.trim())).replace(/\n/g, '<br>')}</p>`)
     .join('\n');
 }
 
 export function outlineValueToBodyHtml(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return '<p></p>';
-  return isRichOutlineContent(trimmed) ? trimmed : plainOutlineToHtml(trimmed);
+  const html = isRichOutlineContent(trimmed) ? trimmed : plainOutlineToHtml(trimmed);
+  return htmlSpaceEntitiesToAscii(html);
 }
 
 function noteBodyToHtml(body: string, tags?: string[]) {
