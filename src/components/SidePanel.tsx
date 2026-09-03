@@ -3,9 +3,10 @@ import { AssistantChat, referencePlainText } from '@/components/AssistantChat';
 import { DownloadProgressBar } from '@/components/DownloadProgressBar';
 import { LfbStudyNotesList, sortLfbStudyNotes } from '@/components/LfbStudyNotesList';
 import { NotePanel } from '@/components/NotePanel';
+import { OutlineResearchList } from '@/components/OutlineResearchList';
 import { applyPublicationCss } from '@/lib/jwpub-publication-styles';
 import type { DocumentNote } from '@/lib/note-dom';
-import type { AiChatContext, ResolveLinkResult } from '../../electron/types';
+import type { AiChatContext, OutlineResearchItem, ResolveLinkResult } from '../../electron/types';
 
 export type SidePanelTab = 'references' | 'assistant';
 
@@ -35,6 +36,7 @@ type SidePanelProps = {
   /** Oculta aba Assistente IA (ex.: modo proferimento). */
   hideAssistant?: boolean;
   onApplyOutline?: (html: string) => void;
+  outlineResearch?: OutlineResearchItem[];
 };
 
 export function SidePanel({
@@ -61,11 +63,13 @@ export function SidePanel({
   onDocumentNoteSelect,
   hideAssistant = false,
   onApplyOutline,
+  outlineResearch,
 }: SidePanelProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const isStudyBook = reference?.kind === 'study-book';
   const sortedDocumentNotes = documentNotes?.length ? sortLfbStudyNotes(documentNotes) : [];
   const showStoryNotes = sortedDocumentNotes.length > 0 && onDocumentNoteSelect;
+  const hasResearch = Boolean(outlineResearch?.length);
 
   useEffect(() => {
     const root = contentRef.current;
@@ -88,11 +92,12 @@ export function SidePanel({
 
   if (!open) return null;
 
+  const download = reference?.download;
   const needsDownload =
-    isStudyBook &&
-    reference?.download?.pub &&
-    reference.download.issue !== undefined &&
-    !reference.download.downloaded;
+    download != null &&
+    Boolean(download.pub) &&
+    download.issue !== undefined &&
+    download.downloaded === false;
 
   return (
     <aside className="flex w-full max-w-md shrink-0 flex-col border-l border-jw-border bg-[#f7f7f5] lg:w-[400px]">
@@ -117,9 +122,13 @@ export function SidePanel({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {tab === 'references' ? (
-          <>
+          <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+            {hasResearch ? (
+              <OutlineResearchList items={outlineResearch ?? []} onOpen={onLinkClick} />
+            ) : null}
+
             {showStoryNotes ? (
               <LfbStudyNotesList
                 notes={sortedDocumentNotes}
@@ -202,24 +211,30 @@ export function SidePanel({
                   dangerouslySetInnerHTML={{ __html: reference.html ?? '' }}
                 />
               </>
-            ) : !note && !showStoryNotes ? (
+            ) : !note && !showStoryNotes && !hasResearch ? (
               <p className="text-sm text-jw-muted">
                 {reference?.error ??
                   'Selecione um link na matéria para abrir versículos ou matérias de pesquisa.'}
               </p>
+            ) : hasResearch && !reference?.ok && !referenceLoading ? (
+              <p className="text-sm text-jw-muted">Toque numa matéria de pesquisa acima para ler o trecho.</p>
             ) : null}
-          </>
-        ) : (
-          <AssistantChat
-            context={{
-              ...assistantContext,
-              referenceTitle: reference?.ok ? reference.title : assistantContext.referenceTitle,
-              referenceText:
-                reference?.ok ? referencePlainText(reference.html) : assistantContext.referenceText,
-            }}
-            onApplyOutline={onApplyOutline}
-          />
-        )}
+          </div>
+        ) : null}
+
+        {!hideAssistant ? (
+          <div className={tab === 'assistant' ? 'flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4' : 'hidden'}>
+            <AssistantChat
+              context={{
+                ...assistantContext,
+                referenceTitle: reference?.ok ? reference.title : assistantContext.referenceTitle,
+                referenceText:
+                  reference?.ok ? referencePlainText(reference.html) : assistantContext.referenceText,
+              }}
+              onApplyOutline={onApplyOutline}
+            />
+          </div>
+        ) : null}
       </div>
     </aside>
   );

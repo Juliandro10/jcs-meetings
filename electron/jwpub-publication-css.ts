@@ -236,8 +236,15 @@ function rewriteCssMediaUrls(css: string, pub: string, issue: string, lang: stri
     );
 }
 
+function stripSelectionLocks(css: string) {
+  return css
+    .replace(/-webkit-user-select\s*:\s*none\s*;?/gi, '')
+    .replace(/user-select\s*:\s*none\s*;?/gi, '')
+    .replace(/-webkit-user-modify\s*:\s*read-only\s*;?/gi, '');
+}
+
 function scopeCssToJwpubContent(css: string) {
-  const trimmed = css.trim();
+  const trimmed = stripSelectionLocks(css.trim());
   if (!trimmed) return '';
   if (trimmed.includes('.jwpub-content')) return trimmed;
   return trimmed.replace(/(^|\})([^{@/][^{]*)\{/g, (_match, prefix, selector: string) => {

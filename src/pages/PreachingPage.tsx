@@ -410,6 +410,7 @@ export function PreachingPage() {
         assistantContext={{
           weekLabel: 'Pregação',
           publicationTitle: 'Ame as Pessoas — Faça Discípulos',
+          sourcePub: 'lmd',
           referenceTitle: reference?.ok ? reference.title : undefined,
           referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
         }}

@@ -5,7 +5,7 @@ import {
 } from './document-structure';
 import { loadBibleReadingText } from './bible-reading-context';
 import { enrichAiContext } from './ai-context';
-import { buildAiSystemPrompt, JW_AI_GROUNDING_RULES, JW_CHAIRMAN_PREP_RULES } from './ai-prompts';
+import { buildAiSystemPrompt, nwtPromptExcerptHeading, JW_AI_GROUNDING_RULES, JW_CHAIRMAN_PREP_RULES } from './ai-prompts';
 import { getDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
 import type { ChairmanPrepRecord, ChairmanGeneratedContent, ChairmanOpeningPreview } from '../shared/chairman-prep-types';
 import {
@@ -150,7 +150,7 @@ export async function generateChairmanPrepContent(
     openingHints ? `\n### Partes para visão inicial da reunião\n${openingHints}` : '',
     studentLessonContext ? `\n### Lições das partes de estudante (use em lessonSummary)\n${studentLessonContext}` : '',
     fieldsList ? `\n### Campos da apostila\n${fieldsList}` : '',
-    bibleText ? `\n### Leitura bíblica\n${bibleText.slice(0, 6000)}` : '',
+    bibleText ? `\n${nwtPromptExcerptHeading('Leitura bíblica')}\n${bibleText.slice(0, 6000)}` : '',
     '',
     'Devolva APENAS JSON válido (sem markdown):',
     '{"openingPreview":{"readingLead":"Nossa reunião de hoje é baseada em...","treasuresHighlight":"Em Tesouros da Palavra de Deus...","ministryMention":"Teremos também apresentações ao vivo...","lifeChristianHighlight":"Em Nossa vida cristã...","closingEbcMention":"Finalizaremos com o estudo bíblico de congregação."},"parts":[{"assignmentId":"UUID","transition":"...","highlight":"...","lessonSummary":"..."}],"closingSummary":"...","finalQuestion":"Que pontos os irmãos mais gostaram nesta reunião?","finalQuestionOptions":["...","...","..."]}',

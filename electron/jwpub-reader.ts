@@ -17,6 +17,7 @@ import {
   isPeriodicalPubSymbol,
   meetingPubCachePrefix,
   parseJwpubCachePrefix,
+  periodicalIssueDownloadCandidates,
   pubCacheKeyVariants,
 } from './jwpub-pub-symbol';
 
@@ -62,6 +63,45 @@ export async function listDocuments(jwpubPath: string): Promise<JwpubDocument[]>
     documentId: Number(documentId),
     title: String(title),
   }));
+}
+
+export type JwpubDocumentWithPages = JwpubDocument & {
+  firstPage?: number;
+  lastPage?: number;
+};
+
+export async function listDocumentsWithPages(jwpubPath: string): Promise<JwpubDocumentWithPages[]> {
+  try {
+    const { bundle } = await openJwpubDb(jwpubPath);
+    const result = bundle.db.exec(
+      'SELECT DocumentId, Title, FirstPageNumber, LastPageNumber FROM Document ORDER BY DocumentId',
+    );
+    if (!result[0]) return [];
+    return result[0].values.map((row: Array<string | number | Uint8Array | null | undefined>) => ({
+      documentId: Number(row[0]),
+      title: String(row[1] ?? ''),
+      firstPage: row[2] != null && row[2] !== '' ? Number(row[2]) : undefined,
+      lastPage: row[3] != null && row[3] !== '' ? Number(row[3]) : undefined,
+    }));
+  } catch {
+    return listDocuments(jwpubPath);
+  }
+}
+
+export async function findDocumentIdByMepsId(
+  jwpubPath: string,
+  mepsDocumentId: number,
+): Promise<number | null> {
+  if (!Number.isFinite(mepsDocumentId) || mepsDocumentId <= 0) return null;
+  try {
+    const { bundle } = await openJwpubDb(jwpubPath);
+    const row = bundle.db.exec(
+      `SELECT DocumentId FROM Document WHERE MepsDocumentId = ${Number(mepsDocumentId)} LIMIT 1`,
+    )[0]?.values?.[0]?.[0];
+    return row != null && row !== '' ? Number(row) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getPreparedDocumentHtml(
@@ -452,14 +492,18 @@ export async function resolveCachedPubPath(
   const variants = pubCacheKeyVariants(pub);
 
   if (issue) {
-    for (const pubKey of variants) {
-      const hit = await tryAccess(path.join(cacheDir, `${pubKey}_T_${issue}.jwpub`));
-      if (hit) return hit;
-    }
+    const issueCandidates =
+      meetingKind === 'mwb' ? [issue] : periodicalIssueDownloadCandidates(pub, issue);
+    for (const candidateIssue of issueCandidates) {
+      for (const pubKey of variants) {
+        const hit = await tryAccess(path.join(cacheDir, `${pubKey}_T_${candidateIssue}.jwpub`));
+        if (hit) return hit;
+      }
 
-    if (meetingKind) {
-      const hit = await findMeetingPubByIssue(cacheDir, meetingKind, issue);
-      if (hit) return hit;
+      if (meetingKind) {
+        const hit = await findMeetingPubByIssue(cacheDir, meetingKind, candidateIssue);
+        if (hit) return hit;
+      }
     }
 
     if (exactIssue) return null;

@@ -20,6 +20,8 @@ export type JcsReadWeekDocument = {
   kind: JcsReadDocumentKind;
   title: string;
   file: string;
+  /** Nome do arquivo original (PDF/Word) — usado para não duplicar no ZIP. */
+  sourceFileName?: string;
 };
 
 export type JcsReadWeekManifest = {

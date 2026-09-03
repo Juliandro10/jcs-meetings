@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AiChatParams,
   AiChatResult,
+  AiChatSession,
+  AiChatMessage,
   AiKeyStatus,
   AutoPrepParams,
   AutoPrepResult,
@@ -28,6 +30,7 @@ import type {
   WcgPrepParams,
   WcgPrepResult,
   ListElderOutlineDocumentsResult,
+  ListOutlinePrepSourcesResult,
   MeetingWeek,
   NwtLanguageOption,
   Playlist,
@@ -81,6 +84,8 @@ import type {
   DictionaryDownloadResult,
   DictionaryLookupResult,
   DictionaryStatus,
+  AutoCorrectMode,
+  AutoCorrectWordResult,
   ListResearchPublicationsResult,
   ResearchPublicationItem,
   ResolveLinkParams,
@@ -114,6 +119,10 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jw:get-document-html', params),
   listElderOutlineDocuments: (params: { pub: string }): Promise<ListElderOutlineDocumentsResult> =>
     ipcRenderer.invoke('jcs:list-elder-outline-documents', params),
+  listOutlinePrepSources: (params: {
+    pub: string;
+    documentId: number;
+  }): Promise<ListOutlinePrepSourcesResult> => ipcRenderer.invoke('jcs:list-outline-prep-sources', params),
   getElderOutlineAvailability: (params: { pubs: string[] }): Promise<Record<string, boolean>> =>
     ipcRenderer.invoke('jcs:elder-outline-availability', params),
   listInstalledElderOutlines: (): Promise<ListInstalledElderOutlinesResult> =>
@@ -165,6 +174,14 @@ contextBridge.exposeInMainWorld('jcs', {
   resolveLink: (params: ResolveLinkParams): Promise<ResolveLinkResult> =>
     ipcRenderer.invoke('jw:resolve-link', params),
   aiChat: (params: AiChatParams): Promise<AiChatResult> => ipcRenderer.invoke('jcs:ai-chat', params),
+  listAiChatSessions: (): Promise<AiChatSession[]> => ipcRenderer.invoke('jcs:list-ai-chat-sessions'),
+  saveAiChatSession: (params: {
+    key: string;
+    title: string;
+    messages: AiChatMessage[];
+  }): Promise<AiChatSession[]> => ipcRenderer.invoke('jcs:save-ai-chat-session', params),
+  deleteAiChatSession: (id: string): Promise<AiChatSession[]> =>
+    ipcRenderer.invoke('jcs:delete-ai-chat-session', id),
   aiKeyStatus: (): Promise<AiKeyStatus> => ipcRenderer.invoke('jcs:ai-key-status'),
   getHighlights: (params: { pub: string; issue: string; documentId: number }) =>
     ipcRenderer.invoke('jcs:get-highlights', params),
@@ -499,6 +516,8 @@ contextBridge.exposeInMainWorld('jcs', {
   lookupDictionary: (params: { query: string }): Promise<DictionaryLookupResult> =>
     ipcRenderer.invoke('jcs:lookup-dictionary', params),
   downloadDictionary: (): Promise<DictionaryDownloadResult> => ipcRenderer.invoke('jcs:download-dictionary'),
+  autoCorrectWord: (params: { word: string; mode: AutoCorrectMode }): Promise<AutoCorrectWordResult> =>
+    ipcRenderer.invoke('jcs:auto-correct-word', params),
   loadPreaching: (): Promise<PreachingContent> => ipcRenderer.invoke('jcs:load-preaching'),
   downloadPreachingPub: (params: {
     pub: string;
@@ -544,6 +563,10 @@ declare global {
       loadMeetingWeeks: () => Promise<LoadMeetingWeeksResult>;
       getDocumentHtml: (params: GetDocumentHtmlParams) => Promise<GetDocumentHtmlResult>;
       listElderOutlineDocuments: (params: { pub: string }) => Promise<ListElderOutlineDocumentsResult>;
+      listOutlinePrepSources: (params: {
+        pub: string;
+        documentId: number;
+      }) => Promise<ListOutlinePrepSourcesResult>;
       getElderOutlineAvailability: (params: { pubs: string[] }) => Promise<Record<string, boolean>>;
       listInstalledElderOutlines: () => Promise<ListInstalledElderOutlinesResult>;
       importElderOutlineJwpub: () => Promise<ImportElderOutlineJwpubResult>;
@@ -557,6 +580,13 @@ declare global {
       setFieldValue: (params: SetFieldValueParams) => Promise<{ ok: boolean }>;
       resolveLink: (params: ResolveLinkParams) => Promise<ResolveLinkResult>;
       aiChat: (params: AiChatParams) => Promise<AiChatResult>;
+      listAiChatSessions: () => Promise<AiChatSession[]>;
+      saveAiChatSession: (params: {
+        key: string;
+        title: string;
+        messages: AiChatMessage[];
+      }) => Promise<AiChatSession[]>;
+      deleteAiChatSession: (id: string) => Promise<AiChatSession[]>;
       aiKeyStatus: () => Promise<AiKeyStatus>;
       getHighlights: (params: { pub: string; issue: string; documentId: number }) => Promise<DocumentHighlight[]>;
       saveHighlight: (params: {
@@ -811,6 +841,7 @@ declare global {
       getDictionaryStatus: () => Promise<DictionaryStatus>;
       lookupDictionary: (params: { query: string }) => Promise<DictionaryLookupResult>;
       downloadDictionary: () => Promise<DictionaryDownloadResult>;
+      autoCorrectWord: (params: { word: string; mode: AutoCorrectMode }) => Promise<AutoCorrectWordResult>;
       loadPreaching: () => Promise<PreachingContent>;
       downloadPreachingPub: (params: {
         pub: string;

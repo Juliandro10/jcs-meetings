@@ -1,3 +1,4 @@
+import { BIBLE_EDITION_LABELS } from './bible-edition';
 import { resolveJwpubLink } from './jw-link-resolver';
 
 function stripHtml(value: string) {
@@ -39,7 +40,8 @@ export async function loadBibleReadingText(
       return bibleReadingLabel ? `Leitura: ${bibleReadingLabel}` : undefined;
     }
     const title = result.title ?? bibleReadingLabel ?? 'Leitura bíblica';
-    return `${title}\n${compressVerseText(result.html)}`;
+    const source = result.subtitle?.trim() || BIBLE_EDITION_LABELS.nwt;
+    return `${source} — ${title}\n${compressVerseText(result.html)}`;
   } catch {
     return bibleReadingLabel ? `Leitura: ${bibleReadingLabel}` : undefined;
   }

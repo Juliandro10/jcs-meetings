@@ -11,6 +11,15 @@ Documento de referência para geração, edição e export da folha do president
 
 Os campos **Dados da reunião** (presidente, orações, cânticos) correspondem à abertura; **não** repetem boas-vindas nos comentários iniciais.
 
+## Citações bíblicas (IA e texto gerado)
+
+Quando a IA (ou qualquer texto gerado) citar Escrituras na folha do presidente — comentários iniciais, transições, destaques da leitura, encerramento — use **somente**:
+
+- Tradução do Novo Mundo da Bíblia Sagrada (`nwt`)
+- Tradução do Novo Mundo da Bíblia Sagrada (Edição de Estudo) (`nwtsty`)
+
+Fontes: Bíblia do JCS Meetings ou JW.ORG. **Nunca** Almeida, NVI, King James ou outras traduções. Se o wording do versículo não estiver no contexto, cite só a referência (livro capítulo:versículo), sem transcrever de memória.
+
 ## Comentários iniciais (~1 min) — um quadro, vários destaques
 
 Tudo fica no bloco **Comentários iniciais**. Cada trecho tem cor própria na folha/PDF. Ordem:

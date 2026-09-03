@@ -20,6 +20,7 @@ import {
 } from './document-structure';
 import {
   buildAiSystemPrompt,
+  nwtPromptExcerptHeading,
   JW_AI_GROUNDING_RULES,
   JW_JOIAS_RULES,
   JW_MWB_FIELD_RULES,
@@ -826,7 +827,7 @@ async function requestJoiasOptions(
             JW_JOIAS_RULES,
             JW_MWB_JOIAS_RULES,
             `Leitura da semana: ${bibleReadingLabel ?? '—'}.`,
-            bibleText ? `Texto bíblico:\n${bibleText.slice(0, 8000)}` : '',
+            bibleText ? `${nwtPromptExcerptHeading('Texto bíblico')}\n${bibleText.slice(0, 8000)}` : '',
             'Devolva APENAS JSON: {"joiasOptions":["...","...","..."]}',
           ]
             .filter(Boolean)
@@ -1670,7 +1671,7 @@ export async function runAutoPrep(
     JW_MWB_PREP_RULES,
     '',
     params.bibleReading ? `Leitura bíblica desta semana: ${params.bibleReading}.` : '',
-    bibleText ? `\n### Texto da leitura bíblica\n${bibleText.slice(0, 8000)}` : '',
+    bibleText ? `\n${nwtPromptExcerptHeading('Texto da leitura bíblica')}\n${bibleText.slice(0, 8000)}` : '',
     '',
     'Devolva APENAS JSON válido (sem markdown):',
     '{"fields":[{"fieldId":"tt20","value":"resposta equilibrada"}],"notes":[{"blockId":"20","anchorText":"trecho EXATO","title":"4. Iniciando conversas","body":"o que aprendo..."}],"joiasOptions":["Jer. 11:4 — Sobre Jeová: ..."],"practiceNote":{"blockId":"40","anchorText":"trecho EXATO","body":"Pontos para prática..."}}',

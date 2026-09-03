@@ -102,3 +102,42 @@ export function buildStandardJwpubCacheFileName(symbol: string, lang: string, is
   const prefix = meetingPrefix ?? canonicalPubSymbol(symbol);
   return `${prefix}_${lang}_${issue}.jwpub`;
 }
+
+/** Símbolo para baixar na API jw.org (w90 → w, mwb26 → mwb). */
+export function publicationDownloadSymbol(symbol: string): string {
+  return meetingPubCachePrefix(symbol) ?? canonicalPubSymbol(symbol);
+}
+
+/** IssueTagNumber 19901101 / 19930215 / 20260600 → parâmetro da API e nome de cache. */
+export function publicationIssueFromTag(symbol: string, issueTag: string | number | null | undefined): string {
+  if (!isPeriodicalPubSymbol(symbol)) return '';
+  const digits = String(issueTag ?? '').replace(/\D/g, '');
+  if (!digits || digits === '0') return '';
+  // Mensal moderno no catálogo: YYYYMM00 → YYYYMM (ex.: 20260600).
+  if (digits.length === 8 && digits.endsWith('00')) return digits.slice(0, 6);
+  // Sentinela/Despertai 1.º/15 até ~2015: a API jw.org exige YYYYMMDD (19901101, 19930215).
+  if (digits.length >= 8) return digits.slice(0, 8);
+  if (digits.length >= 6) return digits.slice(0, 6);
+  return digits;
+}
+
+/**
+ * Variantes de issue para GETPUBMEDIALINKS.
+ * Revistas antigas (duas vezes por mês): YYYYMM 404; YYYYMM01 / YYYYMM15 funcionam.
+ */
+export function periodicalIssueDownloadCandidates(pub: string, issue: string): string[] {
+  const unique = new Set<string>();
+  unique.add(issue ?? '');
+  if (meetingPubCachePrefix(pub) === 'mwb') return [...unique];
+  const canonical = canonicalPubSymbol(pub);
+  const twiceMonthly = meetingPubCachePrefix(pub) === 'w' || canonical === 'wp' || canonical === 'g';
+  if (!twiceMonthly) return [...unique];
+
+  const digits = String(issue ?? '').replace(/\D/g, '');
+  if (digits.length === 8 && digits.endsWith('00')) unique.add(digits.slice(0, 6));
+  if (digits.length === 6) {
+    unique.add(`${digits}01`);
+    unique.add(`${digits}15`);
+  }
+  return [...unique];
+}

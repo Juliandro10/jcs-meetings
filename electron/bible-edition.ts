@@ -1,11 +1,12 @@
 import path from 'node:path';
 import { downloadJwpub, isPubCached } from './jw-download';
 
+/** Edições da Bíblia no app: somente Tradução do Novo Mundo (`nwt`) e Edição de Estudo (`nwtsty`). */
 export type BibleEdition = 'nwt' | 'nwtsty';
 
 export const BIBLE_EDITION_LABELS: Record<BibleEdition, string> = {
-  nwt: 'Tradução do Novo Mundo',
-  nwtsty: 'Tradução do Novo Mundo (Edição de Estudo)',
+  nwt: 'Tradução do Novo Mundo da Bíblia Sagrada',
+  nwtsty: 'Tradução do Novo Mundo da Bíblia Sagrada (Edição de Estudo)',
 };
 
 export const BIBLE_EDITION_SHORT: Record<BibleEdition, string> = {

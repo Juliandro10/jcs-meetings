@@ -23,15 +23,19 @@ function formatUpdatedAt(iso: string) {
 }
 
 function getSelectedTextFromEditor() {
-  const selection = window.getSelection();
-  if (!selection || selection.isCollapsed) return undefined;
-  const root = document.querySelector<HTMLElement>('.imported-doc-editor .jcs-rich-editor');
-  if (!root) return undefined;
-  const anchor = selection.anchorNode;
-  const focus = selection.focusNode;
-  if (!anchor || !focus || !root.contains(anchor) || !root.contains(focus)) return undefined;
-  const text = selection.toString().replace(/\s+/g, ' ').trim();
-  return text.length >= 3 ? text : undefined;
+  try {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return undefined;
+    const root = document.querySelector<HTMLElement>('.imported-doc-editor .jcs-rich-editor');
+    if (!root) return undefined;
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    if (!anchor || !focus || !root.contains(anchor) || !root.contains(focus)) return undefined;
+    const text = selection.toString().replace(/\s+/g, ' ').trim();
+    return text.length >= 3 ? text : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function ImportedDocumentsPage() {
@@ -222,6 +226,7 @@ export function ImportedDocumentsPage() {
         window.clearTimeout(saveTimer.current);
         saveTimer.current = null;
       }
+      setSelectedText(undefined);
       setEditorValue(html);
       setEditorRevision((current) => current + 1);
       setMessage('Assistente aplicou o texto no documento.');
@@ -237,12 +242,12 @@ export function ImportedDocumentsPage() {
       publicationTitle: title || currentDoc?.sourceFileName || 'Documento',
       selectedText,
       sourcePub: 'imported',
-      sourceIssue: '',
+      sourceIssue: currentDoc?.id ?? '',
       preparedOutlineText: outlineHtmlToPlainText(editorValue),
       referenceTitle: reference?.ok ? reference.title : undefined,
       referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
     }),
-    [currentDoc?.sourceFileName, editorValue, reference, selectedText, title],
+    [currentDoc?.id, currentDoc?.sourceFileName, editorValue, reference, selectedText, title],
   );
 
   const handleExportTablet = async () => {

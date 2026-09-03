@@ -2,8 +2,9 @@ import fs from 'node:fs/promises';
 import { moveJwpubToStandardCachePath, standardJwpubCacheFileName, standardizeJwpubCacheDir } from './jwpub-cache-normalize';
 import path from 'node:path';
 import { writeJwpubFile } from './jwpub-storage';
-import { loadPub } from 'meeting-schedules-parser/dist/node/index.js';
+import { periodicalIssueDownloadCandidates } from './jwpub-pub-symbol';
 import type { MWBSchedule, WSchedule } from 'meeting-schedules-parser/dist/node/index.js';
+import { loadPub } from 'meeting-schedules-parser/dist/node/index.js';
 
 export type DownloadPubParams = {
   pub: string;
@@ -124,6 +125,23 @@ export function meetingPubLabel(pub: 'mwb' | 'w', formattedDate: string) {
 }
 
 export async function downloadJwpub(params: DownloadPubParams): Promise<DownloadPubResult> {
+  const issues = periodicalIssueDownloadCandidates(params.pub, params.issue);
+  let last: DownloadPubResult = { ok: false, error: 'URL de download não encontrada na resposta.' };
+  for (const issue of issues) {
+    const result = await downloadJwpubOnce({ ...params, issue });
+    if (result.ok) return result;
+    last = result;
+    if (!isRetryableMediaMiss(result.error)) return result;
+  }
+  return last;
+}
+
+function isRetryableMediaMiss(error?: string) {
+  if (!error) return false;
+  return /API jw\.org retornou 40[04]/i.test(error) || /URL de download não encontrada/i.test(error);
+}
+
+async function downloadJwpubOnce(params: DownloadPubParams): Promise<DownloadPubResult> {
   const lang = params.lang ?? 'T';
   const fileName = standardJwpubCacheFileName(params.pub, lang, params.issue);
   const filePath = path.join(params.cacheDir, fileName);

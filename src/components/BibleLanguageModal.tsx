@@ -112,7 +112,7 @@ export function BibleLanguageModal({
                       >
                         <p className="truncate text-sm font-medium">{lang.name}</p>
                         <p className="truncate text-xs text-jw-muted">
-                          {lang.pubTitle ?? 'Tradução do Novo Mundo'}
+                          {lang.pubTitle ?? 'Tradução do Novo Mundo da Bíblia Sagrada'}
                         </p>
                       </button>
                       {lang.downloaded ? (

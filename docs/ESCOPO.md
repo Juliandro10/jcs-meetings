@@ -224,7 +224,8 @@ Renderização do conteúdo descriptografado do `.jwpub` (HTML + imagens).
 |-----|--------|-----|
 | Apostila Vida e Ministério | `mwb` | Meio de semana |
 | Sentinela (Estudo) | `w` | Fim de semana |
-| Tradução do Novo Mundo | `nwt` | Versículos no painel de estudo |
+| Tradução do Novo Mundo da Bíblia Sagrada | `nwt` | Única tradução permitida para citações (app / JW.ORG) |
+| Tradução do Novo Mundo da Bíblia Sagrada (Edição de Estudo) | `nwtsty` | Mesmo texto + notas de estudo |
 
 ### 6.2 Publicações opcionais (fases posteriores)
 
@@ -264,7 +265,7 @@ Parser: `meeting-schedules-parser` sobre `mwb` + `w` do mês.
 | Aspecto | Detalhe |
 |---------|---------|
 | **Escopo** | Semana completa: meio de semana + Sentinela (configurável: só uma reunião). |
-| **Fontes (ordem)** | 1) Publicação da semana · 2) Bíblia (NWT) · 3) jw.org / WOL · 4) **lfb** (histórias CBS) |
+| **Fontes (ordem)** | 1) Publicação da semana · 2) Bíblia (`nwt` / `nwtsty` — Tradução do Novo Mundo da Bíblia Sagrada) · 3) jw.org / WOL · 4) **lfb** (histórias CBS) |
 | **Saída** | Preenche campos, destaca trechos-chave, cria notas por parte (roteiro de tribuna) |
 | **Modelo** | OpenAI **`gpt-4o`** no preparar automático (`gpt-4o-mini` no assistente) |
 | **UX** | Progresso → revisão → **Aplicar** ou **Descartar**; botão **Limpar preparação** |

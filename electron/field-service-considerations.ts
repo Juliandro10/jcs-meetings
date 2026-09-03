@@ -1,5 +1,5 @@
 import { normalizePlainText } from '../shared/text-normalize';
-import { JW_AI_GROUNDING_RULES, JW_FIELD_SERVICE_CONSIDERATION_RULES } from './ai-prompts';
+import { JW_AI_GROUNDING_RULES, JW_FIELD_SERVICE_CONSIDERATION_RULES, nwtPromptExcerptHeading } from './ai-prompts';
 import { loadBibleReadingText } from './bible-reading-context';
 import {
   extractDocumentStructure,
@@ -245,7 +245,7 @@ async function buildContextPrompt(
   }
 
   if (bibleReadingText) {
-    sections.push('## Leitura bíblica da semana');
+    sections.push(nwtPromptExcerptHeading('Leitura bíblica da semana'));
     sections.push(bibleReadingText);
   }
 

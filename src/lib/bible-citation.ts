@@ -370,7 +370,7 @@ export function linkifyScriptureRef(ref: string) {
   if (!parts) return escapeHtml(trimmed);
 
   const href = buildBibleHrefFromParts(parts);
-  return `<a href="#" class="jcs-bible-ref" contenteditable="false" tabindex="-1" data-href="${escapeHtml(href)}" data-label="${escapeHtml(trimmed)}">${escapeHtml(trimmed)}</a>`;
+  return `<a href="#" class="jcs-bible-ref" tabindex="-1" data-href="${escapeHtml(href)}" data-label="${escapeHtml(trimmed)}">${escapeHtml(trimmed)}</a>`;
 }
 
 export function parseBibleCitations(text: string): BibleCitation[] {
@@ -445,7 +445,7 @@ function renderTextWithBibleSpans(text: string, spans: BibleRefSpan[]) {
   let cursor = 0;
   for (const span of spans) {
     html += escapeHtml(text.slice(cursor, span.start)).replace(/\n/g, '<br>');
-    html += `<a href="#" class="jcs-bible-ref" contenteditable="false" tabindex="-1" data-href="${escapeHtml(span.href)}" data-label="${escapeHtml(span.label)}">${escapeHtml(span.label)}</a>`;
+    html += `<a href="#" class="jcs-bible-ref" tabindex="-1" data-href="${escapeHtml(span.href)}" data-label="${escapeHtml(span.label)}">${escapeHtml(span.label)}</a>`;
     cursor = span.end;
   }
   html += escapeHtml(text.slice(cursor)).replace(/\n/g, '<br>');
@@ -469,7 +469,7 @@ export function linkifyBibleCitationsHtml(
 /** Remove âncoras bíblicas já geradas para o detector poder reler a citação inteira (ex.: Êxodo 8:16,17,19). */
 export function unwrapBibleCitationAnchors(html: string) {
   if (!html) return html;
-  return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (full, attrs: string, inner: string) => {
+  return html.replace(/<(?:a|span)\b([^>]*)>([\s\S]*?)<\/(?:a|span)>/gi, (full, attrs: string, inner: string) => {
     const haystack = String(attrs);
     if (/jcs-page-hotspot/i.test(haystack)) return full;
     if (

@@ -120,10 +120,13 @@ export function DiscourseScriptEditorPage({
       weekLabel,
       publicationTitle: title,
       bibleReading,
+      sourcePub: pub,
+      sourceIssue: issue,
+      sourceDocumentId: documentId,
       referenceTitle: reference?.ok ? reference.title : undefined,
       referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
     }),
-    [bibleReading, reference, title, weekLabel],
+    [bibleReading, documentId, issue, pub, reference, title, weekLabel],
   );
 
   const handleExportTablet = async () => {

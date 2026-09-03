@@ -209,6 +209,7 @@ export async function fetchWolDocumentOnline(
   }
 }
 
+/** Versículo em jw.org — sempre `pub=nwt` (Tradução do Novo Mundo). Nunca outra tradução. */
 export async function fetchBibleVerseOnline(
   book: number,
   chapter: number,
@@ -235,7 +236,7 @@ export async function fetchBibleVerseOnline(
       ok: true,
       kind: 'bible',
       title: linkLabel?.trim() || `Versículo ${chapter}:${verse}`,
-      subtitle: 'Tradução do Novo Mundo (jw.org)',
+      subtitle: 'Tradução do Novo Mundo da Bíblia Sagrada (jw.org)',
       html: `<p class="bible-verse"><sup>${verse}</sup> ${verseMatch[1]}</p>`,
     };
   } catch {

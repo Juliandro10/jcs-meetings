@@ -89,7 +89,7 @@ Aplicativo de **preparação automática de reuniões** para uso com o **JW Libr
 2. Extrair perguntas e estrutura da reunião (apostila + Sentinela).
 3. Gerar **respostas**, **comentários adicionais** e **aplicações** com base em:
    - a própria publicação da semana;
-   - a Bíblia (Tradução do Novo Mundo);
+   - a Bíblia — **somente** a Tradução do Novo Mundo da Bíblia Sagrada ou a Edição de Estudo (JCS Meetings ou JW.ORG; nunca outras traduções);
    - conteúdo complementar do **site oficial jw.org / WOL**, quando a matéria não cobrir.
 4. Permitir **revisão e edição** antes de exportar.
 5. Exportar um arquivo **`.jwlibrary`** importável no JW Library, com campos preenchidos, destaques e notas — reunião já preparada dentro do app.

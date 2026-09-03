@@ -19,7 +19,7 @@ export type ImportedExtractResult = {
   hasImages: boolean;
 };
 
-const MAX_PDF_PAGES = 40;
+const MAX_PDF_PAGES = 200;
 const PDF_PAGE_WIDTH = 960;
 
 function escapeHtml(value: string) {
@@ -99,13 +99,23 @@ async function extractPdf(buffer: Buffer): Promise<ImportedExtractResult> {
   const assets: ImportedExtractAsset[] = [];
   const parts: string[] = [];
   try {
+    let total = 0;
+    try {
+      const info = await parser.getInfo();
+      total = Number(info?.total) || 0;
+    } catch (err) {
+      console.error('[imported-doc] getInfo', err);
+    }
+    const last = Math.min(total > 0 ? total : MAX_PDF_PAGES, MAX_PDF_PAGES);
     const shots = await parser.getScreenshot({
-      first: MAX_PDF_PAGES,
+      first: 1,
+      last,
       desiredWidth: PDF_PAGE_WIDTH,
       imageDataUrl: false,
       imageBuffer: true,
     });
     const pages = Array.isArray(shots?.pages) ? shots.pages : [];
+    const pageCount = pages.length;
     for (const [index, page] of pages.entries()) {
       const data = toBuffer((page as { data?: unknown }).data) ?? toBuffer(page);
       if (!data?.length) continue;
@@ -113,8 +123,13 @@ async function extractPdf(buffer: Buffer): Promise<ImportedExtractResult> {
       const fileName = `page-${String(pageNumber).padStart(2, '0')}.png`;
       assets.push({ fileName, mimeType: 'image/png', buffer: data });
       const src = `jcs-imported://${IMPORTED_DOC_ID_TOKEN}/${fileName}`;
-      const hotspots = await collectPageHotspots(parser, pageNumber);
-      parts.push(renderPdfPageHtml(src, `Página ${pageNumber}`, hotspots));
+      const hotspots = await collectPageHotspots(parser, pageNumber, pageCount);
+      parts.push(renderPdfPageHtml(src, `Página ${pageNumber}`, hotspots, pageNumber));
+    }
+    if (total > pageCount && pageCount > 0) {
+      parts.push(
+        `<p>Documento com ${total} páginas; foram importadas as primeiras ${pageCount}.</p>`,
+      );
     }
 
     if (assets.length === 0) {

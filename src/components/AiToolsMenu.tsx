@@ -10,7 +10,7 @@ const MODES = [
   {
     id: 'auto',
     title: 'Preparar reunião (automático)',
-    desc: 'Preenche campos usando só publicações baixadas e referências JW — vocabulário das publicações.',
+    desc: 'Preenche campos usando só publicações baixadas e referências JW — vocabulário das publicações. Citações só da Tradução do Novo Mundo.',
   },
   {
     id: 'summary',
@@ -20,12 +20,12 @@ const MODES = [
   {
     id: 'talk',
     title: 'Preparar discurso',
-    desc: 'Esboço alinhado à matéria oficial (Tesouros, Joias, Viver, EBC).',
+    desc: 'Esboço alinhado à matéria oficial (Tesouros, Joias, Viver, EBC). Versículos só da Tradução do Novo Mundo.',
   },
   {
     id: 'chairman',
     title: 'Presidir — meio de semana',
-    desc: 'Comentários introdutórios/finais com linguagem das publicações JW.',
+    desc: 'Comentários introdutórios/finais com linguagem das publicações JW. Citações só da Tradução do Novo Mundo.',
   },
   {
     id: 'conductor',

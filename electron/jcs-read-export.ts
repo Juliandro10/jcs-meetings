@@ -411,6 +411,128 @@ function importedDocsCatalogWeek(): MeetingWeek {
   };
 }
 
+function normalizeImportedKey(value: string | undefined) {
+  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function importedDocAssetPrefix(docId: string) {
+  return docId.replace(/^imported-doc-/i, '').slice(0, 8);
+}
+
+function isSameImportedExport(existing: JcsReadWeekDocument, incoming: JcsReadWeekDocument) {
+  if (existing.id === incoming.id) return true;
+  if (existing.kind !== 'imported-doc') return false;
+  const existingSource = normalizeImportedKey(existing.sourceFileName);
+  const incomingSource = normalizeImportedKey(incoming.sourceFileName);
+  if (existingSource && incomingSource && existingSource === incomingSource) return true;
+  if (!existingSource && normalizeImportedKey(existing.title) === normalizeImportedKey(incoming.title)) {
+    return true;
+  }
+  return false;
+}
+
+async function removeImportedExportFiles(weekDir: string, doc: JcsReadWeekDocument) {
+  if (doc.file) {
+    await fs.rm(path.join(weekDir, doc.file), { force: true });
+  }
+  const prefix = importedDocAssetPrefix(doc.id);
+  if (!prefix) return;
+  const assetsDir = path.join(weekDir, 'assets');
+  try {
+    const entries = await fs.readdir(assetsDir);
+    await Promise.all(
+      entries
+        .filter((name) => name.startsWith(`${prefix}-`))
+        .map((name) => fs.rm(path.join(assetsDir, name), { force: true })),
+    );
+  } catch {
+    /* pasta assets ainda não existe */
+  }
+}
+
+async function pruneOrphanImportedExports(weekDir: string, manifest: JcsReadWeekManifest) {
+  const keepFiles = new Set(manifest.documents.map((doc) => doc.file).filter(Boolean));
+  const keepPrefixes = new Set(
+    manifest.documents.filter((doc) => doc.kind === 'imported-doc').map((doc) => importedDocAssetPrefix(doc.id)),
+  );
+
+  try {
+    const entries = await fs.readdir(weekDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name === 'week.json' || entry.name === 'assets') continue;
+      if (entry.isFile() && !keepFiles.has(entry.name)) {
+        await fs.rm(path.join(weekDir, entry.name), { force: true });
+      }
+    }
+  } catch {
+    return;
+  }
+
+  const assetsDir = path.join(weekDir, 'assets');
+  try {
+    const assets = await fs.readdir(assetsDir);
+    for (const name of assets) {
+      const prefix = name.split('-')[0] ?? '';
+      if (!keepPrefixes.has(prefix)) {
+        await fs.rm(path.join(assetsDir, name), { force: true });
+      }
+    }
+  } catch {
+    /* sem assets */
+  }
+}
+
+async function loadImportedExportManifest(weekDir: string, week: MeetingWeek): Promise<JcsReadWeekManifest> {
+  const manifestPath = path.join(weekDir, 'week.json');
+  try {
+    const raw = await fs.readFile(manifestPath, 'utf8');
+    const manifest = JSON.parse(raw) as JcsReadWeekManifest;
+    if (!Array.isArray(manifest.documents)) manifest.documents = [];
+    return manifest;
+  } catch {
+    return {
+      format: JCS_READ_FORMAT,
+      weekId: week.id,
+      label: week.label,
+      bibleReading: week.bibleReading,
+      dateIso: week.dateIso,
+      exportedAt: new Date().toISOString(),
+      documents: [],
+    };
+  }
+}
+
+async function removeStaleImportedExports(weekDir: string, week: MeetingWeek, document: JcsReadWeekDocument) {
+  const manifest = await loadImportedExportManifest(weekDir, week);
+  const stale = manifest.documents.filter((doc) => isSameImportedExport(doc, document));
+  for (const doc of stale) {
+    await removeImportedExportFiles(weekDir, doc);
+  }
+  const staleIds = new Set(stale.map((doc) => doc.id));
+  manifest.documents = manifest.documents.filter((doc) => !staleIds.has(doc.id));
+  return manifest;
+}
+
+async function saveImportedExportManifest(params: {
+  weekDir: string;
+  week: MeetingWeek;
+  manifest: JcsReadWeekManifest;
+  document: JcsReadWeekDocument;
+}) {
+  const manifest = params.manifest;
+  manifest.documents = manifest.documents.filter((doc) => doc.id !== params.document.id);
+  manifest.documents.push(params.document);
+  manifest.weekId = params.week.id;
+  manifest.label = params.week.label;
+  manifest.bibleReading = params.week.bibleReading;
+  manifest.dateIso = params.week.dateIso;
+  manifest.exportedAt = new Date().toISOString();
+  manifest.format = JCS_READ_FORMAT;
+  await writeTextFile(path.join(params.weekDir, 'week.json'), JSON.stringify(manifest, null, 2));
+  await pruneOrphanImportedExports(params.weekDir, manifest);
+  return manifest;
+}
+
 async function rewriteImportedImagesForExport(params: {
   html: string;
   userDataRoot: string;
@@ -467,6 +589,16 @@ export async function exportImportedDocumentForJcsRead(params: {
     const displayTitle = params.title.trim() || 'Documento';
     const slug = sanitizeJcsReadFileSlug(`doc-${displayTitle}`) || `doc-${params.id.slice(0, 8)}`;
     const fileName = `${slug}-${params.id.slice(0, 8)}.html`;
+    const document: JcsReadWeekDocument = {
+      id: `imported-doc-${params.id}`,
+      kind: 'imported-doc',
+      title: displayTitle,
+      file: fileName,
+      sourceFileName: params.sourceFileName?.trim() || undefined,
+    };
+
+    const manifest = await removeStaleImportedExports(weekDir, week, document);
+
     const bodyHtml = outlineValueToBodyHtml(value);
     const withRefs = /jcs-imported-page-stack/.test(bodyHtml) ? bodyHtml : linkifyJcsReadRefsInHtml(bodyHtml);
     const outlineHtml = await rewriteImportedImagesForExport({
@@ -484,17 +616,11 @@ export async function exportImportedDocumentForJcsRead(params: {
 
     await writeTextFile(path.join(weekDir, fileName), html);
 
-    const document: JcsReadWeekDocument = {
-      id: `imported-doc-${params.id}`,
-      kind: 'imported-doc',
-      title: displayTitle,
-      file: fileName,
-    };
-
-    const manifest = await mergePreparedPartDocuments({
+    const nextManifest = await saveImportedExportManifest({
       weekDir,
       week,
-      newDocuments: [document],
+      manifest,
+      document,
     });
     await upsertCatalog(params.exportRoot, week, IMPORTED_DOCS_FOLDER);
     const zipPath = await writeJcsReadZip(params.exportRoot);
@@ -504,7 +630,7 @@ export async function exportImportedDocumentForJcsRead(params: {
       folderPath: weekDir,
       zipPath,
       weekId: week.id,
-      documentCount: manifest.documents.length,
+      documentCount: nextManifest.documents.length,
     };
   } catch (err) {
     console.error('[exportImportedDocumentForJcsRead]', err);

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { DictionaryStatus } from '../../electron/types';
+import { AutoCorrectModeSelect } from '@/components/AutoCorrectModeSelect';
+import {
+  AUTO_CORRECT_MODE_EVENT,
+  AUTO_CORRECT_MODE_OPTIONS,
+  readAutoCorrectMode,
+} from '@/lib/auto-correct-settings';
+import type { AutoCorrectMode, DictionaryStatus } from '../../electron/types';
 
 type DictionaryPanelProps = {
   downloadPercent?: number;
@@ -15,6 +21,7 @@ export function DictionaryPanel({
   const [status, setStatus] = useState<DictionaryStatus | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [localDownloading, setLocalDownloading] = useState(false);
+  const [autoCorrectMode, setAutoCorrectMode] = useState<AutoCorrectMode>(() => readAutoCorrectMode());
 
   const refresh = useCallback(async () => {
     if (!window.jcs?.getDictionaryStatus) return;
@@ -25,6 +32,12 @@ export function DictionaryPanel({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const sync = () => setAutoCorrectMode(readAutoCorrectMode());
+    window.addEventListener(AUTO_CORRECT_MODE_EVENT, sync);
+    return () => window.removeEventListener(AUTO_CORRECT_MODE_EVENT, sync);
+  }, []);
 
   const handleDownload = async () => {
     if (!window.jcs?.downloadDictionary) return;
@@ -99,6 +112,17 @@ export function DictionaryPanel({
         </div>
 
         {message ? <p className="mt-3 text-sm text-jw-text">{message}</p> : null}
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-xl border border-jw-border bg-jw-surface p-4 shadow-sm">
+        <AutoCorrectModeSelect value={autoCorrectMode} onChange={setAutoCorrectMode} />
+        <p className="mt-2 text-[11px] text-jw-muted">
+          {AUTO_CORRECT_MODE_OPTIONS.find((item) => item.id === autoCorrectMode)?.hint}
+        </p>
+        <p className="mt-2 text-[11px] text-jw-muted">
+          O corretor espera você terminar a palavra (espaço ou pontuação). Não mexe em esta/está, para/pará nem em
+          siglas e referências. Ctrl+Z desfaz. O modo com erros óbvios fica melhor com o dicionário instalado.
+        </p>
       </div>
     </>
   );

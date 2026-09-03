@@ -167,6 +167,9 @@ export function TeachingKitPublicationReaderPage({ target, onBack }: TeachingKit
           assistantContext={{
             weekLabel: 'Pregação',
             publicationTitle: target.publicationTitle,
+            sourcePub: target.pub,
+            sourceIssue: target.issue ?? '',
+            sourceDocumentId: currentDocument.documentId,
             referenceTitle: reference?.ok ? reference.title : undefined,
             referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
           }}

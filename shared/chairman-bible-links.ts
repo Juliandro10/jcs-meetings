@@ -1,4 +1,5 @@
 import { isSongMepsId } from './chairman-song-links';
+import { formatJcsPageJumpHref, isJcsPageJumpHref, parseJcsPageJump } from './jcs-page-jump';
 
 export type BibleHrefRange = {
   bookStart: number;
@@ -130,8 +131,21 @@ export function rewriteJcsReadSongLinks(html: string) {
   });
 }
 
+export function rewriteJcsReadJumpLinks(html: string) {
+  return html.replace(/<a\b([^>]*)>/gi, (full, attrs: string) => {
+    const dataHref = readHtmlAttr(attrs, 'data-href');
+    const href = readHtmlAttr(attrs, 'href');
+    const source =
+      dataHref && isJcsPageJumpHref(dataHref) ? dataHref : href && isJcsPageJumpHref(href) ? href : null;
+    if (!source) return full;
+    const jump = parseJcsPageJump(source);
+    if (!jump) return full;
+    return rewriteAnchorHref(attrs, formatJcsPageJumpHref(jump));
+  });
+}
+
 export function rewriteJcsReadAppLinks(html: string) {
-  return rewriteJcsReadSongLinks(rewriteJcsReadBibleLinks(html));
+  return rewriteJcsReadJumpLinks(rewriteJcsReadSongLinks(rewriteJcsReadBibleLinks(html)));
 }
 
 /** Link para abrir a leitura inteira no tablet (jwpub quando cruza capítulos). */

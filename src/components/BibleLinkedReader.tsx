@@ -3,6 +3,7 @@ import {
   isRichOutlineContent,
   linkifyBibleCitationsInHtml,
 } from '@/lib/rich-outline-html';
+import { scrollToJcsPageJump } from '@/lib/scroll-jcs-page-jump';
 import { linkifyJcsReadRefsInPlainText } from '../../shared/jcs-read-ref-links';
 
 type BibleLinkedReaderProps = {
@@ -21,7 +22,14 @@ export function BibleLinkedReader({ value, onBibleLinkClick, size = 'normal' }: 
   }, [value]);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
+    const target = event.target as HTMLElement | null;
+    const jump = target?.closest('a.jcs-page-jump');
+    if (jump) {
+      event.preventDefault();
+      scrollToJcsPageJump(event.currentTarget, jump.getAttribute('data-href') || jump.getAttribute('href'));
+      return;
+    }
+    const anchor = target?.closest('a.jcs-bible-ref, a.jcs-song-ref, a.jcs-pub-ref');
     if (!anchor) return;
     event.preventDefault();
     const href = anchor.getAttribute('data-href');
@@ -39,6 +47,8 @@ export function BibleLinkedReader({ value, onBibleLinkClick, size = 'normal' }: 
         size === 'large' ? 'text-xl leading-relaxed sm:text-2xl sm:leading-relaxed' : 'text-sm leading-relaxed',
         '[&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-bible-ref]:font-medium [&_a.jcs-bible-ref]:text-jw-purple [&_a.jcs-bible-ref]:underline [&_a.jcs-bible-ref]:decoration-jw-purple/40',
         '[&_a.jcs-song-ref]:cursor-pointer [&_a.jcs-song-ref]:font-medium [&_a.jcs-song-ref]:text-jw-purple [&_a.jcs-song-ref]:underline [&_a.jcs-song-ref]:decoration-jw-purple/40',
+        '[&_a.jcs-pub-ref]:cursor-pointer [&_a.jcs-pub-ref]:font-medium [&_a.jcs-pub-ref]:text-jw-purple [&_a.jcs-pub-ref]:underline [&_a.jcs-pub-ref]:decoration-jw-purple/40',
+        '[&_a.jcs-page-jump]:cursor-pointer',
       ].join(' ')}
       dangerouslySetInnerHTML={{ __html: linkedHtml }}
     />

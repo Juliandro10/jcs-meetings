@@ -83,15 +83,35 @@ body {
 }
 
 .jcs-bible-ref,
-.jcs-song-ref {
+.jcs-song-ref,
+.jcs-pub-ref {
   color: #5c3d6e;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.jwpub-content {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.jwpub-content:not(.jcs-rich-editor) .jcs-bible-ref,
+.jwpub-content:not(.jcs-rich-editor) .jcs-song-ref,
+.jwpub-content:not(.jcs-rich-editor) .jcs-pub-ref {
   user-select: none;
 }
 
+.jcs-rich-editor,
+.jcs-rich-editor .jcs-bible-ref,
+.jcs-rich-editor .jcs-song-ref,
+.jcs-rich-editor .jcs-pub-ref {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .jcs-bible-ref:hover,
-.jcs-song-ref:hover {
+.jcs-song-ref:hover,
+.jcs-pub-ref:hover {
   color: #4a315c;
 }
 
@@ -177,27 +197,27 @@ body {
 }
 
 .jwpub-content .jcs-hl-yellow {
-  background-color: rgba(255, 241, 118, 0.85);
+  background-color: rgba(255, 241, 118, 0.85) !important;
 }
 
 .jwpub-content .jcs-hl-green {
-  background-color: rgba(165, 214, 167, 0.9);
+  background-color: rgba(165, 214, 167, 0.9) !important;
 }
 
 .jwpub-content .jcs-hl-blue {
-  background-color: rgba(144, 202, 249, 0.9);
+  background-color: rgba(144, 202, 249, 0.9) !important;
 }
 
 .jwpub-content .jcs-hl-pink {
-  background-color: rgba(244, 143, 177, 0.85);
+  background-color: rgba(244, 143, 177, 0.85) !important;
 }
 
 .jwpub-content .jcs-hl-purple {
-  background-color: rgba(206, 147, 216, 0.85);
+  background-color: rgba(206, 147, 216, 0.85) !important;
 }
 
 .jwpub-content .jcs-hl-orange {
-  background-color: rgba(255, 204, 128, 0.9);
+  background-color: rgba(255, 204, 128, 0.9) !important;
 }
 
 .jcs-reading-column.jcs-has-note-gutter {
@@ -511,9 +531,27 @@ body {
   text-decoration: underline;
 }
 
-.jcs-rich-editor mark {
+.jcs-rich-editor mark,
+.jcs-rich-editor mark.jcs-rich-hl {
   border-radius: 2px;
   padding: 0 1px;
+  color: inherit;
+}
+
+.jcs-rich-editor mark.jcs-rich-hl-yellow {
+  background-color: #fef08a;
+}
+
+.jcs-rich-editor mark.jcs-rich-hl-green {
+  background-color: #bbf7d0;
+}
+
+.jcs-rich-editor mark.jcs-rich-hl-blue {
+  background-color: #bfdbfe;
+}
+
+.jcs-rich-editor mark.jcs-rich-hl-pink {
+  background-color: #fbcfe8;
 }
 
 .jcs-rich-editor .jcs-ata-title {

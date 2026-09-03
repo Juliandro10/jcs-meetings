@@ -1,0 +1,24 @@
+---
+description: Citações bíblicas só da Tradução do Novo Mundo (app ou JW.ORG)
+alwaysApply: true
+---
+
+# Citações bíblicas — somente Tradução do Novo Mundo
+
+Em todo o JCS Meetings (IA, UI, prompts, exemplos, docs, busca online):
+
+- Use **somente** a **Tradução do Novo Mundo da Bíblia Sagrada** (`nwt`) ou a **Tradução do Novo Mundo da Bíblia Sagrada (Edição de Estudo)** (`nwtsty`).
+- Fontes do texto: Bíblia baixada no app (`.jwpub` `nwt` / `nwtsty`) ou **JW.ORG** / WOL (`pub=nwt`).
+- **Nunca** Almeida (ARA/ARC/AA), NVI, NVT, King James, Bíblia de Jerusalém ou outra tradução — inclusive “versículos famosos” de memória.
+
+## Ao alterar a IA
+
+- A regra canônica é `JW_BIBLE_CITATION_RULES` em `electron/ai-prompts.ts` (já entra em `JW_AI_GROUNDING_RULES`).
+- Todo prompt que **gera** comentário, joia, discurso, introdução, esboço ou ajuda espiritual deve incluir `JW_AI_GROUNDING_RULES`.
+- Não recrie wording de versículo de memória: só transcreva se o texto NWT estiver no contexto; senão, cite só a referência (ex.: Jer. 17:9).
+- Trechos da Bíblia injetados no prompt: use `nwtPromptExcerptHeading`.
+- `fetchBibleVerseOnline` deve continuar com `pub=nwt`. Não adicione outras traduções ao catálogo nem ao resolvedor de links.
+
+## Exceções
+
+OCR de folha de designações / pauta só copia referências visíveis (livro e capítulos), sem transcrever versículos de outras traduções.

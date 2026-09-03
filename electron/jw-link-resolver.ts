@@ -8,8 +8,13 @@ import { isPubCached } from './jw-download';
 import { decryptContent } from './jwpub-crypto';
 import { openJwpubBundle } from './jwpub-bundle';
 import { prepareJwpubDocument } from './jwpub-publication-css';
-import { resolveCachedPubPath } from './jwpub-reader';
-import type { ResolveLinkParams, ResolveLinkResult } from './types';
+import { publicationDownloadSymbol, publicationIssueFromTag } from './jwpub-pub-symbol';
+import {
+  findDocumentIdByMepsId,
+  getPreparedDocumentHtml,
+  resolveCachedPubPath,
+} from './jwpub-reader';
+import type { ResolveLinkDownload, ResolveLinkParams, ResolveLinkResult } from './types';
 type BibleRange = {
   bookStart: number;
   chapterStart: number;
@@ -38,15 +43,69 @@ function extractLinkVariants(extractLink: string) {
   return [...variants];
 }
 
-function findExtractRow(db: Database, extractLink: string) {
+type ExtractRow = {
+  captionHtml: string;
+  content: Uint8Array;
+  mepsDocumentId?: number;
+  symbol?: string;
+  pubTitle?: string;
+  issueTag?: string | number;
+};
+
+function findExtractRow(db: Database, extractLink: string): ExtractRow | null {
   for (const link of extractLinkVariants(extractLink)) {
     const escaped = link.replace(/'/g, "''");
-    const row = db.exec(
-      `SELECT Caption, Content FROM Extract WHERE Link = '${escaped}' LIMIT 1`,
-    )[0]?.values?.[0];
-    if (row?.[1]) return row;
+    try {
+      const row = db.exec(
+        `SELECT e.Caption, e.Content, e.RefMepsDocumentId, rp.Symbol, rp.Title, rp.IssueTagNumber, rp.UniqueEnglishSymbol
+         FROM Extract e
+         LEFT JOIN RefPublication rp ON rp.RefPublicationId = e.RefPublicationId
+         WHERE e.Link = '${escaped}' LIMIT 1`,
+      )[0]?.values?.[0];
+      if (row?.[1]) {
+        const uniqueEnglish = row[6] ? String(row[6]).trim() : '';
+        const symbol = uniqueEnglish || (row[3] ? String(row[3]).trim() : '');
+        return {
+          captionHtml: String(row[0] ?? ''),
+          content: row[1] as Uint8Array,
+          mepsDocumentId: row[2] != null && row[2] !== '' ? Number(row[2]) : undefined,
+          symbol: symbol || undefined,
+          pubTitle: row[4] ? stripHtml(String(row[4])) : undefined,
+          issueTag: row[5] as string | number,
+        };
+      }
+    } catch {
+      const row = db.exec(
+        `SELECT Caption, Content FROM Extract WHERE Link = '${escaped}' LIMIT 1`,
+      )[0]?.values?.[0];
+      if (row?.[1]) {
+        return { captionHtml: String(row[0] ?? ''), content: row[1] as Uint8Array };
+      }
+    }
   }
   return null;
+}
+
+async function resolveResearchPubPath(cacheDir: string, symbol: string, issue: string) {
+  const hit = await resolveCachedPubPath(cacheDir, symbol, issue || undefined);
+  if (hit) return hit;
+  const downloadSymbol = publicationDownloadSymbol(symbol);
+  if (downloadSymbol !== symbol) {
+    return resolveCachedPubPath(cacheDir, downloadSymbol, issue || undefined);
+  }
+  return null;
+}
+
+function downloadFromExtract(extract: ExtractRow, captionHtml: string): ResolveLinkDownload | undefined {
+  if (extract.symbol) {
+    const issue = publicationIssueFromTag(extract.symbol, extract.issueTag);
+    return {
+      pub: publicationDownloadSymbol(extract.symbol),
+      issue,
+      label: extract.pubTitle || stripHtml(captionHtml) || extract.symbol,
+    };
+  }
+  return parsePublicationDownload(captionHtml);
 }
 
 function cleanVerseBlockHtml(block: string) {
@@ -222,7 +281,9 @@ function parsePublicationDownload(captionHtml: string): ResolveLinkResult['downl
   const text = stripHtml(captionHtml);
   const wMatch = text.match(/\bw(\d{2,4})\s+(\d{1,2})\/(\d{1,2})\b/i);
   if (wMatch) {
-    const yearPart = wMatch[1].length === 2 ? `20${wMatch[1]}` : wMatch[1];
+    const yearRaw = wMatch[1];
+    const yearPart =
+      yearRaw.length === 2 ? (Number(yearRaw) >= 70 ? `19${yearRaw}` : `20${yearRaw}`) : yearRaw;
     const issue = `${yearPart}${String(Number(wMatch[2])).padStart(2, '0')}`;
     return { pub: 'w', issue, label: text };
   }
@@ -247,30 +308,54 @@ async function resolvePublicationLink(
   }
 
   const bundle = await openJwpubBundle(sourcePath);
-  const row = findExtractRow(bundle.db, extractLink);
+  const extract = findExtractRow(bundle.db, extractLink);
 
-  if (!row?.[1]) {
+  if (!extract?.content) {
     const online = await fetchPublicationExtractOnline(extractLink, params.linkLabel);
     if (online) return online;
     return { ok: false, error: 'Trecho não encontrado na apostila nem no jw.org.' };
   }
 
-  const captionHtml = String(row[0] ?? '');
-  const rawHtml = decryptContent(bundle.keyIv, row[1] as Uint8Array);
-  const prepared = await prepareJwpubDocument(bundle, rawHtml);
-
-  const download = parsePublicationDownload(captionHtml);
-  let downloaded = false;
+  const captionHtml = extract.captionHtml;
+  const title = stripHtml(captionHtml) || params.linkLabel?.trim() || 'Referência';
+  const download = downloadFromExtract(extract, captionHtml);
   if (download?.pub && download.issue !== undefined) {
-    downloaded = await isPubCached(cacheDir, download.pub, download.issue);
-    download.downloaded = downloaded;
+    download.downloaded = await isPubCached(cacheDir, download.pub, download.issue);
   }
+
+  const mepsDocumentId = extract.mepsDocumentId;
+  if (extract.symbol && mepsDocumentId != null && Number.isFinite(mepsDocumentId) && mepsDocumentId > 0) {
+    const issue = publicationIssueFromTag(extract.symbol, extract.issueTag);
+    const targetPath = await resolveResearchPubPath(cacheDir, extract.symbol, issue);
+    if (targetPath) {
+      const documentId = await findDocumentIdByMepsId(targetPath, mepsDocumentId);
+      if (documentId != null) {
+        try {
+          const full = await getPreparedDocumentHtml(targetPath, documentId);
+          return {
+            ok: true,
+            kind: 'publication',
+            title,
+            subtitle: 'Publicação completa',
+            html: full.html,
+            publicationCss: full.publicationCss,
+            download: download ? { ...download, downloaded: true } : download,
+          };
+        } catch {
+          /* cai no trecho abaixo */
+        }
+      }
+    }
+  }
+
+  const rawHtml = decryptContent(bundle.keyIv, extract.content);
+  const prepared = await prepareJwpubDocument(bundle, rawHtml);
 
   return {
     ok: true,
     kind: 'publication',
-    title: stripHtml(captionHtml) || 'Referência',
-    subtitle: 'Matéria de pesquisa',
+    title,
+    subtitle: download?.downloaded === false ? 'Trecho citado no esboço' : 'Matéria de pesquisa',
     html: prepared.html,
     publicationCss: prepared.publicationCss,
     download,

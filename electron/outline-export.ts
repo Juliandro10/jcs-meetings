@@ -49,7 +49,7 @@ export function sanitizeExportFileName(name: string, maxLength = 48): string {
 
 export function sanitizeOutlineHtmlForExport(value: string) {
   let html = isRichOutlineContent(value) ? value : plainOutlineToHtml(value);
-  html = html.replace(/<a\b[^>]*class="[^"]*jcs-bible-ref[^"]*"[^>]*>([\s\S]*?)<\/a>/gi, '$1');
+  html = html.replace(/<a\b[^>]*class="[^"]*jcs-(?:bible|song|pub)-ref[^"]*"[^>]*>([\s\S]*?)<\/a>/gi, '$1');
   html = html.replace(/\s*contenteditable="[^"]*"/gi, '');
   html = html.replace(/\s*data-href="[^"]*"/gi, '');
   html = html.replace(/\s*data-label="[^"]*"/gi, '');

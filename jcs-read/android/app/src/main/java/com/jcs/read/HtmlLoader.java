@@ -79,6 +79,7 @@ public final class HtmlLoader {
         html = access.rewriteAssetUrls(weekFolder, html, pkg);
         html = BibleLinkHelper.rewriteHtmlLinks(html);
         html = SongLinkHelper.rewriteHtmlLinks(html);
+        html = PageJumpHelper.rewriteHtmlLinks(html);
         html = HtmlViewportHelper.lockViewport(html);
         return PageZoomHelper.injectIntoHtml(html, JcsPrefs.getTextZoomPercent(context));
     }

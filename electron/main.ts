@@ -11,6 +11,8 @@ import { runLfbPrep } from './lfb-prep';
 import { runWcgPrep } from './wcg-prep';
 import { runAiChat } from './ai-assistant';
 import { prepareAiChatParams } from './ai-context';
+import { loadOutlinePrepSources } from './outline-research';
+import { deleteAiChatSession, listAiChatSessions, saveAiChatSession } from './ai-chat-store';
 import { loadEnvFile } from './env';
 import {
   generateFieldServiceConsiderations,
@@ -158,6 +160,7 @@ import {
   getDictionaryStatus,
   lookupPortugueseDictionary,
 } from './portuguese-dictionary';
+import { suggestPortugueseAutoCorrect } from './auto-correct';
 import { RESEARCH_PUBLICATIONS } from './research-publications';
 import { resolveSongDigitalLink } from './song-digital-link';
 import { suggestTalkThemeCardFileName, writeTalkThemeCardHtml, writeTalkThemeCardPdf } from './talk-theme-card-export';
@@ -201,7 +204,9 @@ import {
   resizeJwBrowser,
 } from './jw-browser';
 import type {
+  AiChatMessage,
   AiChatParams,
+  AutoCorrectMode,
   AutoPrepParams,
   DocumentHighlight,
   DocumentNote,
@@ -441,6 +446,20 @@ function registerIpc() {
     }
   });
 
+  ipcMain.handle(
+    'jcs:list-outline-prep-sources',
+    async (_event, params: { pub: string; documentId: number }) => {
+      const denied = assertElderUnlocked();
+      if (denied) return denied;
+      try {
+        return await loadOutlinePrepSources(getCacheDir(), params.pub, params.documentId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao listar matérias de pesquisa';
+        return { ok: false, error: message };
+      }
+    },
+  );
+
   ipcMain.handle('jcs:elder-outline-availability', async (_event, params: { pubs: string[] }) => {
     const denied = assertElderUnlocked();
     if (denied) return denied;
@@ -597,6 +616,18 @@ function registerIpc() {
     const prepared = await prepareAiChatParams(getCacheDir(), params);
     return runAiChat(prepared);
   });
+
+  ipcMain.handle('jcs:list-ai-chat-sessions', async () => listAiChatSessions(getUserDataDir()));
+
+  ipcMain.handle(
+    'jcs:save-ai-chat-session',
+    async (_event, params: { key: string; title: string; messages: AiChatMessage[] }) =>
+      saveAiChatSession(getUserDataDir(), params),
+  );
+
+  ipcMain.handle('jcs:delete-ai-chat-session', async (_event, id: string) =>
+    deleteAiChatSession(getUserDataDir(), id),
+  );
 
   ipcMain.handle('jcs:ai-key-status', () => ({
     configured: Boolean(process.env.OPENAI_API_KEY?.trim()),
@@ -2272,6 +2303,12 @@ function registerIpc() {
     });
     return result;
   });
+
+  ipcMain.handle(
+    'jcs:auto-correct-word',
+    async (_event, params: { word?: string; mode?: AutoCorrectMode }) =>
+      suggestPortugueseAutoCorrect(getUserDataRoot(), params.word ?? '', params.mode ?? 'accents'),
+  );
 
   ipcMain.handle('jcs:load-preaching', async () => loadPreachingContent(getCacheDir()));
 

@@ -5,11 +5,14 @@ import { BibleLinkedReader } from '@/components/BibleLinkedReader';
 import { IconChevronLeft } from '@/components/Icons';
 import { SavePreparedOutlineModal } from '@/components/SavePreparedOutlineModal';
 import { SidePanel, type SidePanelTab } from '@/components/SidePanel';
+import { OutlineAdditionalResearch } from '@/components/OutlineResearchList';
 import { readBibleEdition } from '@/lib/bible-edition';
+import { collectMissingOutlinePrepDownloads, type OutlinePrepDownload } from '@/lib/outline-prep-downloads';
 import { outlineHtmlToPlainText } from '@/lib/outline-html-to-text';
+import { jwpubOutlineHtmlToEditorHtml, outlineHasResearchLinks } from '@/lib/outline-source-html';
 import { stripOutlineHtml } from '@/lib/rich-outline-html';
 import type { ElderOutlineReaderTarget } from '@/components/ElderSection';
-import type { ResolveLinkResult } from '../../electron/types';
+import type { DownloadPubResult, OutlineResearchItem, OutlineSupportPub, ResolveLinkResult } from '../../electron/types';
 import type { PreparedElderOutline } from '../../electron/types';
 
 type ElderOutlineReaderPageProps = {
@@ -20,24 +23,43 @@ type ElderOutlineReaderPageProps = {
 type ViewMode = 'edit' | 'present';
 
 function getSelectedTextFromEditor() {
-  const selection = window.getSelection();
-  if (!selection || selection.isCollapsed) return undefined;
-  const root =
-    document.querySelector<HTMLElement>('.elder-outline-editor .jcs-rich-editor') ??
-    document.querySelector<HTMLElement>('.elder-outline-editor textarea');
-  if (!root) return undefined;
-  const anchor = selection.anchorNode;
-  const focus = selection.focusNode;
-  if (!anchor || !focus || !root.contains(anchor) || !root.contains(focus)) return undefined;
-  const text = selection.toString().replace(/\s+/g, ' ').trim();
-  return text.length >= 3 ? text : undefined;
+  try {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return undefined;
+    const root =
+      document.querySelector<HTMLElement>('.elder-outline-editor .jcs-rich-editor') ??
+      document.querySelector<HTMLElement>('.elder-outline-editor textarea');
+    if (!root) return undefined;
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    if (!anchor || !focus || !root.contains(anchor) || !root.contains(focus)) return undefined;
+    const text = selection.toString().replace(/\s+/g, ' ').trim();
+    return text.length >= 3 ? text : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function loadOutlineSourceText(pub: string, documentId: number): Promise<string | null> {
   if (!window.jcs?.getDocumentHtml) return null;
   const result = await window.jcs.getDocumentHtml({ pub, documentId, issue: '' });
   if (!result.ok || !result.html) return null;
-  return outlineHtmlToPlainText(result.html);
+  return jwpubOutlineHtmlToEditorHtml(result.html);
+}
+
+async function downloadOutlinePub(target: OutlinePrepDownload): Promise<DownloadPubResult> {
+  if (!window.jcs?.downloadPub) {
+    return { ok: false, error: 'Download disponível apenas no app Electron.' };
+  }
+  const first = await window.jcs.downloadPub({ pub: target.pub, issue: target.issue });
+  if (first.ok) return first;
+  if (target.fallbackPub && target.fallbackPub !== target.pub) {
+    const withIssue = await window.jcs.downloadPub({ pub: target.fallbackPub, issue: target.issue });
+    if (withIssue.ok) return withIssue;
+    const withoutIssue = await window.jcs.downloadPub({ pub: target.fallbackPub, issue: '' });
+    if (withoutIssue.ok) return withoutIssue;
+  }
+  return first;
 }
 
 export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPageProps) {
@@ -58,7 +80,20 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
   const [referenceLoading, setReferenceLoading] = useState(false);
   const [reference, setReference] = useState<ResolveLinkResult | null>(null);
   const [selectedText, setSelectedText] = useState<string | undefined>();
+  const [outlineResearch, setOutlineResearch] = useState<OutlineResearchItem[]>([]);
+  const [supportPubs, setSupportPubs] = useState<OutlineSupportPub[]>([]);
+  const [speakerGuidelinesAvailable, setSpeakerGuidelinesAvailable] = useState(false);
+  const [restoreConfirm, setRestoreConfirm] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadPercent, setDownloadPercent] = useState<number | null>(null);
+  const [downloadJob, setDownloadJob] = useState<{ index: number; total: number; label: string } | null>(
+    null,
+  );
+  const [downloadFailures, setDownloadFailures] = useState<string[]>([]);
+  const [prepDownloadNonce, setPrepDownloadNonce] = useState(0);
   const saveTimer = useRef<number | null>(null);
+  const lastOpenedRef = useRef<{ href: string; label: string } | null>(null);
+  const autoDownloadKeyRef = useRef<string | null>(null);
 
   const persist = useCallback(
     async (nextValue: string) => {
@@ -135,6 +170,49 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
       cancelled = true;
     };
   }, [target.documentId, target.preparedId, target.pub]);
+
+  useEffect(() => {
+    let cancelled = false;
+    autoDownloadKeyRef.current = null;
+    setDownloadFailures([]);
+    setDownloadJob(null);
+    setOutlineResearch([]);
+    setSupportPubs([]);
+    setSpeakerGuidelinesAvailable(false);
+    void (async () => {
+      if (!window.jcs?.listOutlinePrepSources) return;
+      const result = await window.jcs.listOutlinePrepSources({
+        pub: target.pub,
+        documentId: target.documentId,
+      });
+      if (cancelled || !result.ok) return;
+      setOutlineResearch(result.research ?? []);
+      setSupportPubs(result.supportPubs ?? []);
+      setSpeakerGuidelinesAvailable(Boolean(result.speakerGuidelines?.available));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [target.documentId, target.pub]);
+
+  const reloadPrepSources = useCallback(async () => {
+    if (!window.jcs?.listOutlinePrepSources) return;
+    const result = await window.jcs.listOutlinePrepSources({
+      pub: target.pub,
+      documentId: target.documentId,
+    });
+    if (!result.ok) return;
+    setOutlineResearch(result.research ?? []);
+    setSupportPubs(result.supportPubs ?? []);
+    setSpeakerGuidelinesAvailable(Boolean(result.speakerGuidelines?.available));
+  }, [target.documentId, target.pub]);
+
+  useEffect(() => {
+    if (!window.jcs?.onDownloadProgress) return;
+    return window.jcs.onDownloadProgress(({ percent }) => {
+      setDownloadPercent(percent);
+    });
+  }, []);
 
   const flushDraft = useCallback(async () => {
     if (saveTimer.current) {
@@ -214,6 +292,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
         window.clearTimeout(saveTimer.current);
         saveTimer.current = null;
       }
+      setSelectedText(undefined);
       setEditorValue(html);
       setEditorRevision((current) => current + 1);
       setMessage('Assistente aplicou o texto no esboço preparado.');
@@ -249,6 +328,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
     async (href: string, linkLabel: string) => {
       if (!window.jcs?.resolveLink) return;
 
+      lastOpenedRef.current = { href, label: linkLabel };
       setPanelOpen(true);
       setPanelTab('references');
       setReferenceLoading(true);
@@ -268,6 +348,108 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
     [target.pub],
   );
 
+  const handleDownloadPublication = useCallback(
+    async (pub?: string, issue?: string) => {
+      const downloadPub = pub ?? reference?.download?.pub;
+      const downloadIssue = issue ?? reference?.download?.issue ?? '';
+      if (!downloadPub || !window.jcs?.downloadPub) return;
+
+      setDownloading(true);
+      setDownloadPercent(0);
+      try {
+        const result = await downloadOutlinePub({
+          pub: downloadPub,
+          issue: downloadIssue,
+          label: downloadPub,
+          fallbackPub: reference?.download?.pub !== downloadPub ? reference?.download?.pub : undefined,
+        });
+        if (!result.ok) {
+          setMessage(result.error ?? 'Não foi possível baixar a publicação.');
+          return;
+        }
+
+        await reloadPrepSources();
+        if (lastOpenedRef.current) {
+          await openReference(lastOpenedRef.current.href, lastOpenedRef.current.label);
+        }
+      } finally {
+        setDownloading(false);
+        setDownloadPercent(null);
+      }
+    },
+    [openReference, reference?.download?.pub, reference?.download?.issue, reloadPrepSources],
+  );
+
+  useEffect(() => {
+    const outlineKey = `${target.pub}:${target.documentId}`;
+    if (autoDownloadKeyRef.current === outlineKey) return;
+    if (!window.jcs?.downloadPub) return;
+
+    const missing = collectMissingOutlinePrepDownloads(outlineResearch, supportPubs);
+    if (missing.length === 0) return;
+
+    autoDownloadKeyRef.current = outlineKey;
+    let cancelled = false;
+    let finished = false;
+
+    void (async () => {
+      setDownloading(true);
+      setDownloadPercent(0);
+      setDownloadFailures([]);
+      const failures: string[] = [];
+
+      for (let index = 0; index < missing.length; index += 1) {
+        if (cancelled) return;
+        const item = missing[index]!;
+        setDownloadJob({ index: index + 1, total: missing.length, label: item.label });
+        const result = await downloadOutlinePub(item);
+        if (!result.ok) {
+          failures.push(`${item.label}: ${result.error ?? 'indisponível no jw.org'}`);
+        }
+      }
+
+      finished = true;
+      if (cancelled) return;
+      await reloadPrepSources();
+      setDownloading(false);
+      setDownloadPercent(null);
+      setDownloadJob(null);
+      setDownloadFailures(failures);
+
+      if (failures.length === 0) {
+        setMessage(
+          missing.length === 1
+            ? 'Publicação deste esboço baixada.'
+            : `${missing.length} publicações deste esboço baixadas.`,
+        );
+      } else if (failures.length < missing.length) {
+        setMessage(
+          `Parte das publicações deste esboço foi baixada. ${failures.length} não estavam disponíveis no jw.org.`,
+        );
+      } else {
+        setMessage('Não foi possível baixar as publicações deste esboço no jw.org.');
+      }
+
+      if (lastOpenedRef.current) {
+        await openReference(lastOpenedRef.current.href, lastOpenedRef.current.label);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (!finished) autoDownloadKeyRef.current = null;
+    };
+  }, [openReference, outlineResearch, prepDownloadNonce, reloadPrepSources, supportPubs, target.documentId, target.pub]);
+
+  const openResearch = useCallback(
+    (href: string, caption: string) => {
+      setPanelOpen(true);
+      setPanelTab('references');
+      void openReference(href, caption);
+    },
+    [openReference],
+  );
+
   const assistantContext = useMemo(
     () => ({
       contentKind: 'elder-outline' as const,
@@ -280,8 +462,22 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
       preparedOutlineText: outlineHtmlToPlainText(editorValue),
       referenceTitle: reference?.ok ? reference.title : undefined,
       referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
+      outlineResearchCount: outlineResearch.length,
+      speakerGuidelinesAvailable,
+      talkPrepSupportAvailable: supportPubs.some((item) => item.downloaded),
     }),
-    [editorValue, reference, selectedText, target.documentId, target.pub, target.pubLabel, target.title],
+    [
+      editorValue,
+      outlineResearch.length,
+      reference,
+      selectedText,
+      speakerGuidelinesAvailable,
+      supportPubs,
+      target.documentId,
+      target.pub,
+      target.pubLabel,
+      target.title,
+    ],
   );
 
   const handleExportTablet = async () => {
@@ -349,13 +545,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
   };
 
   const handleRestoreOriginal = async () => {
-    if (
-      !window.confirm(
-        'Restaurar o texto do esboço original? Suas edições neste documento serão substituídas (o .jwpub original não muda).',
-      )
-    ) {
-      return;
-    }
+    setRestoreConfirm(false);
     setLoading(true);
     setMessage(null);
     const source = await loadOutlineSourceText(target.pub, target.documentId);
@@ -365,8 +555,10 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
       return;
     }
     setEditorValue(source);
+    setEditorRevision((current) => current + 1);
     await persist(source);
     setLoading(false);
+    setMessage('Esboço original restaurado, com os links de pesquisa.');
   };
 
   const enterPresentation = async () => {
@@ -426,11 +618,13 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
               onClose={() => setPanelOpen(false)}
               referenceLoading={referenceLoading}
               reference={reference}
-              downloading={false}
+              downloading={downloading}
+              downloadPercent={downloadPercent}
               onLinkClick={(href, label) => void openReference(href, label)}
-              onDownloadPublication={() => undefined}
+              onDownloadPublication={() => void handleDownloadPublication()}
               assistantContext={assistantContext}
               hideAssistant
+              outlineResearch={outlineResearch}
             />
           ) : null}
         </div>
@@ -471,7 +665,7 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
           <button
             type="button"
             disabled={loading}
-            onClick={() => void handleRestoreOriginal()}
+            onClick={() => setRestoreConfirm(true)}
             className="rounded-lg border border-jw-border px-3 py-1.5 text-sm text-jw-muted hover:border-jw-purple hover:text-jw-text disabled:opacity-50"
           >
             Restaurar original
@@ -539,12 +733,55 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
               {message}
             </p>
           ) : null}
+          {restoreConfirm ? (
+            <div className="mb-3 shrink-0 rounded-lg border border-jw-purple/40 bg-jw-purple-light px-3 py-2">
+              <p className="text-sm text-jw-text">
+                Restaurar o texto do esboço original? As edições neste documento serão substituídas (o .jwpub original
+                não muda).
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRestoreConfirm(false)}
+                  className="rounded-md border border-jw-border bg-white px-3 py-1 text-sm text-jw-text hover:border-jw-purple"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRestoreOriginal()}
+                  className="rounded-md bg-jw-purple px-3 py-1 text-sm font-medium text-white hover:bg-jw-purple-dark"
+                >
+                  Restaurar
+                </button>
+              </div>
+            </div>
+          ) : null}
           <div className="mb-2 shrink-0">
             <h3 className="text-sm font-semibold text-jw-text">Esboço de trabalho</h3>
             <p className="text-xs text-jw-muted">
-              Cópia editável do esboço — o original permanece intacto. Citações bíblicas viram links. Botão direito numa palavra consulta o dicionário.
+              Cópia editável do esboço — o original permanece intacto. Citações bíblicas e matérias de pesquisa viram
+              links. Botão direito numa palavra consulta o dicionário.
             </p>
           </div>
+          <OutlineAdditionalResearch
+            research={outlineResearch}
+            supportPubs={supportPubs}
+            downloading={downloading}
+            downloadJob={downloadJob}
+            downloadPercent={downloadPercent}
+            downloadFailures={downloadFailures}
+            onRetryDownloads={() => {
+              autoDownloadKeyRef.current = null;
+              setDownloadFailures([]);
+              setPrepDownloadNonce((current) => current + 1);
+            }}
+            speakerGuidelinesAvailable={speakerGuidelinesAvailable}
+            missingResearchLinks={
+              outlineResearch.length > 0 && Boolean(editorValue.trim()) && !outlineHasResearchLinks(editorValue)
+            }
+            onOpenResearch={openResearch}
+          />
           {loading ? (
             <p className="text-sm text-jw-muted">Carregando esboço…</p>
           ) : (
@@ -569,11 +806,13 @@ export function ElderOutlineReaderPage({ target, onBack }: ElderOutlineReaderPag
             onClose={() => setPanelOpen(false)}
             referenceLoading={referenceLoading}
             reference={reference}
-            downloading={false}
+            downloading={downloading}
+            downloadPercent={downloadPercent}
             onLinkClick={(href, label) => void openReference(href, label)}
-            onDownloadPublication={() => undefined}
+            onDownloadPublication={() => void handleDownloadPublication()}
             assistantContext={assistantContext}
             onApplyOutline={handleApplyOutlineFromAssistant}
+            outlineResearch={outlineResearch}
           />
         ) : null}
       </div>

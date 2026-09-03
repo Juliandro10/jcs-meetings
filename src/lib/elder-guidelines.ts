@@ -86,6 +86,12 @@ export const ELDER_GUIDELINE_SECTIONS: ElderGuidelineSection[] = [
         pub: 's-38',
         label: 'S-38 · 2025',
       },
+      {
+        id: 's-141',
+        title: 'Lembretes para os Que Fazem Discursos Públicos',
+        pub: 's-141',
+        label: 'S-141 · 2021',
+      },
     ],
   },
   {

@@ -95,7 +95,7 @@
 
 ## 4. Tela — Bíblia
 
-**Referência:** Tradução do Novo Mundo · Português (Brasil).
+**Referência:** Tradução do Novo Mundo da Bíblia Sagrada · Português (Brasil). A Edição de Estudo (`nwtsty`) usa o mesmo texto. Nunca outras traduções.
 
 - Sub-abas: **INTRODUÇÃO | LIVROS | ÍNDICE | APÊNDICE A | APÊNDICE B**
 - Grid de livros em **tiles roxos** (4 colunas AT, 3 colunas NT).

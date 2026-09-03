@@ -435,3 +435,38 @@ export async function lookupPortugueseDictionary(
     senses,
   };
 }
+
+export async function dictionaryHasExactWord(userDataRoot: string, word: string) {
+  const db = await ensureDictionaryDb(userDataRoot);
+  if (!db) return false;
+  const stmt = db.prepare('SELECT 1 FROM entries WHERE word = ? COLLATE NOCASE LIMIT 1');
+  stmt.bind([word.trim()]);
+  const found = stmt.step();
+  stmt.free();
+  return found;
+}
+
+export async function distinctDictionaryWordsForNorms(userDataRoot: string, norms: string[]) {
+  const uniqueNorms = [...new Set(norms.map((item) => item.trim()).filter((item) => item.length >= 2))];
+  if (uniqueNorms.length === 0) return [];
+
+  const db = await ensureDictionaryDb(userDataRoot);
+  if (!db) return [];
+
+  const words: string[] = [];
+  const chunkSize = 200;
+  for (let i = 0; i < uniqueNorms.length; i += chunkSize) {
+    const chunk = uniqueNorms.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => '?').join(',');
+    const stmt = db.prepare(
+      `SELECT word FROM entries WHERE word_norm IN (${placeholders}) GROUP BY word`,
+    );
+    stmt.bind(chunk);
+    while (stmt.step()) {
+      const word = String((stmt.getAsObject() as { word?: string }).word ?? '').trim();
+      if (word) words.push(word);
+    }
+    stmt.free();
+  }
+  return words;
+}

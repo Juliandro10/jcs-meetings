@@ -1,5 +1,7 @@
 export type BibleEdition = 'nwt' | 'nwtsty';
 
+/** Somente estas edições: Tradução do Novo Mundo da Bíblia Sagrada / Edição de Estudo. */
+
 const STORAGE_KEY = 'jcs-bible-edition';
 
 export const BIBLE_EDITION_OPTIONS: Array<{ id: BibleEdition; label: string }> = [

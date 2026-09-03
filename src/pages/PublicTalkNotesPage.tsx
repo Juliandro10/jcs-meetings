@@ -98,10 +98,12 @@ export function PublicTalkNotesPage({ week, onBack }: PublicTalkNotesPageProps) 
       weekLabel: week.label,
       publicationTitle: `Discurso público — ${week.label}`,
       bibleReading: week.bibleReading,
+      sourcePub: 'public-talk',
+      sourceIssue: week.id,
       referenceTitle: reference?.ok ? reference.title : undefined,
       referenceText: reference?.ok ? referencePlainText(reference.html) : undefined,
     }),
-    [reference, week.bibleReading, week.label],
+    [reference, week.bibleReading, week.id, week.label],
   );
 
   const handleExport = async (format: 'doc' | 'pdf') => {

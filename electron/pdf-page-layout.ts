@@ -1,22 +1,36 @@
 import type { PDFParse } from 'pdf-parse';
+import { formatJcsPageJumpHref, jcsPageAnchorId } from '../shared/jcs-page-jump';
 import { findJcsReadRefSpans } from '../shared/jcs-read-ref-links';
 
 export type PdfPageHotspot = {
   href: string;
   label: string;
-  kind: 'bible' | 'song';
+  kind: 'bible' | 'song' | 'jump';
   left: number;
   top: number;
   width: number;
   height: number;
 };
 
+type PdfJsRef = { num: number; gen: number };
+
+type PdfJsViewport = {
+  width: number;
+  height: number;
+  convertToViewportPoint: (x: number, y: number) => [number, number];
+};
+
+type PdfJsAnnotation = {
+  subtype?: string;
+  dest?: unknown;
+  url?: string;
+  overlaidText?: string;
+  contents?: string;
+  rect?: number[];
+};
+
 type PdfJsPage = {
-  getViewport: (opts: { scale: number }) => {
-    width: number;
-    height: number;
-    convertToViewportPoint: (x: number, y: number) => [number, number];
-  };
+  getViewport: (opts: { scale: number }) => PdfJsViewport;
   getTextContent: (opts: { includeMarkedContent: boolean; disableNormalization: boolean }) => Promise<{
     items: Array<{
       str?: string;
@@ -25,6 +39,14 @@ type PdfJsPage = {
       height?: number;
     }>;
   }>;
+  getAnnotations?: (opts?: { intent?: string }) => Promise<PdfJsAnnotation[]>;
+};
+
+type PdfJsDoc = {
+  numPages?: number;
+  getPage: (n: number) => Promise<PdfJsPage>;
+  getPageIndex: (ref: PdfJsRef) => Promise<number>;
+  getDestination?: (name: string) => Promise<unknown>;
 };
 
 type Glyph = {
@@ -151,8 +173,128 @@ export function repairPdfGlyphText(text: string) {
   return s;
 }
 
-function getLoadedPdfDoc(parser: PDFParse): { getPage: (n: number) => Promise<PdfJsPage> } | null {
-  return (parser as unknown as { doc?: { getPage: (n: number) => Promise<PdfJsPage> } }).doc ?? null;
+function getLoadedPdfDoc(parser: PDFParse): PdfJsDoc | null {
+  return (parser as unknown as { doc?: PdfJsDoc }).doc ?? null;
+}
+
+const viewportCache = new WeakMap<object, Map<number, PdfJsViewport>>();
+
+async function viewportForPage(doc: PdfJsDoc, pageNumber: number) {
+  const cache = viewportCache.get(doc) ?? new Map<number, PdfJsViewport>();
+  if (!viewportCache.has(doc)) viewportCache.set(doc, cache);
+  const existing = cache.get(pageNumber);
+  if (existing) return existing;
+  const page = await doc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 1 });
+  cache.set(pageNumber, viewport);
+  return viewport;
+}
+
+function destName(dest: unknown[]): string {
+  const kind = dest[1];
+  if (kind && typeof kind === 'object' && 'name' in kind) {
+    return String((kind as { name: unknown }).name);
+  }
+  return '';
+}
+
+function destUserY(dest: unknown[]): number | null {
+  const name = destName(dest);
+  if (name === 'XYZ') return typeof dest[3] === 'number' ? dest[3] : null;
+  if (name === 'FitH' || name === 'FitBH') return typeof dest[2] === 'number' ? dest[2] : null;
+  if (name === 'FitR') return typeof dest[5] === 'number' ? dest[5] : null;
+  return null;
+}
+
+async function resolveNamedDest(doc: PdfJsDoc, dest: unknown, depth = 0): Promise<unknown[] | null> {
+  if (depth > 4) return null;
+  if (Array.isArray(dest)) return dest;
+  const destTypes = new Set(['XYZ', 'Fit', 'FitH', 'FitV', 'FitR', 'FitB', 'FitBH', 'FitBV']);
+  if (typeof dest === 'string') {
+    if (destTypes.has(dest) || !doc.getDestination) return null;
+    try {
+      return resolveNamedDest(doc, await doc.getDestination(dest), depth + 1);
+    } catch {
+      return null;
+    }
+  }
+  if (dest && typeof dest === 'object' && 'name' in dest) {
+    const name = String((dest as { name: unknown }).name);
+    if (destTypes.has(name)) return null;
+    return resolveNamedDest(doc, name, depth + 1);
+  }
+  return null;
+}
+
+async function resolveDestPage(
+  doc: PdfJsDoc,
+  dest: unknown,
+  pageCount: number,
+): Promise<{ pageNumber: number; topPct: number } | null> {
+  const explicit = await resolveNamedDest(doc, dest);
+  if (!explicit?.length) return null;
+  const ref = explicit[0] as PdfJsRef | undefined;
+  if (!ref || typeof ref.num !== 'number') return null;
+  const index = await doc.getPageIndex(ref);
+  const pageNumber = index + 1;
+  if (pageNumber < 1 || pageNumber > pageCount) return null;
+  const pdfY = destUserY(explicit);
+  if (pdfY == null) return { pageNumber, topPct: 0 };
+  const viewport = await viewportForPage(doc, pageNumber);
+  const [, vy] = viewport.convertToViewportPoint(0, pdfY);
+  return { pageNumber, topPct: pct(vy, viewport.height) };
+}
+
+function pdfRectToBox(rect: number[], viewport: PdfJsViewport) {
+  const [x1, y1, x2, y2] = rect;
+  const [vx1, vy1] = viewport.convertToViewportPoint(x1, y1);
+  const [vx2, vy2] = viewport.convertToViewportPoint(x2, y2);
+  const left = pct(Math.min(vx1, vx2), viewport.width);
+  const right = pct(Math.max(vx1, vx2), viewport.width);
+  const top = pct(Math.min(vy1, vy2), viewport.height);
+  const bottom = pct(Math.max(vy1, vy2), viewport.height);
+  return {
+    left: Math.max(0, left),
+    top: Math.max(0, top),
+    width: Math.max(1.1, Math.min(100, right) - Math.max(0, left)),
+    height: Math.max(0.9, Math.min(100, bottom) - Math.max(0, top)),
+  };
+}
+
+async function collectJumpHotspots(
+  doc: PdfJsDoc,
+  pageNumber: number,
+  pageCount: number,
+): Promise<PdfPageHotspot[]> {
+  const page = await doc.getPage(pageNumber);
+  if (!page.getAnnotations) return [];
+  const annots = await page.getAnnotations({ intent: 'display' });
+  if (!Array.isArray(annots) || annots.length === 0) return [];
+  const viewport = await viewportForPage(doc, pageNumber);
+  const hotspots: PdfPageHotspot[] = [];
+
+  for (const annot of annots) {
+    if (String(annot.subtype || '') !== 'Link' || !annot.dest || annot.url) continue;
+    if (!Array.isArray(annot.rect) || annot.rect.length < 4) continue;
+    try {
+      const dest = await resolveDestPage(doc, annot.dest, pageCount);
+      if (!dest) continue;
+      const box = pdfRectToBox(annot.rect, viewport);
+      if (box.width > 92 || box.height > 18) continue;
+      const rawLabel = annot.overlaidText || (typeof annot.contents === 'string' ? annot.contents : '');
+      const label = String(rawLabel || `Página ${dest.pageNumber}`).trim();
+      hotspots.push({
+        href: formatJcsPageJumpHref(dest),
+        label: label || `Página ${dest.pageNumber}`,
+        kind: 'jump',
+        ...box,
+      });
+    } catch (err) {
+      console.error('[pdf-page-layout] dest', pageNumber, err);
+    }
+  }
+
+  return hotspots;
 }
 
 function foldForMap(text: string) {
@@ -497,7 +639,7 @@ export function layoutPageHotspots(rawGlyphs: Glyph[]): PdfPageHotspot[] {
     end: number,
     href: string,
     label: string,
-    kind: 'bible' | 'song',
+    kind: 'bible' | 'song' | 'jump',
   ) => {
     if (start < 0 || end <= start || end > joined.text.length) return;
     if (rangeOccupied(occupied, start, end)) return;
@@ -527,26 +669,38 @@ export function layoutPageHotspots(rawGlyphs: Glyph[]): PdfPageHotspot[] {
   return hotspots;
 }
 
-export async function collectPageHotspots(parser: PDFParse, pageNumber: number): Promise<PdfPageHotspot[]> {
+export async function collectPageHotspots(
+  parser: PDFParse,
+  pageNumber: number,
+  pageCount: number,
+): Promise<PdfPageHotspot[]> {
   const doc = getLoadedPdfDoc(parser);
   if (!doc) return [];
 
   try {
     const page = await doc.getPage(pageNumber);
-    return layoutPageHotspots(await glyphsForPage(page));
+    const jumps = await collectJumpHotspots(doc, pageNumber, pageCount);
+    const refs = layoutPageHotspots(await glyphsForPage(page));
+    return [...jumps, ...refs];
   } catch (err) {
     console.error('[pdf-page-layout] page', pageNumber, err);
     return [];
   }
 }
 
-export function renderPdfPageHtml(src: string, alt: string, hotspots: PdfPageHotspot[]) {
+function hotspotClass(kind: PdfPageHotspot['kind']) {
+  if (kind === 'jump') return 'jcs-page-hotspot jcs-page-jump';
+  if (kind === 'song') return 'jcs-page-hotspot jcs-song-ref';
+  return 'jcs-page-hotspot jcs-bible-ref';
+}
+
+export function renderPdfPageHtml(src: string, alt: string, hotspots: PdfPageHotspot[], pageNumber: number) {
   const marks = hotspots
     .map((spot, index) => {
-      const klass = spot.kind === 'song' ? 'jcs-page-hotspot jcs-song-ref' : 'jcs-page-hotspot jcs-bible-ref';
-      const style = `left:${spot.left.toFixed(2)}%;top:${spot.top.toFixed(2)}%;width:${spot.width.toFixed(2)}%;height:${spot.height.toFixed(2)}%;z-index:${index + 1};`;
-      return `<a class="${klass}" href="#" contenteditable="false" tabindex="-1" data-href="${escapeHtml(spot.href)}" data-label="${escapeHtml(spot.label)}" style="${style}">\u00a0</a>`;
+      const z = spot.kind === 'jump' ? index + 1 : index + 80;
+      const style = `left:${spot.left.toFixed(2)}%;top:${spot.top.toFixed(2)}%;width:${spot.width.toFixed(2)}%;height:${spot.height.toFixed(2)}%;z-index:${z};`;
+      return `<a class="${hotspotClass(spot.kind)}" href="#" contenteditable="false" tabindex="-1" data-href="${escapeHtml(spot.href)}" data-label="${escapeHtml(spot.label)}" style="${style}">\u00a0</a>`;
     })
     .join('');
-  return `<figure class="jcs-imported-page"><div class="jcs-imported-page-stack" contenteditable="false"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">${marks}</div></figure>`;
+  return `<figure class="jcs-imported-page" id="${escapeHtml(jcsPageAnchorId(pageNumber))}"><div class="jcs-imported-page-stack" contenteditable="false"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">${marks}</div></figure>`;
 }

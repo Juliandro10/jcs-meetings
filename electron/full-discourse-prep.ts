@@ -11,6 +11,7 @@ import {
 } from './document-structure';
 import {
   buildAiSystemPrompt,
+  nwtPromptExcerptHeading,
   JW_AI_GROUNDING_RULES,
   JW_FULL_DISCOURSE_RULES,
   JW_MWB_FIELD_RULES,
@@ -231,10 +232,10 @@ async function generatePartDiscourse(params: {
     '',
     '### Matéria com mídia (imagens/vídeos)',
     target.htmlExcerpt.slice(0, 14_000),
-    params.bibleText ? `\n### Leitura bíblica\n${params.bibleText.slice(0, 6000)}` : '',
+    params.bibleText ? `\n${nwtPromptExcerptHeading('Leitura bíblica')}\n${params.bibleText.slice(0, 6000)}` : '',
     '',
     `Prepare o roteiro completo para proferir em ${durationHint}.`,
-    'IMPORTANTE: não inclua saudação nem cumprimento — comece direto no discurso.',
+    'IMPORTANTE: não inclua saudação nem cumprimento (Bom dia, Boa noite, bem-vindos, irmãos e irmãs). O presidente já cumprimentou a congregação — comece direto no discurso.',
   ]
     .filter(Boolean)
     .join('\n');

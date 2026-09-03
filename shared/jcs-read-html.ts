@@ -74,7 +74,8 @@ html, body {
 .jcs-read-body { font-size: 18px; line-height: 1.55; }
 .jcs-read-body a,
 .jcs-read-body a.jcs-bible-ref,
-.jcs-read-body a.jcs-song-ref {
+.jcs-read-body a.jcs-song-ref,
+.jcs-read-body a.jcs-pub-ref {
   color: #6d28d9;
   text-decoration: underline;
 }
@@ -112,6 +113,10 @@ html, body {
   color: transparent;
   font-size: 1px;
   line-height: 1px;
+}
+.jcs-read-body a.jcs-page-hotspot {
+  color: transparent;
+  text-decoration: none;
 }
 .jcs-read-body figure { margin: 12px 0; }
 .jcs-read-body textarea { display: none; }
@@ -213,7 +218,8 @@ html, body {
   padding: 0 2px;
 }
 .jcs-outline-body ul, .jcs-outline-body ol { margin: 0 0 10px 1.2em; padding: 0; }
-.jcs-bible-ref, a[data-href^="jwpub://b/"], a[href^="tnme-bible://"], a[href^="jwpub://b/"] {
+.jcs-bible-ref, a[data-href^="jwpub://b/"], a[href^="tnme-bible://"], a[href^="jwpub://b/"],
+.jcs-pub-ref, a[data-href^="jwpub://p/"] {
   color: #6d28d9;
   text-decoration: underline;
   cursor: pointer;
@@ -307,6 +313,34 @@ html, body {
   font-size: 14px;
 }
 `;
+
+/** KitKat: hash não é confiável; o clique no atalho do PDF rola até #jcs-page-N. */
+const JCS_READ_PAGE_JUMP_SCRIPT = `<script>
+(function(){
+  function go(href){
+    if (!href) return false;
+    var m = href.match(/jcs-page:\\/\\/(\\d+)(?:\\?y=(\\d+))?/i) || href.match(/#jcs-page-(\\d+)/i);
+    if (!m) return false;
+    var el = document.getElementById('jcs-page-' + m[1]);
+    if (!el) return false;
+    try { el.scrollIntoView(true); } catch (err) {}
+    var y = m[2] ? parseInt(m[2], 10) : 0;
+    if (y > 8 && window.scrollBy) window.scrollBy(0, Math.round(el.offsetHeight * y / 100));
+    return true;
+  }
+  document.addEventListener('click', function(e){
+    var el = e.target;
+    while (el && el.tagName !== 'A') el = el.parentNode;
+    if (!el) return;
+    var href = el.getAttribute('href') || '';
+    var data = el.getAttribute('data-href') || '';
+    if (go(href) || go(data)) {
+      if (e.preventDefault) e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+    }
+  }, false);
+})();
+</script>`;
 
 export function highlightSwatch(color: string) {
   return HIGHLIGHT_SWATCH[color] ?? HIGHLIGHT_SWATCH.yellow;
@@ -417,6 +451,7 @@ ${params.publicationCss ?? ''}
     </div>
     ${notesHtml}
   </div>
+  ${hasPages ? JCS_READ_PAGE_JUMP_SCRIPT : ''}
 </body>
 </html>`);
 }

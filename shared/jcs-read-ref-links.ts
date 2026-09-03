@@ -7,7 +7,7 @@ const BR_RE = '(?:<br\\s*/?>\\s*)+';
 
 function unwrapSongAnchors(html: string) {
   if (!html) return html;
-  return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (full, attrs: string, inner: string) => {
+  return html.replace(/<(?:a|span)\b([^>]*)>([\s\S]*?)<\/(?:a|span)>/gi, (full, attrs: string, inner: string) => {
     const haystack = String(attrs);
     if (/jcs-page-hotspot/i.test(haystack)) return full;
     if (/jcs-song-ref/i.test(haystack) || /tnme-cantico:\/\//i.test(haystack)) {
@@ -60,7 +60,7 @@ export function linkifySongMentionsInText(text: string) {
     const songNumber = Number(rawNumber);
     if (!Number.isFinite(songNumber) || songNumber < 1 || songNumber > 999) return full;
     const label = full.replace(/"/g, '');
-    return `<a href="#" class="jcs-song-ref" contenteditable="false" tabindex="-1" data-href="tnme-cantico://${songNumber}" data-label="${label}">${full}</a>`;
+    return `<a href="#" class="jcs-song-ref" tabindex="-1" data-href="tnme-cantico://${songNumber}" data-label="${label}">${full}</a>`;
   });
 }
 

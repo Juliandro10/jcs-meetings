@@ -133,6 +133,11 @@ public class ReadActivity extends Activity {
     }
 
     private boolean handleLink(String url) {
+        if (PageJumpHelper.isPageJump(url)) {
+            PageJumpHelper.scrollTo(webView, url);
+            return true;
+        }
+
         if (BibleLinkHelper.isBibleLink(url)) {
             try {
                 Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));

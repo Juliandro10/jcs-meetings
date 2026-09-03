@@ -1,5 +1,7 @@
+import { AutoCorrectModeSelect } from '@/components/AutoCorrectModeSelect';
 import type { RichFontFamily, RichFontSize, RichHighlightColor } from '@/lib/rich-text-commands';
 import { captureEditorSelection, RICH_FONT_SIZES } from '@/lib/rich-text-commands';
+import type { AutoCorrectMode } from '../../electron/types';
 
 type RichTextToolbarProps = {
   disabled?: boolean;
@@ -12,6 +14,8 @@ type RichTextToolbarProps = {
   onFontFamily: (family: RichFontFamily) => void;
   onFontSize: (size: RichFontSize) => void;
   onClearFormat: () => void;
+  autoCorrectMode?: AutoCorrectMode;
+  onAutoCorrectModeChange?: (mode: AutoCorrectMode) => void;
 };
 
 const HIGHLIGHTS: { id: RichHighlightColor; className: string; label: string }[] = [
@@ -32,6 +36,8 @@ export function RichTextToolbar({
   onFontFamily,
   onFontSize,
   onClearFormat,
+  autoCorrectMode,
+  onAutoCorrectModeChange,
 }: RichTextToolbarProps) {
   return (
     <div
@@ -59,7 +65,10 @@ export function RichTextToolbar({
           type="button"
           disabled={disabled}
           title={`Grifar ${item.label}`}
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            captureEditorSelection();
+          }}
           onClick={() => onHighlight(item.id)}
           className={[
             'h-7 w-7 rounded-md border border-jw-border/70 transition hover:scale-105 disabled:opacity-40',
@@ -107,6 +116,17 @@ export function RichTextToolbar({
       <ToolButton disabled={disabled} title="Limpar formatação" onClick={onClearFormat}>
         Limpar
       </ToolButton>
+      {onAutoCorrectModeChange ? (
+        <>
+          <Divider />
+          <AutoCorrectModeSelect
+            compact
+            disabled={disabled}
+            value={autoCorrectMode ?? 'accents'}
+            onChange={onAutoCorrectModeChange}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
@@ -127,7 +147,10 @@ function ToolButton({
       type="button"
       disabled={disabled}
       title={title}
-      onMouseDown={(event) => event.preventDefault()}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        captureEditorSelection();
+      }}
       onClick={onClick}
       className="min-w-[2rem] rounded-md px-2 py-1 text-sm text-jw-text hover:bg-jw-surface disabled:opacity-40"
     >

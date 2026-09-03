@@ -58,6 +58,40 @@ export type ListElderOutlineDocumentsResult = {
   error?: string;
 };
 
+/** Trecho de pesquisa citado no esboço original (tabela Extract do .jwpub). */
+export type OutlineResearchItem = {
+  href: string;
+  caption: string;
+  sourceSymbol?: string;
+  sourceTitle?: string;
+  sourceIssue?: string;
+  /** Símbolo na API jw.org (w90 → w). */
+  downloadPub?: string;
+  downloadIssue?: string;
+  mepsDocumentId?: number;
+  downloaded?: boolean;
+};
+
+/** Publicação de apoio citada no S-141 (Melhore / Beneficie-se). */
+export type OutlineSupportPub = {
+  pub: string;
+  title: string;
+  downloaded: boolean;
+  detail?: string;
+  downloadPub?: string;
+  downloadIssue?: string;
+};
+
+export type OutlinePrepSourcesResult = {
+  ok: boolean;
+  research?: OutlineResearchItem[];
+  speakerGuidelines?: { available: boolean; pub: string; title: string };
+  supportPubs?: OutlineSupportPub[];
+  error?: string;
+};
+
+export type ListOutlinePrepSourcesResult = OutlinePrepSourcesResult;
+
 export type GetDocumentHtmlResult = {
   ok: boolean;
   html?: string;
@@ -139,6 +173,16 @@ export type AiChatMessage = {
   content: string;
 };
 
+export type AiChatSession = {
+  id: string;
+  key: string;
+  title: string;
+  preview: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: AiChatMessage[];
+};
+
 export type AiChatContext = {
   weekLabel: string;
   publicationTitle: string;
@@ -154,6 +198,15 @@ export type AiChatContext = {
   /** Esboço de discurso (Elder): original + preparado para comparação. */
   contentKind?: 'meeting' | 'elder-outline';
   preparedOutlineText?: string;
+  /** Trechos de pesquisa do esboço original, já formatados para o prompt. */
+  outlineResearchText?: string;
+  /** S-141 e afins, quando o .jwpub estiver no cache. */
+  speakerGuidelineText?: string;
+  /** Lições do Melhore (th) e páginas do Beneficie-se (be) citadas no S-141. */
+  talkPrepSupportText?: string;
+  outlineResearchCount?: number;
+  speakerGuidelinesAvailable?: boolean;
+  talkPrepSupportAvailable?: boolean;
 };
 
 export type AiChatParams = {
@@ -797,6 +850,13 @@ export type ListResearchPublicationsResult = {
   ok: boolean;
   items?: ResearchPublicationItem[];
   error?: string;
+};
+
+export type AutoCorrectMode = 'off' | 'accents' | 'careful';
+
+export type AutoCorrectWordResult = {
+  replacement?: string;
+  reason?: 'accent' | 'typo';
 };
 
 export type DictionarySense = {

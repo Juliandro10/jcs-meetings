@@ -7,6 +7,7 @@ import { cleanSelectionText, resolveReaderContextText } from '../../shared/selec
 import {
   applyFontFamily,
   applyFontSize,
+  releaseEditorSelection,
   restoreEditorSelection,
   applyHighlight,
   clearHighlight,
@@ -23,6 +24,19 @@ import {
   normalizeEditorHtml,
   outlineContentToHtml,
 } from '@/lib/rich-outline-html';
+import { normalizeRichEditorHtml, refsToEditorSpans } from '@/lib/editor-ref-markup';
+import {
+  AUTO_CORRECT_MODE_EVENT,
+  readAutoCorrectMode,
+} from '@/lib/auto-correct-settings';
+import { requestAutoCorrect } from '@/lib/auto-correct-client';
+import {
+  replaceRangeWithText,
+  wordBeforeCaretInEditor,
+  wordBeforeCaretInTextarea,
+} from '@/lib/editor-auto-correct';
+import type { AutoCorrectMode } from '../../electron/types';
+import { scrollToJcsPageJump } from '@/lib/scroll-jcs-page-jump';
 
 type LookupMenuState = { open: boolean; x: number; y: number; text: string };
 
@@ -70,35 +84,71 @@ export function BibleLinkedEditor({
   /** null = ainda não sincronizou o DOM com value (evita pular a carga inicial). */
   const lastEmitted = useRef<string | null>(null);
   const valueRef = useRef(value);
+  const lastRevision = useRef(revision);
+  const composingRef = useRef(false);
+  const correctingRef = useRef(false);
+  const [autoCorrectMode, setAutoCorrectMode] = useState<AutoCorrectMode>(() => readAutoCorrectMode());
   valueRef.current = value;
+
+  useEffect(() => {
+    const sync = () => setAutoCorrectMode(readAutoCorrectMode());
+    window.addEventListener(AUTO_CORRECT_MODE_EVENT, sync);
+    return () => window.removeEventListener(AUTO_CORRECT_MODE_EVENT, sync);
+  }, []);
 
   const applyValueToEditor = useCallback(
     (nextValue: string) => {
       const root = editorRef.current;
       if (!root) return;
-      root.innerHTML = outlineContentToHtml(nextValue);
-      const linked = linkifyBibleCitationsInHtml(root.innerHTML, 'all');
-      if (linked !== root.innerHTML) {
-        root.innerHTML = linked;
-      }
-      const normalized = normalizeEditorHtml(root.innerHTML);
-      const shouldPersistRefs =
-        !disabled &&
-        /jcs-(?:bible|song)-ref/i.test(normalized) &&
-        normalized !== nextValue;
-      lastEmitted.current = shouldPersistRefs ? normalized : nextValue;
-      if (shouldPersistRefs) onChange(normalized);
+      root.innerHTML = refsToEditorSpans(
+        linkifyBibleCitationsInHtml(outlineContentToHtml(nextValue), 'all'),
+      );
+      lastEmitted.current = nextValue;
+      releaseEditorSelection({ blur: false });
     },
-    [disabled, onChange],
+    [],
   );
 
-  const emitChange = useCallback(() => {
+  const readEditorHtml = useCallback(() => {
     const root = editorRef.current;
-    if (!root) return;
-    const html = normalizeEditorHtml(root.innerHTML);
+    if (!root) return '';
+    return normalizeEditorHtml(normalizeRichEditorHtml(root.innerHTML));
+  }, []);
+
+  const emitChange = useCallback(() => {
+    const html = readEditorHtml();
     lastEmitted.current = html;
     onChange(html);
-  }, [onChange]);
+  }, [onChange, readEditorHtml]);
+
+  const runEditorAutoCorrect = useCallback(async () => {
+    if (disabled || autoCorrectMode === 'off' || composingRef.current || correctingRef.current) return;
+    const root = editorRef.current;
+    if (!root) return;
+    const found = wordBeforeCaretInEditor(root);
+    if (!found || found.word.length < 2) return;
+    correctingRef.current = true;
+    try {
+      const snapshot = found.range.cloneRange();
+      const word = found.word;
+      const replacement = await requestAutoCorrect(word, autoCorrectMode);
+      if (!replacement || snapshot.toString() !== word) return;
+      replaceRangeWithText(snapshot, replacement);
+      emitChange();
+    } finally {
+      correctingRef.current = false;
+    }
+  }, [autoCorrectMode, disabled, emitChange]);
+
+  const handleAutoCorrectKeyUp = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === ' ' || event.key === 'Enter' || event.key === 'Tab' || /^[.,;:!?)]$/.test(event.key)) {
+        void runEditorAutoCorrect();
+      }
+    },
+    [runEditorAutoCorrect],
+  );
 
   useEffect(() => {
     if (value === lastEmitted.current) return;
@@ -113,19 +163,20 @@ export function BibleLinkedEditor({
   useEffect(() => {
     if (revision == null) return;
     applyValueToEditor(valueRef.current);
+    const revisionChanged = lastRevision.current !== revision;
+    lastRevision.current = revision;
+    if (revisionChanged && revision > 0) {
+      window.setTimeout(() => releaseEditorSelection(), 0);
+    }
   }, [applyValueToEditor, revision]);
 
   const runAndEmit = useCallback(
     (action: () => void) => {
       if (disabled) return;
+      restoreEditorSelection();
       editorRef.current?.focus();
       restoreEditorSelection();
       action();
-      const root = editorRef.current;
-      if (root) {
-        const linked = linkifyBibleCitationsInHtml(root.innerHTML, 'all');
-        if (linked !== root.innerHTML) root.innerHTML = linked;
-      }
       emitChange();
     },
     [disabled, emitChange],
@@ -136,21 +187,28 @@ export function BibleLinkedEditor({
   };
 
   const handleBlur = () => {
-    const root = editorRef.current;
-    if (root) {
-      const linked = linkifyBibleCitationsInHtml(root.innerHTML, 'all');
-      if (linked !== root.innerHTML) root.innerHTML = linked;
-    }
-    emitChange();
+    void runEditorAutoCorrect().finally(() => emitChange());
   };
 
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
-      if (!anchor) return;
+      const target = event.target as HTMLElement | null;
+      const jump = target?.closest('a.jcs-page-jump');
+      if (jump) {
+        event.preventDefault();
+        event.stopPropagation();
+        scrollToJcsPageJump(editorRef.current, jump.getAttribute('data-href') || jump.getAttribute('href'));
+        return;
+      }
+      const ref = target?.closest('.jcs-bible-ref, .jcs-song-ref, .jcs-pub-ref');
+      if (!ref) return;
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && editorRef.current?.contains(selection.anchorNode)) {
+        return;
+      }
       event.preventDefault();
-      const href = anchor.getAttribute('data-href');
-      const label = anchor.getAttribute('data-label') ?? anchor.textContent?.trim() ?? '';
+      const href = ref.getAttribute('data-href');
+      const label = ref.getAttribute('data-label') ?? ref.textContent?.trim() ?? '';
       if (href) onBibleLinkClick(href, label);
     },
     [onBibleLinkClick],
@@ -214,6 +272,8 @@ export function BibleLinkedEditor({
           onFontFamily={(family: RichFontFamily) => runAndEmit(() => applyFontFamily(family))}
           onFontSize={(size: RichFontSize) => runAndEmit(() => applyFontSize(size))}
           onClearFormat={() => runAndEmit(removeFormatting)}
+          autoCorrectMode={autoCorrectMode}
+          onAutoCorrectModeChange={setAutoCorrectMode}
         />
       </div>
       <div
@@ -225,13 +285,22 @@ export function BibleLinkedEditor({
         data-placeholder={placeholder}
         onInput={handleInput}
         onBlur={handleBlur}
+        onKeyUp={handleAutoCorrectKeyUp}
+        onCompositionStart={() => {
+          composingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          composingRef.current = false;
+        }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         className={[
           'jcs-rich-editor min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 text-sm leading-relaxed text-jw-text outline-none',
           'empty:before:pointer-events-none empty:before:text-jw-muted empty:before:content-[attr(data-placeholder)]',
-          '[&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-bible-ref]:font-medium [&_a.jcs-bible-ref]:text-jw-purple [&_a.jcs-bible-ref]:underline',
-          '[&_a.jcs-song-ref]:cursor-pointer [&_a.jcs-song-ref]:font-medium [&_a.jcs-song-ref]:text-jw-purple [&_a.jcs-song-ref]:underline',
+          '[&_.jcs-bible-ref]:cursor-pointer [&_.jcs-bible-ref]:font-medium [&_.jcs-bible-ref]:text-jw-purple [&_.jcs-bible-ref]:underline',
+          '[&_.jcs-song-ref]:cursor-pointer [&_.jcs-song-ref]:font-medium [&_.jcs-song-ref]:text-jw-purple [&_.jcs-song-ref]:underline',
+          '[&_.jcs-pub-ref]:cursor-pointer [&_.jcs-pub-ref]:font-medium [&_.jcs-pub-ref]:text-jw-purple [&_.jcs-pub-ref]:underline',
+          '[&_a.jcs-page-jump]:cursor-pointer',
         ].join(' ')}
       />
       {lookupMenuNode}
@@ -250,9 +319,41 @@ function PlainTextEditor({
 }: Omit<BibleLinkedEditorProps, 'richText'>) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
+  const composingRef = useRef(false);
+  const correctingRef = useRef(false);
   const selectionActions = useSelectionActions();
   const [lookupMenu, setLookupMenu] = useState<LookupMenuState>(CLOSED_LOOKUP_MENU);
+  const [autoCorrectMode, setAutoCorrectMode] = useState<AutoCorrectMode>(() => readAutoCorrectMode());
   const linkedHtml = useMemo(() => linkifyJcsReadRefsInPlainText(value, 'all'), [value]);
+
+  useEffect(() => {
+    const sync = () => setAutoCorrectMode(readAutoCorrectMode());
+    window.addEventListener(AUTO_CORRECT_MODE_EVENT, sync);
+    return () => window.removeEventListener(AUTO_CORRECT_MODE_EVENT, sync);
+  }, []);
+
+  const runTextareaAutoCorrect = useCallback(async () => {
+    if (disabled || autoCorrectMode === 'off' || composingRef.current || correctingRef.current) return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const found = wordBeforeCaretInTextarea(textarea);
+    if (!found || found.word.length < 2) return;
+    correctingRef.current = true;
+    try {
+      const replacement = await requestAutoCorrect(found.word, autoCorrectMode);
+      if (!replacement) return;
+      const current = textarea.value.slice(found.start, found.end);
+      if (current !== found.word) return;
+      const nextValue = `${textarea.value.slice(0, found.start)}${replacement}${textarea.value.slice(found.end)}`;
+      const caret = found.start + replacement.length + (textarea.selectionStart - found.end);
+      onChange(nextValue);
+      window.requestAnimationFrame(() => {
+        textarea.setSelectionRange(caret, caret);
+      });
+    } finally {
+      correctingRef.current = false;
+    }
+  }, [autoCorrectMode, disabled, onChange]);
 
   const syncScroll = () => {
     const textarea = textareaRef.current;
@@ -264,7 +365,7 @@ function PlainTextEditor({
 
   const handleMirrorClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
+      const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref, a.jcs-pub-ref');
       if (!anchor) return;
       event.preventDefault();
       event.stopPropagation();
@@ -292,6 +393,21 @@ function PlainTextEditor({
         spellCheck
         onChange={(event) => onChange(event.target.value)}
         onScroll={syncScroll}
+        onBlur={() => {
+          void runTextareaAutoCorrect();
+        }}
+        onKeyUp={(event) => {
+          if (event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+          if (event.key === ' ' || event.key === 'Enter' || event.key === 'Tab' || /^[.,;:!?)]$/.test(event.key)) {
+            void runTextareaAutoCorrect();
+          }
+        }}
+        onCompositionStart={() => {
+          composingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          composingRef.current = false;
+        }}
         onContextMenu={(event) => {
           if (!selectionActions || disabled) return;
           const textarea = textareaRef.current;
@@ -314,7 +430,7 @@ function PlainTextEditor({
         aria-hidden
         onClick={handleMirrorClick}
         onMouseDown={(event) => {
-          const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref');
+          const anchor = (event.target as HTMLElement | null)?.closest('a.jcs-bible-ref, a.jcs-song-ref, a.jcs-pub-ref');
           if (anchor) return;
           event.preventDefault();
           textareaRef.current?.focus();
@@ -325,7 +441,7 @@ function PlainTextEditor({
         ].join(' ')}
       >
         <div
-          className="pointer-events-none min-h-full [&_a.jcs-bible-ref]:pointer-events-auto [&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-song-ref]:pointer-events-auto [&_a.jcs-song-ref]:cursor-pointer"
+          className="pointer-events-none min-h-full [&_a.jcs-bible-ref]:pointer-events-auto [&_a.jcs-bible-ref]:cursor-pointer [&_a.jcs-song-ref]:pointer-events-auto [&_a.jcs-song-ref]:cursor-pointer [&_a.jcs-pub-ref]:pointer-events-auto [&_a.jcs-pub-ref]:cursor-pointer"
           dangerouslySetInnerHTML={{ __html: linkedHtml || '<span><br></span>' }}
         />
       </div>

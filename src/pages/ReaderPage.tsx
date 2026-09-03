@@ -14,6 +14,7 @@ import type { MeetingWeek } from '@/lib/meeting-types';
 import {
   applyHighlight,
   serializeSelection,
+  type DocumentHighlight,
   type HighlightColorId,
 } from '@/lib/highlight-dom';
 import { applyNoteAnchor, noteFromSelection, removeNoteAnchor, type DocumentNote } from '@/lib/note-dom';
@@ -70,6 +71,7 @@ export function ReaderPage({
   const readerRef = useRef<PublicationReaderHandle>(null);
   const studyReaderRef = useRef<PublicationReaderHandle>(null);
   const pendingStudyBookOpenRef = useRef(false);
+  const lastOpenedRef = useRef<{ href: string; label: string } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelTab, setPanelTab] = useState<SidePanelTab>('references');
   const [panelLoading, setPanelLoading] = useState(false);
@@ -88,6 +90,7 @@ export function ReaderPage({
   const [studyBookSession, setStudyBookSession] = useState<StudyBookSession | null>(null);
   const [selectedText, setSelectedText] = useState<string | undefined>();
   const [toolbar, setToolbar] = useState({ open: false, x: 0, y: 0 });
+  const pendingHighlightRef = useRef<DocumentHighlight | null>(null);
   const [notes, setNotes] = useState<DocumentNote[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const saveNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -260,6 +263,7 @@ export function ReaderPage({
     async (href: string, linkLabel: string) => {
       if (!window.jcs?.resolveLink || !target.issue) return;
 
+      lastOpenedRef.current = { href, label: linkLabel };
       setPanelOpen(true);
       setPanelTab('references');
       setPanelLoading(true);
@@ -317,12 +321,14 @@ export function ReaderPage({
         setPanelOpen(true);
         setPanelTab('references');
       }
+    } else if (result.ok && lastOpenedRef.current) {
+      await openReference(lastOpenedRef.current.href, lastOpenedRef.current.label);
     } else if (!result.ok) {
       setReference((current) =>
         current ? { ...current, error: result.error ?? 'Falha ao baixar publicação.' } : current,
       );
     }
-  }, [reference?.download, reference?.studyBook, target.issue, target.pub]);
+  }, [openReference, reference?.download, reference?.studyBook, target.issue, target.pub]);
 
   const openStudyBookFromReference = useCallback((ref: ResolveLinkResult) => {
     const stories = ref.studyBook?.stories.filter((story) => story.documentId > 0) ?? [];
@@ -425,13 +431,24 @@ export function ReaderPage({
     );
   }, [activeStory?.documentId, studyBookPub, studyBookSession]);
 
+  const handleSelectionToolbar = useCallback((payload: { open: boolean; x: number; y: number }) => {
+    setToolbar(payload);
+    if (!payload.open) {
+      pendingHighlightRef.current = null;
+      return;
+    }
+    const root = document.querySelector<HTMLElement>('.jwpub-content');
+    pendingHighlightRef.current = root ? serializeSelection(root) : null;
+  }, []);
+
   const applyHighlightColor = useCallback(
     async (color: HighlightColorId) => {
       if (!target.issue) return;
       const root = document.querySelector<HTMLElement>('.jwpub-content');
       if (!root) return;
 
-      const draft = serializeSelection(root);
+      const draft = pendingHighlightRef.current ?? serializeSelection(root);
+      pendingHighlightRef.current = null;
       if (!draft) {
         setToolbar({ open: false, x: 0, y: 0 });
         return;
@@ -659,7 +676,7 @@ export function ReaderPage({
                 setPanelOpen(true);
                 setPanelTab('references');
               }}
-              onSelectionToolbar={setToolbar}
+              onSelectionToolbar={handleSelectionToolbar}
               onNoteClick={openNote}
             />
           }
@@ -750,7 +767,7 @@ export function ReaderPage({
               const selection = window.getSelection();
               if (root && selection && !selection.isCollapsed && root.contains(selection.anchorNode)) {
                 const rect = selection.getRangeAt(0).getBoundingClientRect();
-                setToolbar({ open: true, x: rect.left + rect.width / 2, y: rect.top });
+                handleSelectionToolbar({ open: true, x: rect.left + rect.width / 2, y: rect.top });
               } else {
                 setAutoPrepMessage('Selecione um trecho na matéria para grifar.');
               }
@@ -805,7 +822,7 @@ export function ReaderPage({
             onJwpubLinkClick={(href, label) => {
               void openReference(href, label);
             }}
-            onSelectionToolbar={setToolbar}
+            onSelectionToolbar={handleSelectionToolbar}
             onNoteClick={openNote}
           />
           <HighlightToolbar
