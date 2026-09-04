@@ -37,6 +37,11 @@ const MEETING_QUICK_PROMPTS = [
     message:
       'Com base somente no contexto fornecido, sugira uma ilustração ou analogia simples, no estilo das publicações das Testemunhas de Jeová.',
   },
+  {
+    label: 'Pesquisar na WOL',
+    message:
+      'Pesquise na Biblioteca On-line (jw.org) um trecho que combine com a matéria em estudo. Use somente o que encontrar na WOL; não invente relatos. Cite a publicação de cada trecho.',
+  },
 ] as const;
 
 const OUTLINE_QUICK_PROMPTS = [
@@ -59,6 +64,11 @@ const OUTLINE_QUICK_PROMPTS = [
     label: 'Ilustrações e transições',
     message:
       'Sugira ilustrações, analogias ou frases de transição úteis para este esboço, alinhadas ao tema e ao vocabulário JW. Foque na parte selecionada se houver seleção. Se citar versículo, use só a Tradução do Novo Mundo da Bíblia Sagrada (app ou JW.ORG).',
+  },
+  {
+    label: 'Pesquisar na WOL',
+    message:
+      'Pesquise na Biblioteca On-line (jw.org) uma experiência ou ilustração que combine com o ponto selecionado — ou com o tema do discurso se não houver seleção. Use somente o que encontrar na WOL; não invente relatos. Sugira onde encaixar no esboço e cite a publicação de cada trecho.',
   },
   {
     label: 'Recursos visuais',
@@ -117,6 +127,7 @@ export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
   const [keyConfigured, setKeyConfigured] = useState<boolean | null>(null);
   const [appliedIndex, setAppliedIndex] = useState<number | null>(null);
   const [pendingApply, setPendingApply] = useState<{ content: string; index: number } | null>(null);
+  const [wolNote, setWolNote] = useState<string | null>(null);
   const canApplyOutline = outlineMode && Boolean(onApplyOutline);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -263,6 +274,7 @@ export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
 
     setError(null);
     setPendingApply(null);
+    setWolNote(null);
     setLoading(true);
     setInput('');
 
@@ -283,6 +295,25 @@ export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
         return;
       }
 
+      if (result.wolResearch) {
+        const { query, triedQueries, hitCount, fetchedCount, unavailable } = result.wolResearch;
+        const triedNote =
+          triedQueries && triedQueries.length > 1
+            ? ` (também: ${triedQueries.filter((item) => item !== query).join(', ')})`
+            : '';
+        if (unavailable) {
+          setWolNote(
+            query
+              ? `Pesquisa na Biblioteca On-line por “${query}”${triedNote}: nenhum trecho utilizável.`
+              : 'Pesquisa na Biblioteca On-line: informe termos de busca (ex.: “sobre integridade”).',
+          );
+        } else {
+          setWolNote(
+            `Pesquisa na Biblioteca On-line por “${query}”${triedNote}: ${fetchedCount} artigo(s) de ${hitCount} resultado(s).`,
+          );
+        }
+      }
+
       const complete = [...nextHistory, { role: 'assistant' as const, content: result.reply }];
       setMessages(complete);
       void persistMessages(complete, keyToSave);
@@ -297,8 +328,8 @@ export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
     <div className="flex h-full min-h-[280px] flex-col">
       <p className="text-xs text-jw-muted">
         {outlineMode
-          ? 'Compara o esboço original com sua versão preparada, usa as matérias de pesquisa citadas, o S-141 e o Melhore/Beneficie-se se estiverem baixados. Use “Montar discurso”, “Recursos visuais” ou “Aplicar no editor” para reescrever o texto no esboço.'
-          : 'Respostas baseadas na matéria aberta, referências do painel e publicações baixadas no app — vocabulário das publicações JW (jw.org / JW Library).'}
+          ? 'Compara o esboço original com sua versão preparada, usa as matérias de pesquisa citadas, o S-141 e o Melhore/Beneficie-se se estiverem baixados. Se pedir, pesquisa na Biblioteca On-line (WOL/jw.org) — sem inventar relatos.'
+          : 'Respostas baseadas na matéria aberta, referências do painel e publicações baixadas no app. Se pedir, pesquisa na Biblioteca On-line (WOL/jw.org) — sem inventar relatos.'}
       </p>
       <p className="mt-1 text-[11px] text-jw-muted">
         As {AI_CHAT_MAX_SESSIONS} conversas mais recentes ficam salvas neste dispositivo. As mais antigas são apagadas.
@@ -396,6 +427,12 @@ export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
         </div>
       ) : null}
 
+      {wolNote ? (
+        <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+          {wolNote}
+        </div>
+      ) : null}
+
       <div className="mt-3 flex flex-wrap gap-1.5">
         {quickPrompts.map((prompt) => (
           <button
@@ -410,14 +447,22 @@ export function AssistantChat({ context, onApplyOutline }: AssistantChatProps) {
         ))}
       </div>
 
-      <div ref={scrollRef} className="mt-3 min-h-0 flex-1 space-y-3 overflow-auto pr-1">
+      <div
+        ref={scrollRef}
+        className="jcs-assistant-chat-messages mt-3 min-h-0 flex-1 space-y-3 overflow-auto pr-1"
+        onMouseDown={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest('button, textarea, select, a, input, label')) return;
+          releaseEditorSelection();
+        }}
+      >
         {messages.length === 0 && !loading ? (
           <p className="text-sm text-jw-muted">
             {!sessionReady
               ? 'Carregando conversas salvas…'
               : outlineMode
-                ? 'O assistente vê o esboço original, as matérias de pesquisa, o S-141 e o Melhore/Beneficie-se se estiverem baixados. Peça “Montar discurso”, “Recursos visuais” ou uma alteração e toque em “Aplicar no editor”.'
-                : 'Selecione um trecho na matéria ou abra uma referência no painel. O assistente usa só o conteúdo JW disponível aqui — não inventa matéria de fora.'}
+                ? 'Peça “Montar discurso”, “Pesquisar na WOL” (experiência ou ilustração) ou uma alteração e toque em “Aplicar no editor”.'
+                : 'Selecione um trecho na matéria ou peça “Pesquisar na WOL”. O assistente usa só conteúdo JW disponível aqui — não inventa matéria de fora.'}
           </p>
         ) : null}
 

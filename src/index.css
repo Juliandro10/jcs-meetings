@@ -109,6 +109,11 @@ body {
   -webkit-user-select: text;
 }
 
+.jcs-assistant-chat-messages {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .jcs-bible-ref:hover,
 .jcs-song-ref:hover,
 .jcs-pub-ref:hover {

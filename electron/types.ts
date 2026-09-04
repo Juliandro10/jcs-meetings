@@ -207,6 +207,17 @@ export type AiChatContext = {
   outlineResearchCount?: number;
   speakerGuidelinesAvailable?: boolean;
   talkPrepSupportAvailable?: boolean;
+  /** Pesquisa solicitada pelo usuário na Biblioteca On-line (WOL/jw.org) nesta mensagem. */
+  wolResearchText?: string;
+  wolResearchQuery?: string;
+};
+
+export type WolResearchMeta = {
+  query: string;
+  triedQueries?: string[];
+  hitCount: number;
+  fetchedCount: number;
+  unavailable?: boolean;
 };
 
 export type AiChatParams = {
@@ -219,6 +230,7 @@ export type AiChatResult = {
   ok: boolean;
   reply?: string;
   error?: string;
+  wolResearch?: WolResearchMeta;
 };
 
 export type AiKeyStatus = {

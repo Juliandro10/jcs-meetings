@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/jcs_bg"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/jcs_surface"
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
+        android:paddingLeft="4dp"
+        android:paddingRight="8dp">
+
+        <ImageButton
+            android:id="@+id/backButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="@string/back"
+            android:src="@android:drawable/ic_menu_revert" />
+
+        <TextView
+            android:id="@+id/readTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/jcs_white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/toggleBibleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginRight="6dp"
+            android:background="@android:color/transparent"
+            android:text="@string/tribuna_toggle_bible"
+            android:textAllCaps="false"
+            android:textColor="@color/jcs_purple_bright"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/textSmallerButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginRight="4dp"
+            android:background="@android:color/transparent"
+            android:text="A−"
+            android:textAllCaps="false"
+            android:textColor="@color/jcs_purple_bright"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/textSizeLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:minWidth="52dp"
+            android:textColor="@color/jcs_muted"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/textLargerButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@android:color/transparent"
+            android:text="A+"
+            android:textAllCaps="false"
+            android:textColor="@color/jcs_purple_bright"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/rotateHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#332a1f4d"
+        android:paddingLeft="12dp"
+        android:paddingTop="8dp"
+        android:paddingRight="12dp"
+        android:paddingBottom="8dp"
+        android:text="@string/tribuna_rotate_hint"
+        android:textColor="@color/jcs_muted"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/splitContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
+        <FrameLayout
+            android:id="@+id/outlinePane"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="7">
+
+            <com.jcs.tribuna.NoZoomWebView
+                android:id="@+id/outlineWebView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <ProgressBar
+                android:id="@+id/outlineProgress"
+                style="?android:attr/progressBarStyleLarge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center" />
+        </FrameLayout>
+
+        <View
+            android:id="@+id/splitDivider"
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#3a3a44" />
+
+        <FrameLayout
+            android:id="@+id/biblePane"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3"
+            android:background="#16161c">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/biblePanelTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#1f1f28"
+                    android:paddingLeft="12dp"
+                    android:paddingTop="10dp"
+                    android:paddingRight="12dp"
+                    android:paddingBottom="10dp"
+                    android:text="@string/tribuna_bible_panel_title"
+                    android:textColor="@color/jcs_muted"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/bibleReference"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingLeft="12dp"
+                    android:paddingRight="12dp"
+                    android:paddingBottom="8dp"
+                    android:textColor="@color/jcs_white"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <com.jcs.tribuna.NoZoomWebView
+                    android:id="@+id/bibleWebView"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <ProgressBar
+                android:id="@+id/bibleProgress"
+                style="?android:attr/progressBarStyleLarge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center" />
+
+            <TextView
+                android:id="@+id/bibleEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:padding="16dp"
+                android:text="@string/tribuna_bible_empty"
+                android:textColor="@color/jcs_muted"
+                android:textSize="13sp" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>

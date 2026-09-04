@@ -5,8 +5,10 @@ import { SelectionContextMenu } from '@/components/SelectionContextMenu';
 import { useSelectionActions } from '@/context/SelectionActionsContext';
 import { cleanSelectionText, resolveReaderContextText } from '../../shared/selection-text';
 import {
+  activateRichEditorForInput,
   applyFontFamily,
   applyFontSize,
+  pastePlainTextIntoRichEditor,
   releaseEditorSelection,
   restoreEditorSelection,
   applyHighlight,
@@ -192,6 +194,37 @@ export function BibleLinkedEditor({
     void runEditorAutoCorrect().finally(() => emitChange());
   };
 
+  const handleEditorMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          '.jcs-bible-ref, .jcs-song-ref, .jcs-pub-ref, a.jcs-page-jump, a.jcs-page-hotspot',
+        )
+      ) {
+        return;
+      }
+      const root = editorRef.current;
+      if (!root) return;
+      activateRichEditorForInput(root, event.nativeEvent);
+    },
+    [],
+  );
+
+  const handleEditorPaste = useCallback(
+    (event: React.ClipboardEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      const root = editorRef.current;
+      if (!root) return;
+      const text = event.clipboardData.getData('text/plain');
+      if (!text) return;
+      event.preventDefault();
+      pastePlainTextIntoRichEditor(root, text);
+      emitChange();
+    },
+    [disabled, emitChange],
+  );
+
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement | null;
@@ -287,6 +320,8 @@ export function BibleLinkedEditor({
         data-placeholder={placeholder}
         onInput={handleInput}
         onBlur={handleBlur}
+        onMouseDown={handleEditorMouseDown}
+        onPaste={handleEditorPaste}
         onKeyUp={handleAutoCorrectKeyUp}
         onCompositionStart={() => {
           composingRef.current = true;

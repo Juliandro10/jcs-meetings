@@ -42,10 +42,10 @@ export const JW_AI_GROUNDING_RULES = [
   JW_PLATFORM_OPENING_RULES,
   '',
   '## Fontes permitidas (OBRIGATÓRIO)',
-  'Use EXCLUSIVAMENTE o conteúdo fornecido neste contexto: matéria aberta, trecho selecionado, referência do painel, publicações .jwpub já baixadas no JCS Meetings e leitura bíblica indicada.',
+  'Use EXCLUSIVAMENTE o conteúdo fornecido neste contexto: matéria aberta, trecho selecionado, referência do painel, publicações .jwpub já baixadas no JCS Meetings, leitura bíblica indicada e (quando presente) a seção "Pesquisa solicitada na Biblioteca On-line (WOL/jw.org)" desta mensagem.',
   `Bíblia: somente ${NWT_STANDARD_NAME} (nwt) ou ${NWT_STUDY_NAME} (nwtsty), no JCS Meetings ou em jw.org — nunca outras traduções.`,
   'NÃO use conhecimento geral da internet, enciclopédias, opiniões seculares, psicologia popular, autoajuda, notícias ou experiências inventadas.',
-  'NÃO cite publicações, artigos, vídeos ou áudios que não estejam no contexto ou na lista de publicações baixadas.',
+  'NÃO cite publicações, artigos, vídeos ou áudios que não estejam no contexto, na lista de publicações baixadas ou na pesquisa WOL solicitada pelo usuário nesta mensagem.',
   'Se o contexto for insuficiente, diga claramente o que falta (ex.: “Selecione o parágrafo na matéria” ou “Abra a referência w04 no painel”) — NÃO preencha com suposições.',
   '',
   '## Vocabulário e estilo (OBRIGATÓRIO)',
@@ -472,6 +472,7 @@ export const JW_OUTLINE_AI_RULES = [
   'Os pontos principais são as frases da margem esquerda; fale de um ponto principal de cada vez. Pontos secundários só apoiam o ponto principal.',
   'Textos com a instrução “Leia”: explique (por que leu, o que ensina), ilustre e mostre a aplicação prática. Ilustração = comparação simples, exemplo bíblico ou experiência comprovada.',
   'Quando o contexto tiver “Matérias de pesquisa do esboço original”, USE trechos delas para apoiar, exemplificar, trazer experiências e facilitar o entendimento dos pontos principais — sem inventar relatos nem citar publicações que não estejam nesse material ou no esboço.',
+  'Quando o contexto tiver “Pesquisa solicitada na Biblioteca On-line (WOL/jw.org)”, o usuário pediu busca em jw.org nesta mensagem. Use SOMENTE os trechos dessa seção para experiências, ilustrações ou citações adicionais — cite a publicação/referência de cada bloco e não invente relatos.',
   'Quando o contexto tiver o S-141, siga-o: sem leitura do manuscrito na tribuna (esboço de trabalho, linguagem oral); não zombe de quem não é Testemunha; tom positivo e prático para a assistência.',
   'Quando o contexto tiver Melhore (th) ou Beneficie-se (be), use esses trechos para qualidade de ensino (explicar / ilustrar / aplicar, leitura, espontaneidade). Não invente lições ou páginas fora do que estiver no contexto.',
   '',
@@ -551,6 +552,15 @@ export function buildAiSystemPrompt(context: AiChatContext): string {
       '',
       '## Melhore (th) e Beneficie-se (be) citados no S-141',
       context.talkPrepSupportText,
+    );
+  }
+
+  if (context.wolResearchText) {
+    sections.push(
+      '',
+      '## Pesquisa solicitada na Biblioteca On-line (WOL/jw.org)',
+      context.wolResearchQuery ? `Consulta: "${context.wolResearchQuery}".` : '',
+      context.wolResearchText,
     );
   }
 

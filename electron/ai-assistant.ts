@@ -1,10 +1,12 @@
 import { buildAiSystemPrompt } from './ai-prompts';
-import type { AiChatParams, AiChatResult } from './types';
+import type { AiChatParams, AiChatResult, WolResearchMeta } from './types';
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-4o-mini';
 
-export async function runAiChat(params: AiChatParams): Promise<AiChatResult> {
+type PreparedAiChatParams = AiChatParams & { wolResearchMeta?: WolResearchMeta };
+
+export async function runAiChat(params: PreparedAiChatParams): Promise<AiChatResult> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     return {
@@ -51,7 +53,7 @@ export async function runAiChat(params: AiChatParams): Promise<AiChatResult> {
       return { ok: false, error: 'Resposta vazia da OpenAI.' };
     }
 
-    return { ok: true, reply };
+    return { ok: true, reply, wolResearch: params.wolResearchMeta };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro ao contactar a OpenAI';
     return { ok: false, error: message };

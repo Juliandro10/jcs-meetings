@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <string name="app_name">JCS Tribuna</string>
+
+    <string name="meetings_title">Reuniões</string>
+
+    <string name="preaching_title">Pregação</string>
+
+    <string name="preaching_subtitle">Apresentações e saída de campo</string>
+
+    <string name="meetings_subtitle">Português (Brasil)</string>
+
+    <string name="week_detail_title">Semana</string>
+
+    <string name="read_title">Leitura</string>
+
+    <string name="back">Voltar</string>
+
+    <string name="menu_more">Mais opções</string>
+
+    <string name="section_mwb">Vida e Ministério</string>
+
+    <string name="section_cbs">Estudo bíblico de congregação</string>
+
+    <string name="section_watchtower">Estudo de A Sentinela</string>
+
+    <string name="section_other">Outras publicações</string>
+    <string name="section_imported">Documentos importados</string>
+
+    <string name="section_preaching">Apresentações</string>
+
+    <string name="section_field_service">Ideias de consideração pra saída de campo</string>
+
+    <string name="doc_preaching">Apresentações</string>
+
+    <string name="doc_field_service">Saída de campo</string>
+
+    <string name="doc_prepared_parts">Partes preparadas</string>
+
+    <string name="talks_title">Discursos</string>
+    <string name="talks_title_full">Discursos públicos</string>
+    <string name="talks_subtitle">Esboços preparados</string>
+    <string name="tribuna_subtitle">Modo tribuna em paisagem — toque num versículo para vê-lo ao lado</string>
+    <string name="tribuna_title">Tribuna</string>
+    <string name="tribuna_toggle_bible">Versículo</string>
+    <string name="tribuna_show_bible">Mostrar</string>
+    <string name="tribuna_hide_bible">Ocultar</string>
+    <string name="tribuna_rotate_hint">Gire o tablet para o modo paisagem e toque num versículo para vê-lo ao lado do esboço.</string>
+    <string name="tribuna_bible_panel_title">Tradução do Novo Mundo da Bíblia Sagrada</string>
+    <string name="tribuna_bible_empty">Toque num versículo no esboço para exibir o texto aqui.</string>
+    <string name="tribuna_jwpub_missing">Configure a Bíblia em ⋮ → Bíblia (arquivo .jwpub da Tradução do Novo Mundo).</string>
+    <string name="tribuna_bible_load_failed">Não foi possível carregar o versículo.</string>
+    <string name="tribuna_settings_title">Bíblia</string>
+    <string name="tribuna_settings_menu">Bíblia (.jwpub)</string>
+    <string name="tribuna_pick_jwpub">Escolher arquivo .jwpub</string>
+    <string name="tribuna_settings_help">Use o mesmo arquivo .jwpub da Tradução do Novo Mundo que você baixou no JW Library (nwt ou nwtsty).</string>
+    <string name="tribuna_jwpub_none">Nenhuma Bíblia configurada.</string>
+    <string name="tribuna_jwpub_status">Bíblia: %1$s</string>
+    <string name="tribuna_jwpub_ok">Bíblia configurada</string>
+    <string name="tribuna_jwpub_failed">Não foi possível importar o arquivo .jwpub.</string>
+    <string name="docs_title">Documentos</string>
+    <string name="docs_subtitle">Importados do Meetings</string>
+    <string name="this_week">Esta semana</string>
+    <string name="week_prev">Semana anterior</string>
+    <string name="week_next">Próxima semana</string>
+
+    <string name="empty_weeks">Nenhuma semana encontrada.\n\nToque em ⋮ e escolha ZIP (recomendado) para importar o jcs-read.zip, ou Pasta para um diretório descompactado.</string>
+    <string name="empty_talks">Nenhum discurso exportado.\n\nNo PC (JCS Meetings): abra o esboço → Exportar pro tablet. Depois, aqui no Tribuna: ⋮ → ZIP e escolha o jcs-read.zip.</string>
+    <string name="empty_imported_docs">Nenhum documento importado.\n\nNo PC, use Biblioteca → Meus documentos e exporte para o tablet.</string>
+
+    <string name="empty_preaching_weeks">Nenhuma semana de pregação exportada.\n\nNo PC, use Pregação ou Saída de campo (Elder) e exporte para o tablet.</string>
+
+    <string name="empty_documents">Nenhum documento nesta semana.</string>
+
+    <string name="storage_hint">Escolha o jcs-read.zip exportado do PC (Drive, Downloads…) ou aponte para uma pasta local.</string>
+
+    <string name="storage_current">Origem: %1$s</string>
+
+    <string name="reload">Atualizar</string>
+
+    <string name="pick_folder">Pasta</string>
+
+    <string name="pick_zip">ZIP</string>
+
+    <string name="pick_folder_hint">Escolha a pasta JCS com os arquivos exportados.</string>
+
+    <string name="pick_zip_hint">Abra o jcs-read.zip — use Arquivos ou Downloads se o Drive estiver vazio</string>
+
+    <string name="zip_import_ok">Pacote ZIP importado</string>
+
+    <string name="zip_import_failed">Não foi possível extrair o ZIP. Tente de novo ou use ⋮ → Pasta com a pasta descompactada.</string>
+    <string name="zip_import_invalid">Este ZIP não é um pacote JCS Read (precisa de catalog.json e weeks/). Exporte de novo no JCS Meetings.</string>
+    <string name="zip_import_not_zip">O arquivo escolhido não é um ZIP. Selecione o jcs-read.zip exportado pelo JCS Meetings.</string>
+    <string name="zip_import_copy_failed">Não foi possível ler o arquivo escolhido. Tente pelo app Arquivos/Downloads ou copie o ZIP para o tablet.</string>
+
+    <string name="folder_browser_title">Escolher pasta</string>
+
+    <string name="folder_up">Subir</string>
+
+    <string name="folder_select">Usar esta pasta</string>
+
+    <string name="folder_system_picker">Seletor do Android (Drive, Downloads…)</string>
+
+    <string name="folder_selected">Pasta definida</string>
+
+    <string name="invalid_jcs_folder">Esta pasta não parece um export JCS (falta catalog.json ou weeks).</string>
+
+    <string name="text_size_small">Pequeno</string>
+    <string name="text_size_normal">Normal</string>
+    <string name="text_size_large">Grande</string>
+    <string name="text_size_xlarge">Muito grande</string>
+
+    <string name="bible_app_missing">Instale o TNME Bíblia para abrir referências bíblicas.</string>
+    <string name="cantico_app_missing">Instale o TNME Cânticos para abrir cânticos.</string>
+
+    <string name="delete_document">Apagar documento</string>
+    <string name="delete_document_title">Apagar documento</string>
+    <string name="delete_document_message">Apagar \"%1$s\" deste tablet?\n\nO arquivo no computador não é alterado. Se exportar de novo, ele volta.</string>
+    <string name="delete_document_confirm">Apagar</string>
+    <string name="delete_document_cancel">Cancelar</string>
+    <string name="delete_document_ok">Documento apagado</string>
+    <string name="delete_document_failed">Não foi possível apagar o documento.</string>
+
+</resources>
+

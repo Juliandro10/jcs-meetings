@@ -1,4 +1,5 @@
 import { isElderOutlinePubSymbol } from './elder-pub-classify';
+import { loadWolResearchForChat } from './ai-wol-research';
 import { listCachedJwpubs } from './jw-download';
 import { loadOutlineResearchText, loadSpeakerGuidelineText, loadTalkPrepSupportText } from './outline-research';
 import { outlineHtmlToPlainText, truncateOutlineText } from './outline-text';
@@ -107,9 +108,17 @@ export async function enrichAiContext(cacheDir: string, context: AiChatContext):
   };
 }
 
-export async function prepareAiChatParams(cacheDir: string, params: AiChatParams): Promise<AiChatParams> {
+export async function prepareAiChatParams(cacheDir: string, params: AiChatParams) {
+  const context = await enrichAiContext(cacheDir, params.context);
+  const wol = await loadWolResearchForChat(params.message, context);
+
   return {
     ...params,
-    context: await enrichAiContext(cacheDir, params.context),
+    context: {
+      ...context,
+      wolResearchText: wol.text,
+      wolResearchQuery: wol.meta?.query,
+    },
+    wolResearchMeta: wol.meta,
   };
 }

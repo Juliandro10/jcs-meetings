@@ -64,6 +64,74 @@ export function releaseEditorSelection(options?: { blur?: boolean }) {
   }
 }
 
+function caretRangeFromPoint(x: number, y: number): Range | null {
+  if (typeof document.caretRangeFromPoint === 'function') {
+    return document.caretRangeFromPoint(x, y);
+  }
+  const legacy = (
+    document as Document & {
+      caretPositionFromPoint?: (px: number, py: number) => { offsetNode: Node; offset: number } | null;
+    }
+  ).caretPositionFromPoint;
+  if (!legacy) return null;
+  const position = legacy(x, y);
+  if (!position) return null;
+  const range = document.createRange();
+  range.setStart(position.offsetNode, position.offset);
+  range.collapse(true);
+  return range;
+}
+
+/** Limpa seleção presa fora do editor (ex.: texto copiado do chat) e recoloca o cursor. */
+export function activateRichEditorForInput(
+  root: HTMLElement,
+  event?: Pick<MouseEvent, 'clientX' | 'clientY'>,
+) {
+  savedSelection = null;
+  const selection = window.getSelection();
+  if (!selection) return;
+
+  const anchorOutside = selection.anchorNode != null && !root.contains(selection.anchorNode);
+  const focusOutside = selection.focusNode != null && !root.contains(selection.focusNode);
+  if (anchorOutside || focusOutside) {
+    selection.removeAllRanges();
+  }
+
+  if (!event) return;
+
+  window.requestAnimationFrame(() => {
+    if (document.activeElement !== root) {
+      root.focus({ preventScroll: true });
+    }
+
+    const current = window.getSelection();
+    if (!current) return;
+
+    const caretInEditor =
+      current.rangeCount > 0 && current.isCollapsed && root.contains(current.anchorNode);
+    if (caretInEditor) return;
+
+    const range = caretRangeFromPoint(event.clientX, event.clientY);
+    if (range && root.contains(range.startContainer)) {
+      current.removeAllRanges();
+      current.addRange(range);
+      return;
+    }
+
+    const fallback = document.createRange();
+    fallback.selectNodeContents(root);
+    fallback.collapse(false);
+    current.removeAllRanges();
+    current.addRange(fallback);
+  });
+}
+
+export function pastePlainTextIntoRichEditor(root: HTMLElement, text: string) {
+  activateRichEditorForInput(root);
+  root.focus({ preventScroll: true });
+  document.execCommand('insertText', false, text);
+}
+
 function editorRootFromSelection(): HTMLElement | null {
   const selection = window.getSelection();
   const node = selection?.anchorNode ?? savedSelection?.startContainer;

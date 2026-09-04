@@ -16,6 +16,10 @@ temp-*
 temp-*/
 scripts/jwpub-work/
 scripts/*-page-snippet.html
+scripts/tmp-wol-*
+
+# Local build tools (JDK, etc.)
+.tools/
 
 # JCS Read (Android)
 jcs-read/android/local.properties
@@ -23,6 +27,20 @@ jcs-read/android/.gradle/
 jcs-read/android/app/build/
 jcs-read/android/build/
 jcs-read/release/
+
+# JCS Read 2.0 (Android)
+jcs-read-2/android/local.properties
+jcs-read-2/android/.gradle/
+jcs-read-2/android/app/build/
+jcs-read-2/android/build/
+jcs-read-2/release/
+
+# JCS Tribuna (Android)
+jcs-tribuna/android/local.properties
+jcs-tribuna/android/.gradle/
+jcs-tribuna/android/app/build/
+jcs-tribuna/android/build/
+jcs-tribuna/release/
 
 # TNME Bíblia (Android)
 tnme-biblia/android/local.properties
