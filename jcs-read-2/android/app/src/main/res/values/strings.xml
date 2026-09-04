@@ -106,6 +106,10 @@
     <string name="tab_notes">Notas</string>
     <string name="panel_hide">Ocultar</string>
     <string name="panel_show">Painel</string>
+    <string name="layout_switch_landscape">Paisagem</string>
+    <string name="layout_switch_portrait">Retrato</string>
+    <string name="layout_switch_landscape_desc">Usar layout em paisagem (esboço ao lado do painel)</string>
+    <string name="layout_switch_portrait_desc">Usar layout em retrato (painel embaixo do esboço)</string>
     <string name="bible_panel_title">Tradução do Novo Mundo da Bíblia Sagrada</string>
     <string name="bible_empty">Toque num versículo na matéria para exibir o texto aqui.</string>
     <string name="notes_empty">Este documento não tem notas exportadas do Meetings.</string>
@@ -114,7 +118,7 @@
     <string name="bible_settings_title">Bíblia</string>
     <string name="bible_settings_menu">Bíblia (.jwpub)</string>
     <string name="bible_pick_jwpub">Escolher arquivo .jwpub</string>
-    <string name="bible_settings_help">Use o mesmo arquivo .jwpub da Tradução do Novo Mundo (nwt ou nwtsty). Retrato: versículo e notas embaixo. Paisagem: painel 30% ao lado.</string>
+    <string name="bible_settings_help">Use o mesmo arquivo .jwpub da Tradução do Novo Mundo (nwt ou nwtsty). Na leitura, use Retrato ou Paisagem na barra superior — o app não segue a rotação automática do aparelho.</string>
     <string name="bible_jwpub_none">Nenhuma Bíblia configurada.</string>
     <string name="bible_jwpub_status">Bíblia: %1$s</string>
     <string name="bible_jwpub_ok">Bíblia configurada</string>

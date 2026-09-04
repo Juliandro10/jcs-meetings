@@ -2,6 +2,7 @@ package com.jcs.read2;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.PorterDuff;
 import android.net.Uri;
@@ -38,6 +39,7 @@ public class ReaderActivity extends Activity implements BiblePanel.Host {
     private View outlinePane;
     private LinearLayout splitContainer;
     private Button togglePanelButton;
+    private Button layoutModeButton;
     private Button tabVerseButton;
     private Button tabNotesButton;
     private View verseStack;
@@ -63,6 +65,7 @@ public class ReaderActivity extends Activity implements BiblePanel.Host {
         outlinePane = findViewById(R.id.outlinePane);
         splitContainer = (LinearLayout) findViewById(R.id.splitContainer);
         togglePanelButton = (Button) findViewById(R.id.togglePanelButton);
+        layoutModeButton = (Button) findViewById(R.id.layoutModeButton);
         tabVerseButton = (Button) findViewById(R.id.tabVerseButton);
         tabNotesButton = (Button) findViewById(R.id.tabNotesButton);
         verseStack = findViewById(R.id.verseStack);
@@ -111,7 +114,16 @@ public class ReaderActivity extends Activity implements BiblePanel.Host {
                 @Override
                 public void onClick(View v) {
                     panelVisible = !panelVisible;
-                    applyLayoutForOrientation(getResources().getConfiguration().orientation);
+                    applyReaderLayout();
+                }
+            });
+        layoutModeButton.setOnClickListener(
+            new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    JcsPrefs.setReaderLandscape(ReaderActivity.this, !JcsPrefs.isReaderLandscape(ReaderActivity.this));
+                    applyRequestedReaderOrientation();
+                    applyReaderLayout();
                 }
             });
         tabVerseButton.setOnClickListener(
@@ -152,7 +164,8 @@ public class ReaderActivity extends Activity implements BiblePanel.Host {
             });
 
         BiblePanel.showEmpty(this, getString(R.string.bible_empty));
-        applyLayoutForOrientation(getResources().getConfiguration().orientation);
+        applyRequestedReaderOrientation();
+        applyReaderLayout();
 
         if (weekFolder != null && htmlFile != null) {
             HtmlLoader.loadSplitDocument(
@@ -238,7 +251,33 @@ public class ReaderActivity extends Activity implements BiblePanel.Host {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        applyLayoutForOrientation(newConfig.orientation);
+        applyReaderLayout();
+    }
+
+    private void applyRequestedReaderOrientation() {
+        setRequestedOrientation(
+            JcsPrefs.isReaderLandscape(this)
+                ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+    }
+
+    private void applyReaderLayout() {
+        boolean landscape = JcsPrefs.isReaderLandscape(this);
+        applyLayoutForOrientation(
+            landscape ? Configuration.ORIENTATION_LANDSCAPE : Configuration.ORIENTATION_PORTRAIT);
+        refreshLayoutModeUi();
+    }
+
+    private void refreshLayoutModeUi() {
+        if (layoutModeButton == null) return;
+        boolean landscape = JcsPrefs.isReaderLandscape(this);
+        layoutModeButton.setText(
+            landscape ? R.string.layout_switch_portrait : R.string.layout_switch_landscape);
+        layoutModeButton.setContentDescription(
+            getString(
+                landscape
+                    ? R.string.layout_switch_portrait_desc
+                    : R.string.layout_switch_landscape_desc));
     }
 
     private void applyLayoutForOrientation(int orientation) {
@@ -331,7 +370,7 @@ public class ReaderActivity extends Activity implements BiblePanel.Host {
                 return true;
             }
             panelVisible = true;
-            applyLayoutForOrientation(getResources().getConfiguration().orientation);
+            applyReaderLayout();
             showPanelTab(TAB_VERSE);
             BiblePanel.loadReference(this, bibleTarget);
             return true;

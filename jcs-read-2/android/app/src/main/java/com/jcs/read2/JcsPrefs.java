@@ -125,4 +125,14 @@ public final class JcsPrefs {
                 return context.getString(R.string.text_size_normal);
         }
     }
+
+    private static final String KEY_READER_LANDSCAPE = "reader_landscape";
+
+    public static boolean isReaderLandscape(Context context) {
+        return prefs(context).getBoolean(KEY_READER_LANDSCAPE, false);
+    }
+
+    public static void setReaderLandscape(Context context, boolean landscape) {
+        prefs(context).edit().putBoolean(KEY_READER_LANDSCAPE, landscape).apply();
+    }
 }
