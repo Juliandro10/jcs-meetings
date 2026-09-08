@@ -1,4 +1,5 @@
 import type { DocumentNote } from '@/lib/note-dom';
+import { autoResizeTextarea } from '@/lib/auto-resize-textarea';
 
 export const WCG_CONDUCTOR_NOTE_ID = 'wcg-conductor';
 
@@ -34,10 +35,57 @@ export function sortWcgStudyNotes(notes: DocumentNote[]) {
   });
 }
 
+export function findWcgAnswerTextarea(root: HTMLElement, questionBlockId: string) {
+  const questionBlock = root.querySelector<HTMLElement>(`.jwpub-block[data-pid="${questionBlockId}"]`);
+  if (!questionBlock) return null;
+
+  let sibling: Element | null = questionBlock;
+  for (let step = 0; step < 5; step++) {
+    sibling = sibling.nextElementSibling;
+    if (!sibling) break;
+    const textarea = sibling.querySelector<HTMLTextAreaElement>('textarea');
+    if (textarea) return textarea;
+  }
+
+  return questionBlock.querySelector<HTMLTextAreaElement>('.gen-field textarea');
+}
+
+export function applyWcgPrepToAnswerFields(
+  root: HTMLElement,
+  notes: DocumentNote[],
+  savedFieldValues: Record<string, string>,
+  scope: { pub: string; issue: string; documentId: number },
+) {
+  for (const note of notes) {
+    if (!isWcgQuestionNoteId(note.id) || !note.body.trim()) continue;
+
+    const textarea = findWcgAnswerTextarea(root, note.blockId);
+    if (!textarea) continue;
+
+    const fieldId = textarea.id || textarea.getAttribute('data-pid') || '';
+    if (!fieldId) continue;
+
+    const key = `${scope.pub}_${scope.issue}_d${scope.documentId}_f${fieldId}`;
+    const saved = savedFieldValues[key]?.trim();
+    textarea.value = saved || note.body.trim();
+    textarea.dataset.wcgQuestionBlock = note.blockId;
+
+    const questionBlock = root.querySelector<HTMLElement>(`.jwpub-block[data-pid="${note.blockId}"]`);
+    const prepBox = questionBlock?.nextElementSibling;
+    if (prepBox?.classList.contains('jcs-wcg-answer')) {
+      prepBox.remove();
+    }
+
+    autoResizeTextarea(textarea);
+  }
+}
+
 export function injectWcgPrepAnswers(root: HTMLElement, notes: DocumentNote[]) {
   for (const note of notes) {
     if (!isWcgQuestionNoteId(note.id) || !note.body.trim()) continue;
-    const block = root.querySelector<HTMLElement>(`[data-pid="${note.blockId}"]`);
+    if (findWcgAnswerTextarea(root, note.blockId)) continue;
+
+    const block = root.querySelector<HTMLElement>(`.jwpub-block[data-pid="${note.blockId}"]`);
     if (!block) continue;
     if (block.nextElementSibling?.classList.contains('jcs-wcg-answer')) continue;
 

@@ -7,7 +7,7 @@ import {
 } from '@/lib/highlight-dom';
 import { applyAllNoteAnchors, repositionNoteMarkers, type DocumentNote } from '@/lib/note-dom';
 import { buildLfbStudyFieldsHtml, isLfbStudyFieldId, LFB_STUDY_QUESTIONS } from '@/lib/lfb-study-fields';
-import { injectWcgPrepAnswers, isWcgStudyPrepNote } from '@/lib/wcg-study-notes';
+import { applyWcgPrepToAnswerFields, injectWcgPrepAnswers, isWcgQuestionNoteId, isWcgStudyPrepNote } from '@/lib/wcg-study-notes';
 import { setupAutoResizeTextarea } from '@/lib/auto-resize-textarea';
 import { applyPublicationCss } from '@/lib/jwpub-publication-styles';
 import { SelectionContextMenu } from '@/components/SelectionContextMenu';
@@ -96,18 +96,32 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         });
 
         const savedNotes =
-          pub === 'lfb' && window.jcs.getNotes
+          window.jcs.getNotes && (pub === 'lfb' || pub === 'wcg')
             ? await window.jcs.getNotes({ pub, issue: resolved, documentId })
             : [];
         const studyNotesById = new Map(
           savedNotes.filter((note) => isLfbStudyFieldId(note.id)).map((note) => [note.id, note]),
         );
+        const wcgQuestionNotesByBlock = new Map(
+          savedNotes
+            .filter((note) => pub === 'wcg' && isWcgQuestionNoteId(note.id))
+            .map((note) => [note.blockId, note]),
+        );
+
+        if (pub === 'wcg') {
+          applyWcgPrepToAnswerFields(root, [...wcgQuestionNotesByBlock.values()], savedFieldValues, {
+            pub,
+            issue: resolved,
+            documentId,
+          });
+        }
 
         const fields = root.querySelectorAll<HTMLTextAreaElement>('textarea');
         fields.forEach((textarea, index) => {
           const fieldId = textarea.id || textarea.getAttribute('data-pid') || String(index);
           const isLfbStudyField = pub === 'lfb' && isLfbStudyFieldId(fieldId);
           const studyNote = isLfbStudyField ? studyNotesById.get(fieldId) : undefined;
+          const wcgQuestionBlock = textarea.dataset.wcgQuestionBlock;
 
           if (isLfbStudyField) {
             const legacyKey = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
@@ -133,7 +147,7 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
                 },
               });
             }
-          } else {
+          } else if (!wcgQuestionBlock) {
             const key = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
             if (savedFieldValues[key]) textarea.value = savedFieldValues[key];
           }
@@ -164,6 +178,27 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
               return;
             }
 
+            if (wcgQuestionBlock && window.jcs.saveNote) {
+              const existing = wcgQuestionNotesByBlock.get(wcgQuestionBlock);
+              void window.jcs.saveNote({
+                pub,
+                issue: resolved,
+                documentId,
+                note: {
+                  id: `wcg-q-${wcgQuestionBlock}`,
+                  title: existing?.title ?? wcgQuestionBlock,
+                  body: textarea.value,
+                  blockId: wcgQuestionBlock,
+                  anchorText: existing?.anchorText ?? '',
+                  startOffset: existing?.startOffset ?? 0,
+                  endOffset: existing?.endOffset ?? 0,
+                  tags: existing?.tags ?? ['wcg-study', 'wcg-question'],
+                },
+              }).then(() => {
+                noteUpdatedHandlerRef.current?.();
+              });
+            }
+
             void window.jcs.setFieldValue({
               pub,
               issue: resolved,
@@ -182,8 +217,8 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         applyAllHighlights(root, highlights as DocumentHighlight[]);
 
         const notes =
-          pub === 'lfb'
-            ? savedNotes.filter((note) => !isLfbStudyFieldId(note.id))
+          pub === 'lfb' || pub === 'wcg'
+            ? savedNotes.filter((note) => pub !== 'lfb' || !isLfbStudyFieldId(note.id))
             : await window.jcs.getNotes?.({
                 pub,
                 issue: resolved,
