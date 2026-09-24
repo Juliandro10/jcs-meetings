@@ -7,7 +7,7 @@ import {
 } from '@/lib/highlight-dom';
 import { applyAllNoteAnchors, repositionNoteMarkers, type DocumentNote } from '@/lib/note-dom';
 import { buildLfbStudyFieldsHtml, isLfbStudyFieldId, LFB_STUDY_QUESTIONS } from '@/lib/lfb-study-fields';
-import { applyWcgPrepToAnswerFields, injectWcgPrepAnswers, isWcgQuestionNoteId, isWcgStudyPrepNote } from '@/lib/wcg-study-notes';
+import { applyWcgPrepToAnswerFields, injectWcgPrepAnswers, isWcgQuestionNoteId, isWcgStudyPrepNote, WCG_BIBLE_READING_NOTE_ID } from '@/lib/wcg-study-notes';
 import { setupAutoResizeTextarea } from '@/lib/auto-resize-textarea';
 import { applyPublicationCss } from '@/lib/jwpub-publication-styles';
 import { SelectionContextMenu } from '@/components/SelectionContextMenu';
@@ -19,6 +19,7 @@ export type PublicationReaderHandle = {
   applyNotes: (notes: DocumentNote[]) => void;
   highlightQuote: (blockId: string, text: string, color: HighlightColorId) => DocumentHighlight | null;
   reloadDocument: () => Promise<void>;
+  flushFields: () => Promise<void>;
 };
 
 type PublicationReaderProps = {
@@ -34,7 +35,7 @@ type PublicationReaderProps = {
 
 export const PublicationReader = forwardRef<PublicationReaderHandle, PublicationReaderProps>(
   function PublicationReader(
-    { pub, documentId, issue, injectStudyFields, onJwpubLinkClick, onSelectionToolbar, onNoteClick, onStudyNotesUpdated },
+    { pub, documentId, issue, injectStudyFields, onJwpubLinkClick, onSelectionToolbar, onNoteClick },
     ref,
   ) {
     const columnRef = useRef<HTMLDivElement>(null);
@@ -50,12 +51,9 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
     selectionActionsRef.current = selectionActions;
     const [contextMenu, setContextMenu] = useState({ open: false, x: 0, y: 0, text: '' });
 
-    const noteUpdatedHandlerRef = useRef(onStudyNotesUpdated);
-
     linkHandlerRef.current = onJwpubLinkClick;
     selectionHandlerRef.current = onSelectionToolbar;
     noteClickHandlerRef.current = onNoteClick;
-    noteUpdatedHandlerRef.current = onStudyNotesUpdated;
 
     async function mountDocument() {
       setLoading(true);
@@ -99,6 +97,7 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
           window.jcs.getNotes && (pub === 'lfb' || pub === 'wcg')
             ? await window.jcs.getNotes({ pub, issue: resolved, documentId })
             : [];
+        const bibleReadingNote = savedNotes.find((note) => note.id === WCG_BIBLE_READING_NOTE_ID);
         const studyNotesById = new Map(
           savedNotes.filter((note) => isLfbStudyFieldId(note.id)).map((note) => [note.id, note]),
         );
@@ -122,6 +121,7 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
           const isLfbStudyField = pub === 'lfb' && isLfbStudyFieldId(fieldId);
           const studyNote = isLfbStudyField ? studyNotesById.get(fieldId) : undefined;
           const wcgQuestionBlock = textarea.dataset.wcgQuestionBlock;
+          const isBibleReadingField = pub === 'wcg' && fieldId === WCG_BIBLE_READING_NOTE_ID;
 
           if (isLfbStudyField) {
             const legacyKey = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
@@ -147,15 +147,46 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
                 },
               });
             }
+          } else if (isBibleReadingField) {
+            const key = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
+            textarea.value = bibleReadingNote?.body || savedFieldValues[key] || '';
           } else if (!wcgQuestionBlock) {
             const key = `${pub}_${resolved}_d${documentId}_f${fieldId}`;
             if (savedFieldValues[key]) textarea.value = savedFieldValues[key];
           }
 
           textarea.classList.add('jcs-editable-field');
-          textarea.setAttribute('rows', '1');
+          textarea.removeAttribute('disabled');
+          textarea.removeAttribute('readonly');
+          textarea.readOnly = false;
+          textarea.disabled = false;
+          textarea.spellcheck = !isBibleReadingField;
+          if (isBibleReadingField) {
+            textarea.dataset.jcsStableField = '1';
+            textarea.setAttribute('autocomplete', 'off');
+          } else {
+            textarea.setAttribute('rows', '1');
+          }
           setupAutoResizeTextarea(textarea);
-          textarea.addEventListener('input', () => {
+
+          const unlockField = () => {
+            textarea.removeAttribute('disabled');
+            textarea.removeAttribute('readonly');
+            textarea.readOnly = false;
+            textarea.disabled = false;
+            selectionHandlerRef.current?.({ open: false, x: 0, y: 0 });
+          };
+          textarea.addEventListener('pointerdown', (event) => {
+            unlockField();
+            if (!isBibleReadingField) event.stopPropagation();
+          });
+          textarea.addEventListener('mousedown', (event) => {
+            unlockField();
+            if (!isBibleReadingField) event.stopPropagation();
+          });
+          textarea.addEventListener('focus', unlockField);
+
+          const persistField = () => {
             if (isLfbStudyField && window.jcs.saveNote) {
               const questionIndex = ['study-q1', 'study-q2', 'study-q3'].indexOf(fieldId);
               void window.jcs.saveNote({
@@ -172,10 +203,26 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
                   endOffset: 0,
                   tags: ['lfb-study'],
                 },
-              }).then(() => {
-                noteUpdatedHandlerRef.current?.();
               });
               return;
+            }
+
+            if (isBibleReadingField && window.jcs.saveNote) {
+              void window.jcs.saveNote({
+                pub,
+                issue: resolved,
+                documentId,
+                note: {
+                  id: WCG_BIBLE_READING_NOTE_ID,
+                  title: bibleReadingNote?.title || 'Textos que vou ler',
+                  body: textarea.value,
+                  blockId: bibleReadingNote?.blockId ?? '1',
+                  anchorText: bibleReadingNote?.anchorText ?? 'Leia o relato na Bíblia',
+                  startOffset: bibleReadingNote?.startOffset ?? 0,
+                  endOffset: bibleReadingNote?.endOffset ?? 0,
+                  tags: bibleReadingNote?.tags ?? ['wcg-study', 'wcg-bible-reading'],
+                },
+              });
             }
 
             if (wcgQuestionBlock && window.jcs.saveNote) {
@@ -194,8 +241,6 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
                   endOffset: existing?.endOffset ?? 0,
                   tags: existing?.tags ?? ['wcg-study', 'wcg-question'],
                 },
-              }).then(() => {
-                noteUpdatedHandlerRef.current?.();
               });
             }
 
@@ -206,7 +251,29 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
               fieldId,
               value: textarea.value,
             });
+          };
+
+          let persistTimer: ReturnType<typeof setTimeout> | null = null;
+          const schedulePersist = () => {
+            if (persistTimer) clearTimeout(persistTimer);
+            persistTimer = setTimeout(() => {
+              persistTimer = null;
+              persistField();
+            }, isBibleReadingField ? 500 : 350);
+          };
+          textarea.addEventListener('input', (event) => {
+            if ('isComposing' in event && (event as InputEvent).isComposing) return;
+            schedulePersist();
           });
+          textarea.addEventListener('compositionend', schedulePersist);
+          textarea.addEventListener('blur', () => {
+            if (persistTimer) {
+              clearTimeout(persistTimer);
+              persistTimer = null;
+            }
+            persistField();
+          });
+          textarea.addEventListener('jcs-persist-now', persistField);
         });
 
         const highlights = await window.jcs.getHighlights({
@@ -255,6 +322,22 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
         return findHighlightByQuote(root, blockId, text, color);
       },
       reloadDocument: mountDocument,
+      async flushFields() {
+        const root = containerRef.current;
+        if (!root || !window.jcs?.setFieldValue) return;
+        const fields = [...root.querySelectorAll<HTMLTextAreaElement>('textarea')];
+        for (const [index, textarea] of fields.entries()) {
+          textarea.dispatchEvent(new Event('jcs-persist-now'));
+          const fieldId = textarea.id || textarea.getAttribute('data-pid') || String(index);
+          await window.jcs.setFieldValue({
+            pub,
+            issue: resolvedIssue ?? '',
+            documentId,
+            fieldId,
+            value: textarea.value,
+          });
+        }
+      },
     }));
 
     useEffect(() => {
@@ -306,6 +389,10 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
 
       const handleMouseUp = (event: MouseEvent) => {
         if (event.button !== 0) return;
+        if ((event.target as HTMLElement | null)?.closest('textarea, input, select, .jcs-editable-field')) {
+          selectionHandlerRef.current?.({ open: false, x: 0, y: 0 });
+          return;
+        }
 
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed || !root.contains(selection.anchorNode)) {
@@ -324,6 +411,9 @@ export const PublicationReader = forwardRef<PublicationReaderHandle, Publication
       const handleContextMenu = (event: MouseEvent) => {
         const target = event.target as Node | null;
         if (!target || !root.contains(target)) return;
+        if ((event.target as HTMLElement | null)?.closest('textarea, input, select, .jcs-editable-field')) {
+          return;
+        }
         if (!selectionActionsRef.current) return;
 
         event.preventDefault();

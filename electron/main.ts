@@ -9,6 +9,7 @@ import { runAutoPrep } from './auto-prep';
 import { runFullDiscoursePrep } from './full-discourse-prep';
 import { runLfbPrep } from './lfb-prep';
 import { runWcgPrep } from './wcg-prep';
+import { loadWeekCbsStudyPrep, saveWeekCbsStudyPrep } from './cbs-week-prep';
 import { runAiChat } from './ai-assistant';
 import { prepareAiChatParams } from './ai-context';
 import { loadOutlinePrepSources } from './outline-research';
@@ -123,8 +124,10 @@ import {
   isSafeImportedId,
   listImportedDocuments,
   saveImportedDocument,
+  writeImportedAsset,
+  importedAssetsDir,
 } from './imported-documents-store';
-import { extractImportedDocument } from './imported-document-extract';
+import { extractExtraPartContextFromFile, extraPartImageFileName } from './extra-meeting-parts';
 import {
   exportFieldServiceForJcsRead,
   exportPreachingPresentationsForJcsRead,
@@ -137,7 +140,6 @@ import {
 } from './jcs-read-export-config';
 import { exportJwlibrary, importJwlibrary } from './jwlibrary-export';
 import { exportJcsMeetingsBackup, importJcsMeetingsBackup } from './jcs-meetings-backup';
-import { dedupeNotesByTitle, pruneDuplicateDocumentNotes } from './note-dedupe';
 import { extractDocumentStructure, resolveNoteTitle } from './document-structure';
 import { resolveJwpubLink } from './jw-link-resolver';
 import { readJwpubMedia } from './jwpub-bundle';
@@ -189,6 +191,11 @@ import {
   savePreparedElderOutline,
   findPreparedElderOutlineByName,
   deletePreparedElderOutline,
+  listExtraMeetingParts,
+  getExtraMeetingPart,
+  createExtraMeetingPart,
+  saveExtraMeetingPart,
+  deleteExtraMeetingPart,
 } from './user-prep-store';
 import { buildWeekMeetingSummary } from './week-meeting-summary';
 import {
@@ -213,10 +220,12 @@ import type {
   GetDocumentHtmlParams,
   LfbPrepParams,
   WcgPrepParams,
+  SaveWeekCbsStudyPrepParams,
   ResolveLinkParams,
   SetFieldValueParams,
   MeetingWeek,
   ChairmanPrepRecord,
+  ExtraMeetingPart,
 } from './types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -673,24 +682,30 @@ function registerIpc() {
     runWcgPrep(getCacheDir(), getUserDataDir(), params),
   );
 
+  ipcMain.handle('jcs:get-week-cbs-study-prep', async (_event, week: MeetingWeek) => {
+    try {
+      return await loadWeekCbsStudyPrep(getCacheDir(), getUserDataDir(), week);
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao carregar o estudo bíblico') };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:save-week-cbs-study-prep',
+    async (_event, params: SaveWeekCbsStudyPrepParams) => {
+      try {
+        return await saveWeekCbsStudyPrep(getCacheDir(), getUserDataDir(), params);
+      } catch (err) {
+        return { ok: false, error: formatUnknownError(err, 'Erro ao salvar as respostas do estudo') };
+      }
+    },
+  );
+
   ipcMain.handle(
     'jcs:get-notes',
     async (_event, params: { pub: string; issue: string; documentId: number }) => {
-      const filePath = await resolveCachedPubPath(getCacheDir(), params.pub, params.issue);
-      if (!filePath) {
-        const notes = await getNotes(getUserDataDir(), params.pub, params.issue, params.documentId);
-        return dedupeNotesByTitle(notes);
-      }
-
-      const html = await getDocumentHtml(filePath, params.documentId);
-      const structure = extractDocumentStructure(html);
-      return pruneDuplicateDocumentNotes(
-        getUserDataDir(),
-        params.pub,
-        params.issue,
-        params.documentId,
-        structure,
-      );
+      const notes = await getNotes(getUserDataDir(), params.pub, params.issue, params.documentId);
+      return notes;
     },
   );
 
@@ -701,8 +716,14 @@ function registerIpc() {
       params: { pub: string; issue: string; documentId: number; note: DocumentNote },
     ) => {
       const note = { ...params.note };
+      const keepStudyTitle =
+        params.pub === 'wcg' ||
+        params.pub === 'lfb' ||
+        note.id.startsWith('wcg-') ||
+        note.tags?.includes('wcg-study') ||
+        note.tags?.includes('lfb-study');
       const filePath = await resolveCachedPubPath(getCacheDir(), params.pub, params.issue);
-      if (filePath) {
+      if (filePath && !keepStudyTitle) {
         const html = await getDocumentHtml(filePath, params.documentId);
         const title = resolveNoteTitle(extractDocumentStructure(html), note.blockId);
         if (title) note.title = title;
@@ -1029,6 +1050,135 @@ function registerIpc() {
     async (_event, params: { weekId: string; value: string }) => {
       await setPublicTalkNote(getUserDataDir(), params.weekId, params.value);
       return { ok: true };
+    },
+  );
+
+  ipcMain.handle('jcs:list-extra-meeting-parts', async (_event, weekId: string) => {
+    try {
+      if (!weekId?.trim()) return { ok: false, error: 'Semana inválida.' };
+      const items = await listExtraMeetingParts(getUserDataDir(), weekId);
+      return { ok: true, items };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao listar partes extras') };
+    }
+  });
+
+  ipcMain.handle('jcs:get-extra-meeting-part', async (_event, id: string) => {
+    try {
+      if (!id?.trim()) return { ok: false, error: 'Parte inválida.' };
+      const item = await getExtraMeetingPart(getUserDataDir(), id);
+      if (!item) return { ok: false, error: 'Parte extra não encontrada.' };
+      return { ok: true, item };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao abrir a parte extra') };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:create-extra-meeting-part',
+    async (_event, params: { weekId: string; title: string }) => {
+      try {
+        if (!params?.weekId?.trim()) return { ok: false, error: 'Semana inválida.' };
+        const item = await createExtraMeetingPart(getUserDataDir(), params.weekId, params.title ?? '');
+        return { ok: true, item };
+      } catch (err) {
+        return { ok: false, error: formatUnknownError(err, 'Erro ao criar a parte extra') };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'jcs:save-extra-meeting-part',
+    async (
+      _event,
+      params: { id: string; title?: string; body?: string; contextItems?: ExtraMeetingPart['contextItems'] },
+    ) => {
+      try {
+        if (!params?.id?.trim()) return { ok: false, error: 'Parte inválida.' };
+        const item = await saveExtraMeetingPart(getUserDataDir(), params);
+        if (!item) return { ok: false, error: 'Parte extra não encontrada.' };
+        return { ok: true, item };
+      } catch (err) {
+        return { ok: false, error: formatUnknownError(err, 'Erro ao salvar a parte extra') };
+      }
+    },
+  );
+
+  ipcMain.handle('jcs:delete-extra-meeting-part', async (_event, id: string) => {
+    try {
+      if (!id?.trim()) return { ok: false, error: 'Parte inválida.' };
+      const deleted = await deleteExtraMeetingPart(getUserDataDir(), id);
+      if (!deleted) return { ok: false, error: 'Parte extra não encontrada.' };
+      await fs.rm(importedAssetsDir(getUserDataRoot(), id), { recursive: true, force: true });
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao excluir a parte extra') };
+    }
+  });
+
+  ipcMain.handle('jcs:extract-extra-part-context', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Importar contexto da parte extra',
+      defaultPath: app.getPath('desktop'),
+      properties: ['openFile'],
+      filters: [
+        { name: 'Documentos', extensions: ['pdf', 'doc', 'docx', 'txt'] },
+        { name: 'PDF', extensions: ['pdf'] },
+        { name: 'Word', extensions: ['doc', 'docx'] },
+        { name: 'Texto', extensions: ['txt'] },
+        { name: 'Todos os arquivos', extensions: ['*'] },
+      ],
+    });
+
+    if (result.canceled || !result.filePaths[0]) {
+      return { ok: false, cancelled: true };
+    }
+
+    try {
+      const filePath = result.filePaths[0];
+      const fileName = path.basename(filePath);
+      const buffer = await fs.readFile(filePath);
+      const item = await extractExtraPartContextFromFile(fileName, buffer);
+      if (!item) {
+        return {
+          ok: false,
+          error:
+            'Não foi possível extrair texto deste arquivo. PDFs só com imagem precisam ser copiados no editor, ou use Word/TXT.',
+        };
+      }
+      return { ok: true, item };
+    } catch (err) {
+      return { ok: false, error: formatUnknownError(err, 'Erro ao importar o contexto') };
+    }
+  });
+
+  ipcMain.handle(
+    'jcs:save-extra-part-image',
+    async (
+      _event,
+      params: { partId: string; mimeType?: string; dataBase64?: string; fileName?: string },
+    ) => {
+      try {
+        const partId = params?.partId?.trim() ?? '';
+        if (!isSafeImportedId(partId)) return { ok: false, error: 'Parte inválida.' };
+        const part = await getExtraMeetingPart(getUserDataDir(), partId);
+        if (!part) return { ok: false, error: 'Parte extra não encontrada.' };
+
+        const raw = params.dataBase64?.trim() ?? '';
+        if (!raw) return { ok: false, error: 'Imagem vazia.' };
+        const buffer = Buffer.from(raw, 'base64');
+        if (!buffer.length) return { ok: false, error: 'Imagem vazia.' };
+        if (buffer.length > 12 * 1024 * 1024) {
+          return { ok: false, error: 'A imagem é grande demais (máximo 12 MB).' };
+        }
+
+        const fileName = extraPartImageFileName(params.mimeType ?? '');
+        const saved = await writeImportedAsset(getUserDataRoot(), partId, fileName, buffer);
+        if (!saved) return { ok: false, error: 'Não foi possível gravar a imagem.' };
+        return { ok: true, fileName: saved, src: `jcs-imported://${partId}/${saved}` };
+      } catch (err) {
+        return { ok: false, error: formatUnknownError(err, 'Erro ao salvar a imagem') };
+      }
     },
   );
 

@@ -20,11 +20,10 @@ export function runRichCommand(command: string, value?: string) {
 
 let savedSelection: Range | null = null;
 
-export function captureEditorSelection() {
+export function captureEditorSelection(options?: { allowCollapsed?: boolean }) {
   const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    return;
-  }
+  if (!selection || selection.rangeCount === 0) return;
+  if (selection.isCollapsed && !options?.allowCollapsed) return;
   savedSelection = selection.getRangeAt(0).cloneRange();
 }
 
@@ -126,9 +125,38 @@ export function activateRichEditorForInput(
   });
 }
 
-export function pastePlainTextIntoRichEditor(root: HTMLElement, text: string) {
-  activateRichEditorForInput(root);
+export function insertHtmlIntoRichEditor(root: HTMLElement, html: string) {
   root.focus({ preventScroll: true });
+  if (savedSelection) {
+    restoreEditorSelection();
+  } else {
+    const selection = window.getSelection();
+    const caretInEditor =
+      selection && selection.rangeCount > 0 && root.contains(selection.anchorNode);
+    if (!caretInEditor) {
+      const fallback = document.createRange();
+      fallback.selectNodeContents(root);
+      fallback.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(fallback);
+    }
+  }
+  document.execCommand('insertHTML', false, html);
+}
+
+export function pastePlainTextIntoRichEditor(root: HTMLElement, text: string) {
+  root.focus({ preventScroll: true });
+  restoreEditorSelection();
+  const selection = window.getSelection();
+  const caretInEditor =
+    selection && selection.rangeCount > 0 && root.contains(selection.anchorNode);
+  if (!caretInEditor) {
+    const fallback = document.createRange();
+    fallback.selectNodeContents(root);
+    fallback.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(fallback);
+  }
   document.execCommand('insertText', false, text);
 }
 

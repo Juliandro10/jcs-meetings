@@ -56,20 +56,38 @@ function noteScore(structure: DocumentStructure, note: NoteLike, canonical: stri
   return score;
 }
 
+function isProtectedStudyNote(note: NoteLike) {
+  const tags = note.tags ?? [];
+  return (
+    tags.includes('wcg-study') ||
+    tags.includes('wcg-question') ||
+    tags.includes('wcg-bible-reading') ||
+    tags.includes('lfb-study') ||
+    tags.includes('auto-prep') ||
+    note.id.startsWith('wcg-') ||
+    note.id.startsWith('study-q')
+  );
+}
+
 export function dedupeNotesForDocument<T extends NoteLike>(
   notes: T[],
   structure: DocumentStructure,
 ): T[] {
   const groups = new Map<string, T[]>();
+  const protectedNotes: T[] = [];
 
   for (const note of notes) {
+    if (isProtectedStudyNote(note)) {
+      protectedNotes.push(note);
+      continue;
+    }
     const key = dedupeGroupKey(structure, note);
     const group = groups.get(key) ?? [];
     group.push(note);
     groups.set(key, group);
   }
 
-  const deduped: T[] = [];
+  const deduped: T[] = [...protectedNotes];
   for (const [canonical, group] of groups) {
     if (group.length === 1) {
       deduped.push(group[0]);

@@ -29,6 +29,9 @@ import type {
   LfbPrepResult,
   WcgPrepParams,
   WcgPrepResult,
+  WeekCbsStudyPrepResult,
+  SaveWeekCbsStudyPrepParams,
+  SaveWeekCbsStudyPrepResult,
   ListElderOutlineDocumentsResult,
   ListOutlinePrepSourcesResult,
   MeetingWeek,
@@ -41,6 +44,11 @@ import type {
   LibraryDownloadedListResult,
   PublicTalkExportResult,
   PublicTalkNoteResult,
+  ExtraMeetingPartContextItem,
+  ExtraMeetingPartResult,
+  ExtractExtraPartContextResult,
+  SaveExtraPartImageResult,
+  ListExtraMeetingPartsResult,
   FieldServiceConsiderationsResult,
   FieldServiceConsiderationContextPreview,
   FieldServiceNoteResult,
@@ -208,6 +216,10 @@ contextBridge.exposeInMainWorld('jcs', {
     ipcRenderer.invoke('jcs:lfb-prep', params),
   wcgPrep: (params: WcgPrepParams): Promise<WcgPrepResult> =>
     ipcRenderer.invoke('jcs:wcg-prep', params),
+  getWeekCbsStudyPrep: (week: MeetingWeek): Promise<WeekCbsStudyPrepResult> =>
+    ipcRenderer.invoke('jcs:get-week-cbs-study-prep', week),
+  saveWeekCbsStudyPrep: (params: SaveWeekCbsStudyPrepParams): Promise<SaveWeekCbsStudyPrepResult> =>
+    ipcRenderer.invoke('jcs:save-week-cbs-study-prep', params),
   getNotes: (params: { pub: string; issue: string; documentId: number }) =>
     ipcRenderer.invoke('jcs:get-notes', params),
   saveNote: (params: {
@@ -296,6 +308,27 @@ contextBridge.exposeInMainWorld('jcs', {
     }),
   setPublicTalkNote: (params: { weekId: string; value: string }): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('jcs:set-public-talk-note', params),
+  listExtraMeetingParts: (weekId: string): Promise<ListExtraMeetingPartsResult> =>
+    ipcRenderer.invoke('jcs:list-extra-meeting-parts', weekId),
+  getExtraMeetingPart: (id: string): Promise<ExtraMeetingPartResult> =>
+    ipcRenderer.invoke('jcs:get-extra-meeting-part', id),
+  createExtraMeetingPart: (params: { weekId: string; title: string }): Promise<ExtraMeetingPartResult> =>
+    ipcRenderer.invoke('jcs:create-extra-meeting-part', params),
+  saveExtraMeetingPart: (params: {
+    id: string;
+    title?: string;
+    body?: string;
+    contextItems?: ExtraMeetingPartContextItem[];
+  }): Promise<ExtraMeetingPartResult> => ipcRenderer.invoke('jcs:save-extra-meeting-part', params),
+  deleteExtraMeetingPart: (id: string): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke('jcs:delete-extra-meeting-part', id),
+  extractExtraPartContext: (): Promise<ExtractExtraPartContextResult> =>
+    ipcRenderer.invoke('jcs:extract-extra-part-context'),
+  saveExtraPartImage: (params: {
+    partId: string;
+    mimeType: string;
+    dataBase64: string;
+  }): Promise<SaveExtraPartImageResult> => ipcRenderer.invoke('jcs:save-extra-part-image', params),
   getFieldServiceNote: (weekId: string): Promise<FieldServiceNoteResult> =>
     ipcRenderer.invoke('jcs:get-field-service-note', weekId),
   getFieldServiceSuggestions: (weekId: string): Promise<FieldServiceSuggestionsResult> =>
@@ -611,6 +644,10 @@ declare global {
       }) => Promise<{ ok: boolean; error?: string }>;
       lfbPrep: (params: LfbPrepParams) => Promise<LfbPrepResult>;
       wcgPrep: (params: WcgPrepParams) => Promise<WcgPrepResult>;
+      getWeekCbsStudyPrep: (week: MeetingWeek) => Promise<WeekCbsStudyPrepResult>;
+      saveWeekCbsStudyPrep: (
+        params: SaveWeekCbsStudyPrepParams,
+      ) => Promise<SaveWeekCbsStudyPrepResult>;
       getNotes: (params: { pub: string; issue: string; documentId: number }) => Promise<DocumentNote[]>;
       saveNote: (params: {
         pub: string;
@@ -673,6 +710,22 @@ declare global {
         options?: { preferLastFolder?: boolean },
       ) => Promise<JcsReadExportResult>;
       setPublicTalkNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;
+      listExtraMeetingParts: (weekId: string) => Promise<ListExtraMeetingPartsResult>;
+      getExtraMeetingPart: (id: string) => Promise<ExtraMeetingPartResult>;
+      createExtraMeetingPart: (params: { weekId: string; title: string }) => Promise<ExtraMeetingPartResult>;
+      saveExtraMeetingPart: (params: {
+        id: string;
+        title?: string;
+        body?: string;
+        contextItems?: ExtraMeetingPartContextItem[];
+      }) => Promise<ExtraMeetingPartResult>;
+      deleteExtraMeetingPart: (id: string) => Promise<{ ok: boolean; error?: string }>;
+      extractExtraPartContext: () => Promise<ExtractExtraPartContextResult>;
+      saveExtraPartImage: (params: {
+        partId: string;
+        mimeType: string;
+        dataBase64: string;
+      }) => Promise<SaveExtraPartImageResult>;
       getFieldServiceNote: (weekId: string) => Promise<FieldServiceNoteResult>;
       getFieldServiceSuggestions: (weekId: string) => Promise<FieldServiceSuggestionsResult>;
       setFieldServiceNote: (params: { weekId: string; value: string }) => Promise<{ ok: boolean }>;

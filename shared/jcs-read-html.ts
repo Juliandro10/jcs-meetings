@@ -81,6 +81,21 @@ html, body {
   text-decoration: underline;
 }
 .jcs-read-body img { max-width: 100%; height: auto; }
+.jcs-read-body .gen-flipbook,
+.jcs-read-body .pm-flipbook-gallery {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.jcs-read-body .gen-flipbook img,
+.jcs-read-body .pm-flipbook-gallery img,
+.jcs-read-body figure img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 8px 0;
+}
 .jcs-read-body img.jcs-imported-page,
 .jcs-read-body figure.jcs-imported-page img,
 .jcs-read-body figure.jcs-imported-image img {
@@ -121,6 +136,13 @@ html, body {
 }
 .jcs-read-body figure { margin: 12px 0; }
 .jcs-read-body textarea { display: none; }
+.dc-screenReaderText {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
 .jcs-field-value {
   display: block;
   margin: 8px 0 14px;
@@ -131,6 +153,30 @@ html, body {
   font-size: 16px;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+.jcs-field-value:empty { display: none; }
+.jcs-wcg-answer {
+  display: block;
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  background: #f5f3ff;
+  border-left: 4px solid #7c3aed;
+}
+.jcs-wcg-answer-label {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6d28d9;
+  margin: 0 0 6px;
+}
+.jcs-wcg-answer-body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  margin: 0;
 }
 .jcs-hl-yellow, .jcs-hl-green, .jcs-hl-blue, .jcs-hl-pink, .jcs-hl-purple, .jcs-hl-orange {
   padding: 0 1px;
@@ -267,6 +313,23 @@ html, body {
   font-size: 14px;
   margin: 10px 0 4px;
   color: #374151;
+}
+.jcs-wcg-bible-reading {
+  margin: 8px 0 12px;
+  pointer-events: auto;
+}
+.jcs-wcg-bible-reading label {
+  display: block;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5b21b6;
+  margin: 0 0 6px;
+}
+.jcs-wcg-bible-reading textarea,
+.jcs-wcg-bible-reading .jcs-field-value {
+  display: block;
+  width: 100%;
 }
 .jcs-wcg-conductor-guide {
   margin: 0 0 20px;

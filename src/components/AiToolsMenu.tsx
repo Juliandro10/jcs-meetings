@@ -1,11 +1,5 @@
 import type { MeetingWeek } from '@/lib/meeting-types';
 
-type AiToolsMenuProps = {
-  open: boolean;
-  onClose: () => void;
-  week: MeetingWeek;
-};
-
 const MODES = [
   {
     id: 'auto',
@@ -34,7 +28,15 @@ const MODES = [
   },
 ] as const;
 
-export function AiToolsMenu({ open, onClose, week }: AiToolsMenuProps) {
+type AiToolsMenuProps = {
+  open: boolean;
+  onClose: () => void;
+  week: MeetingWeek;
+  busy?: boolean;
+  onSelect: (mode: (typeof MODES)[number]['id']) => void;
+};
+
+export function AiToolsMenu({ open, onClose, week, busy = false, onSelect }: AiToolsMenuProps) {
   if (!open) return null;
 
   return (
@@ -51,8 +53,12 @@ export function AiToolsMenu({ open, onClose, week }: AiToolsMenuProps) {
             <li key={mode.id}>
               <button
                 type="button"
-                className="w-full rounded-lg border border-jw-border px-4 py-3 text-left hover:border-jw-purple hover:bg-jw-purple-light/40"
-                onClick={onClose}
+                className="w-full rounded-lg border border-jw-border px-4 py-3 text-left hover:border-jw-purple hover:bg-jw-purple-light/40 disabled:opacity-50"
+                onClick={() => {
+                  if (busy) return;
+                  onSelect(mode.id);
+                }}
+                disabled={busy}
               >
                 <p className="font-medium text-jw-text">{mode.title}</p>
                 <p className="mt-1 text-xs text-jw-muted">{mode.desc}</p>

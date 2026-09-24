@@ -65,10 +65,16 @@ body {
   padding: 0.65rem 0.75rem;
   font: inherit;
   line-height: 1.6;
-  resize: none;
-  overflow: hidden;
+  resize: vertical;
+  overflow: auto;
   box-sizing: border-box;
-  field-sizing: content;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: relative;
+  z-index: 3;
 }
 
 .jwpub-content textarea:focus,
@@ -130,6 +136,24 @@ body {
 .jwpub-content.jwpub-has-styles img {
   height: auto;
   max-width: 100%;
+}
+
+.jwpub-content .gen-flipbook,
+.jwpub-content .pm-flipbook-gallery {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.jwpub-content .gen-flipbook img,
+.jwpub-content .pm-flipbook-gallery img {
+  display: block !important;
+  position: static !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0.5rem 0 !important;
 }
 
 .jwpub-content .inlineSVG,
@@ -309,6 +333,35 @@ body {
 
 .jcs-lfb-study-field {
   margin-bottom: 0.5rem;
+}
+
+.jcs-wcg-bible-reading {
+  margin: 0.5rem 0 0.85rem;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 4;
+  isolation: isolate;
+}
+
+.jcs-wcg-bible-reading label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: #5b21b6;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.jwpub-content .jcs-wcg-bible-reading textarea,
+.jwpub-content #wcg-bible-reading {
+  display: block !important;
+  width: 100% !important;
+  height: 5.5rem;
+  min-height: 5.5rem !important;
+  max-height: 14rem;
+  resize: vertical;
+  overflow: auto !important;
+  pointer-events: auto !important;
+  -webkit-user-modify: read-write !important;
 }
 
 .jcs-wcg-conductor-guide {

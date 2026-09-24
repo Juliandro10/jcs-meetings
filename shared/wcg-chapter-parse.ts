@@ -160,7 +160,8 @@ export function extractWcgChapterQuestions(structure: WcgChapterStructure): WcgC
       const text = block.text.trim();
       if (!text || text.length < 12) continue;
       if (isSectionHeaderText(text)) continue;
-      if (isImageBlock(block)) continue;
+      if (/^sua resposta$/i.test(text)) continue;
+      if (isImageBlock(block) && !text.includes('?')) continue;
       if (isScriptureList(text)) continue;
       if (/^wp\d+|^g\s+\d|^w\d{2}\./i.test(text) && !text.includes('?')) continue;
 
@@ -237,6 +238,55 @@ export function parseWcgChapterStructure(html: string): WcgChapterStructure {
   return { chapterNumber, title, blocks, sections };
 }
 
+export const WCG_BIBLE_READING_FIELD_ID = 'wcg-bible-reading';
+
+export function extractWcgBibleAccountRefs(structure: WcgChapterStructure) {
+  const section = structure.sections.find((item) => item.kind === 'bible-account');
+  if (!section) return { headingBlockId: '1', refs: '' };
+
+  const heading =
+    section.blocks.find((block) => /^leia o relato na b[ií]blia/i.test(block.text)) ?? section.blocks[0];
+  const refs = section.blocks
+    .filter((block) => block !== heading)
+    .map((block) => block.text.trim())
+    .filter(Boolean)
+    .join(' ');
+
+  return { headingBlockId: heading?.pid ?? '1', refs };
+}
+
+export function injectWcgBibleReadingField(html: string) {
+  if (html.includes(`id="${WCG_BIBLE_READING_FIELD_ID}"`)) return html;
+
+  const heading = html.match(
+    /(<(?:h[1-6]|p)\b[^>]*\bdata-pid="[^"]*"[^>]*>[\s\S]*?Leia o relato na B[ií]blia:?[\s\S]*?<\/(?:h[1-6]|p)>)/i,
+  );
+  if (!heading || heading.index == null) return html;
+
+  const field = `
+<div class="jcs-wcg-bible-reading gen-field" data-pid="${WCG_BIBLE_READING_FIELD_ID}">
+  <label for="${WCG_BIBLE_READING_FIELD_ID}">Quais desses textos vou ler</label>
+  <textarea id="${WCG_BIBLE_READING_FIELD_ID}" name="textarea-bible" class="jcs-editable-field" rows="3" data-jcs-stable-field="1" autocomplete="off" placeholder="Ex.: Gên. 32:6-12; 33:1-4"></textarea>
+</div>`;
+
+  const insertAt = heading.index + heading[0].length;
+  return `${html.slice(0, insertAt)}${field}${html.slice(insertAt)}`;
+}
+
+export function stripWcgAprendaMais(html: string) {
+  const wrapped = html.match(
+    /<div\b[^>]*>\s*<(h[1-6]|p)\b[^>]*\bdata-pid="\d+"[^>]*>\s*(?:<span\b[^>]*>[\s\S]*?<\/span>\s*)?<strong>\s*Aprenda mais\s*<\/strong>[\s\S]*$/i,
+  );
+  if (wrapped?.index != null) return html.slice(0, wrapped.index).trimEnd();
+
+  const heading = html.match(
+    /<(h[1-6]|p)\b[^>]*\bdata-pid="\d+"[^>]*>\s*(?:<span\b[^>]*>[\s\S]*?<\/span>\s*)?<strong>\s*Aprenda mais\s*<\/strong>[\s\S]*$/i,
+  );
+  if (heading?.index != null) return html.slice(0, heading.index).trimEnd();
+
+  return html;
+}
+
 export function wcgConductorGuideHtml() {
   return `<aside class="jcs-wcg-conductor-guide">
   <h2 class="jcs-wcg-conductor-guide-title">Como conduzir o estudo</h2>
@@ -252,39 +302,10 @@ export function wcgConductorGuideHtml() {
 </aside>`;
 }
 
-function sectionStepLabel(section: WcgChapterSection) {
-  if (section.conductorStep === 1) return 'Passo 1 · Narrativa';
-  if (section.conductorStep === 2) return 'Passos 2–3 · Bíblia e considerar';
-  if (section.conductorStep === 4) return 'Passo 4 · Perguntas do capítulo';
-  if (section.conductorStep === 6) return 'Passo 6 · Só pesquisa pessoal';
-  if (section.blocks.some(isImageBlock)) return 'Passo 5 · Imagens';
-  return 'Na reunião';
-}
-
 export function buildWcgChapterMeetingHtml(rawHtml: string, options?: { includeAprendaMais?: boolean }) {
   const structure = parseWcgChapterStructure(rawHtml);
   const includeAprendaMais = options?.includeAprendaMais ?? false;
-
-  const sectionHtml = structure.sections
-    .filter((section) => includeAprendaMais || section.meetingRelevant)
-    .map((section) => {
-      const body = section.blocks
-        .map((block) => `<div class="jwpub-block" data-pid="${block.pid}">${block.html}</div>`)
-        .join('\n');
-      const imageNote = section.blocks.some(isImageBlock)
-        ? '<p class="jcs-wcg-image-hint">Reserve tempo para comentários sobre as ilustrações.</p>'
-        : '';
-      const skipClass = section.meetingRelevant ? '' : ' jcs-wcg-section--skipped';
-      return `<section class="jcs-wcg-section jcs-wcg-section--${section.kind}${skipClass}">
-  <header class="jcs-wcg-section-head">
-    <p class="jcs-wcg-section-step">${sectionStepLabel(section)}</p>
-    <h3 class="jcs-wcg-section-title">${section.title}</h3>
-  </header>
-  ${imageNote}
-  <div class="jcs-wcg-section-body jwpub-content">${body}</div>
-</section>`;
-    })
-    .join('\n');
+  const body = injectWcgBibleReadingField(includeAprendaMais ? rawHtml : stripWcgAprendaMais(rawHtml));
 
   const aprendaOmitted =
     !includeAprendaMais && structure.sections.some((s) => s.kind === 'aprenda-mais')
@@ -292,10 +313,6 @@ export function buildWcgChapterMeetingHtml(rawHtml: string, options?: { includeA
       : '';
 
   return `${wcgConductorGuideHtml()}
-<header class="jcs-wcg-chapter-header">
-  <p class="jcs-wcg-chapter-kicker">Estudo bíblico de congregação</p>
-  <h1 class="jcs-wcg-chapter-title">${structure.chapterNumber ? `${structure.chapterNumber}. ` : ''}${structure.title}</h1>
-</header>
 ${aprendaOmitted}
-${sectionHtml}`;
+<div class="jcs-wcg-original">${body}</div>`;
 }

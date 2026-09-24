@@ -1,9 +1,14 @@
 import type { PrepNote } from './user-prep-store';
 
 export const WCG_CONDUCTOR_NOTE_ID = 'wcg-conductor';
+export const WCG_BIBLE_READING_NOTE_ID = 'wcg-bible-reading';
 
 export function isWcgConductorNoteId(id: string) {
   return id === WCG_CONDUCTOR_NOTE_ID;
+}
+
+export function isWcgBibleReadingNoteId(id: string) {
+  return id === WCG_BIBLE_READING_NOTE_ID;
 }
 
 export function isWcgQuestionNoteId(id: string) {
@@ -14,8 +19,22 @@ export function isWcgStudyPrepNote(note: Pick<PrepNote, 'id' | 'tags'>): boolean
   return (
     note.tags.includes('wcg-study') ||
     isWcgConductorNoteId(note.id) ||
+    isWcgBibleReadingNoteId(note.id) ||
     isWcgQuestionNoteId(note.id)
   );
+}
+
+export function buildWcgBibleReadingNote(body: string, blockId: string): Omit<PrepNote, 'updatedAt'> {
+  return {
+    id: WCG_BIBLE_READING_NOTE_ID,
+    title: 'Textos que vou ler',
+    body,
+    blockId,
+    anchorText: 'Leia o relato na Bíblia',
+    startOffset: 0,
+    endOffset: 0,
+    tags: ['wcg-study', 'wcg-bible-reading'],
+  };
 }
 
 export function buildWcgConductorNote(body: string, blockId: string): Omit<PrepNote, 'updatedAt'> {

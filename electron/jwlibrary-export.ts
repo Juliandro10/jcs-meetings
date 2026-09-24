@@ -986,6 +986,7 @@ export async function importJwlibrary(
       highlights: { ...prep.highlights },
       notes: { ...prep.notes },
       publicTalkNotes: prep.publicTalkNotes ? { ...prep.publicTalkNotes } : {},
+      extraMeetingParts: prep.extraMeetingParts ? { ...prep.extraMeetingParts } : {},
     };
     let fields = 0;
     let highlights = 0;

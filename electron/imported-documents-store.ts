@@ -91,6 +91,19 @@ async function writeAssets(userDataRoot: string, id: string, assets: ImportedExt
   }
 }
 
+export async function writeImportedAsset(
+  userDataRoot: string,
+  id: string,
+  fileName: string,
+  buffer: Buffer,
+): Promise<string | null> {
+  if (!isSafeImportedId(id) || !isSafeImportedAssetName(fileName)) return null;
+  const dir = importedAssetsDir(userDataRoot, id);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, fileName), buffer);
+  return fileName;
+}
+
 export async function listImportedDocuments(userDataRoot: string): Promise<ImportedDocumentListItem[]> {
   const store = await loadStore(userDataRoot);
   return [...store.documents]

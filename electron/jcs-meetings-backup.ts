@@ -181,6 +181,7 @@ function mergePrepData(current: UserPrepData, incoming: UserPrepData): UserPrepD
     highlights: mergeRecords(current.highlights ?? {}, incoming.highlights),
     notes: mergeRecords(current.notes ?? {}, incoming.notes),
     publicTalkNotes: mergeRecords(current.publicTalkNotes ?? {}, incoming.publicTalkNotes),
+    extraMeetingParts: mergeRecords(current.extraMeetingParts ?? {}, incoming.extraMeetingParts),
     fieldServiceNotes: mergeRecords(current.fieldServiceNotes ?? {}, incoming.fieldServiceNotes),
     fieldServiceSuggestions: {
       ...(current.fieldServiceSuggestions ?? {}),

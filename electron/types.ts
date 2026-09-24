@@ -168,6 +168,39 @@ export type WcgPrepParams = {
 
 export type WcgPrepResult = LfbPrepResult;
 
+export type CbsStudyReviewQuestion = {
+  id: string;
+  blockId: string;
+  sectionTitle: string;
+  title: string;
+  body: string;
+  tags: string[];
+};
+
+export type CbsStudyReviewGroup = {
+  sectionTitle: string;
+  questions: CbsStudyReviewQuestion[];
+};
+
+export type WeekCbsStudyPrepResult = {
+  ok: boolean;
+  error?: string;
+  pub?: 'wcg';
+  documentId?: number;
+  title?: string;
+  groups?: CbsStudyReviewGroup[];
+};
+
+export type SaveWeekCbsStudyPrepParams = {
+  documentId: number;
+  questions: CbsStudyReviewQuestion[];
+};
+
+export type SaveWeekCbsStudyPrepResult = {
+  ok: boolean;
+  error?: string;
+};
+
 export type AiChatMessage = {
   role: 'user' | 'assistant';
   content: string;
@@ -195,6 +228,8 @@ export type AiChatContext = {
   sourceDocumentId?: number;
   cachedPublications?: string[];
   documentText?: string;
+  /** Programa, perguntas ou outro material importado para uma parte extra da reunião. */
+  importedContextText?: string;
   /** Esboço de discurso (Elder): original + preparado para comparação. */
   contentKind?: 'meeting' | 'elder-outline';
   preparedOutlineText?: string;
@@ -296,6 +331,59 @@ export type AutoPrepResult = {
 export type PublicTalkNoteResult = {
   ok: boolean;
   value?: string;
+  error?: string;
+};
+
+export type ExtraMeetingPartContextKind = 'file' | 'questions' | 'note';
+
+export type ExtraMeetingPartContextItem = {
+  id: string;
+  kind: ExtraMeetingPartContextKind;
+  title: string;
+  fileName?: string;
+  text: string;
+  html: string;
+  addedAt: string;
+};
+
+export type ExtraMeetingPart = {
+  id: string;
+  weekId: string;
+  title: string;
+  body: string;
+  contextItems: ExtraMeetingPartContextItem[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ExtraMeetingPartListItem = Omit<ExtraMeetingPart, 'body' | 'contextItems'> & {
+  hasBody: boolean;
+  contextCount: number;
+};
+
+export type ListExtraMeetingPartsResult = {
+  ok: boolean;
+  items?: ExtraMeetingPartListItem[];
+  error?: string;
+};
+
+export type ExtraMeetingPartResult = {
+  ok: boolean;
+  item?: ExtraMeetingPart;
+  error?: string;
+};
+
+export type ExtractExtraPartContextResult = {
+  ok: boolean;
+  cancelled?: boolean;
+  item?: ExtraMeetingPartContextItem;
+  error?: string;
+};
+
+export type SaveExtraPartImageResult = {
+  ok: boolean;
+  src?: string;
+  fileName?: string;
   error?: string;
 };
 

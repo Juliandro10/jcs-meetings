@@ -1,6 +1,8 @@
 import type { DocumentNote } from '@/lib/note-dom';
 import { isLfbStudyFieldId } from '@/lib/lfb-study-fields';
 import {
+  groupWcgQuestionsBySection,
+  isWcgBibleReadingNoteId,
   isWcgConductorNoteId,
   isWcgQuestionNoteId,
   isWcgStudyPrepNote,
@@ -64,9 +66,16 @@ export function LfbStudyNotesList({ notes, activeNoteId, onSelect }: LfbStudyNot
   const sabeNotes = notes.filter(isLfbSabeNote);
   const studyNotes = notes.filter((note) => isLfbStudyFieldId(note.id));
   const wcgConductor = notes.find((note) => isWcgConductorNoteId(note.id));
+  const wcgBibleReading = notes.find((note) => isWcgBibleReadingNoteId(note.id));
   const wcgQuestions = notes.filter((note) => isWcgQuestionNoteId(note.id));
 
-  if (sabeNotes.length === 0 && studyNotes.length === 0 && !wcgConductor && wcgQuestions.length === 0) {
+  if (
+    sabeNotes.length === 0 &&
+    studyNotes.length === 0 &&
+    !wcgConductor &&
+    !wcgBibleReading &&
+    wcgQuestions.length === 0
+  ) {
     return null;
   }
 
@@ -81,14 +90,25 @@ export function LfbStudyNotesList({ notes, activeNoteId, onSelect }: LfbStudyNot
         </section>
       ) : null}
 
-      {wcgQuestions.length > 0 ? (
+      {wcgBibleReading ? (
         <section>
           <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-jw-muted">
-            Respostas do capítulo
+            Relato na Bíblia
           </h4>
-          <NoteCards items={sortWcgStudyNotes(wcgQuestions)} activeNoteId={activeNoteId} onSelect={onSelect} />
+          <NoteCards items={[wcgBibleReading]} activeNoteId={activeNoteId} onSelect={onSelect} />
         </section>
       ) : null}
+
+      {wcgQuestions.length > 0
+        ? groupWcgQuestionsBySection(sortWcgStudyNotes(wcgQuestions)).map((group) => (
+            <section key={group.sectionTitle}>
+              <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-jw-muted">
+                {group.sectionTitle}
+              </h4>
+              <NoteCards items={group.notes} activeNoteId={activeNoteId} onSelect={onSelect} />
+            </section>
+          ))
+        : null}
 
       {sabeNotes.length > 0 ? (
         <section>

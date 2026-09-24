@@ -9,6 +9,8 @@ import {
   applyFontFamily,
   applyFontSize,
   pastePlainTextIntoRichEditor,
+  insertHtmlIntoRichEditor,
+  captureEditorSelection,
   releaseEditorSelection,
   restoreEditorSelection,
   applyHighlight,
@@ -69,6 +71,7 @@ type BibleLinkedEditorProps = {
   revision?: number;
   onChange: (value: string) => void;
   onBibleLinkClick: (href: string, label: string) => void;
+  onSaveImage?: (file: File) => Promise<{ src: string; alt?: string } | null>;
 };
 
 export function BibleLinkedEditor({
@@ -80,8 +83,10 @@ export function BibleLinkedEditor({
   revision,
   onChange,
   onBibleLinkClick,
+  onSaveImage,
 }: BibleLinkedEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const selectionActions = useSelectionActions();
   const [lookupMenu, setLookupMenu] = useState<LookupMenuState>(CLOSED_LOOKUP_MENU);
   /** null = ainda não sincronizou o DOM com value (evita pular a carga inicial). */
@@ -123,6 +128,28 @@ export function BibleLinkedEditor({
     lastEmitted.current = html;
     onChange(html);
   }, [onChange, readEditorHtml]);
+
+  const insertImageFiles = useCallback(
+    async (files: File[]) => {
+      const root = editorRef.current;
+      if (!root || !onSaveImage || disabled) return;
+      const images = files.filter((file) => file.type.startsWith('image/'));
+      if (images.length === 0) return;
+      captureEditorSelection({ allowCollapsed: true });
+      for (const file of images) {
+        const saved = await onSaveImage(file);
+        if (!saved?.src) continue;
+        const alt = (saved.alt || file.name || 'Imagem').replace(/[&<>"]/g, '');
+        const src = saved.src.replace(/"/g, '');
+        insertHtmlIntoRichEditor(
+          root,
+          `<figure class="jcs-imported-image"><img src="${src}" alt="${alt}"></figure><p><br></p>`,
+        );
+      }
+      emitChange();
+    },
+    [disabled, emitChange, onSaveImage],
+  );
 
   const runEditorAutoCorrect = useCallback(async () => {
     if (disabled || autoCorrectMode === 'off' || composingRef.current || correctingRef.current) return;
@@ -216,13 +243,26 @@ export function BibleLinkedEditor({
       if (disabled) return;
       const root = editorRef.current;
       if (!root) return;
+      const images = [
+        ...event.clipboardData.files,
+        ...[...event.clipboardData.items]
+          .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+          .map((item) => item.getAsFile())
+          .filter((file): file is File => Boolean(file)),
+      ].filter((file) => file.type.startsWith('image/'));
+      const uniqueImages = [...new Map(images.map((file) => [`${file.name}:${file.size}:${file.type}`, file])).values()];
+      if (uniqueImages.length > 0 && onSaveImage) {
+        event.preventDefault();
+        void insertImageFiles(uniqueImages);
+        return;
+      }
       const text = event.clipboardData.getData('text/plain');
       if (!text) return;
       event.preventDefault();
       pastePlainTextIntoRichEditor(root, text);
       emitChange();
     },
-    [disabled, emitChange],
+    [disabled, emitChange, insertImageFiles, onSaveImage],
   );
 
   const handleClick = useCallback(
@@ -307,6 +347,14 @@ export function BibleLinkedEditor({
           onFontFamily={(family: RichFontFamily) => runAndEmit(() => applyFontFamily(family))}
           onFontSize={(size: RichFontSize) => runAndEmit(() => applyFontSize(size))}
           onClearFormat={() => runAndEmit(removeFormatting)}
+          onInsertImage={
+            onSaveImage
+              ? () => {
+                  captureEditorSelection({ allowCollapsed: true });
+                  imageInputRef.current?.click();
+                }
+              : undefined
+          }
           autoCorrectMode={autoCorrectMode}
           onAutoCorrectModeChange={setAutoCorrectMode}
         />
@@ -322,6 +370,17 @@ export function BibleLinkedEditor({
         onBlur={handleBlur}
         onMouseDown={handleEditorMouseDown}
         onPaste={handleEditorPaste}
+        onDragOver={(event) => {
+          if (!onSaveImage || disabled) return;
+          if ([...event.dataTransfer.types].includes('Files')) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          if (!onSaveImage || disabled) return;
+          const images = [...event.dataTransfer.files].filter((file) => file.type.startsWith('image/'));
+          if (images.length === 0) return;
+          event.preventDefault();
+          void insertImageFiles(images);
+        }}
         onKeyUp={handleAutoCorrectKeyUp}
         onCompositionStart={() => {
           composingRef.current = true;
@@ -340,6 +399,20 @@ export function BibleLinkedEditor({
           '[&_a.jcs-page-jump]:cursor-pointer',
         ].join(' ')}
       />
+      {onSaveImage ? (
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/bmp"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            const files = [...(event.target.files ?? [])];
+            event.target.value = '';
+            if (files.length) void insertImageFiles(files);
+          }}
+        />
+      ) : null}
       {lookupMenuNode}
     </div>
   );

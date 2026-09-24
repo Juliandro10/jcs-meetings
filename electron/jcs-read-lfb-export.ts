@@ -8,7 +8,12 @@ import {
 import { loadWcgChapterFromCache, WCG_BOOK_LABEL, WCG_ISSUE, WCG_PUB } from './wcg-reader';
 import { buildWcgChapterMeetingHtml } from '../shared/wcg-chapter-parse';
 import { isLfbStudyNoteId } from './lfb-study-notes';
-import { bakePreparedDocumentHtml, rewriteMediaUrlsForExport } from './jcs-read-bake';
+import {
+  bakePreparedDocumentHtml,
+  injectWcgFallbackAnswers,
+  mergeStudyNotesIntoFieldValues,
+  rewriteMediaUrlsForExport,
+} from './jcs-read-bake';
 import { buildJcsReadDocumentHtml, buildJcsReadNotesSection } from '../shared/jcs-read-html';
 import { getPreparedDocumentHtml, resolveCachedPubPath } from './jwpub-reader';
 import { readJwpubMedia } from './jwpub-bundle';
@@ -59,7 +64,7 @@ async function exportLfbStorySection(params: {
   if (!jwpubPath) throw new Error('Livro lfb não baixado.');
 
   const prefix = documentPrepPrefix(LFB_PUB, LFB_ISSUE, params.story.documentId);
-  const fieldValues = await getFieldValues(params.userDataDir, prefix);
+  const savedFieldValues = await getFieldValues(params.userDataDir, prefix);
   const highlights = await getHighlights(
     params.userDataDir,
     LFB_PUB,
@@ -73,6 +78,13 @@ async function exportLfbStorySection(params: {
     params.story.documentId,
   );
   const notes = allNotes.filter((note) => !isLfbStudyNoteId(note.id));
+  const { fieldValues } = mergeStudyNotesIntoFieldValues({
+    pub: LFB_PUB,
+    issue: LFB_ISSUE,
+    documentId: params.story.documentId,
+    fieldValues: savedFieldValues,
+    notes: allNotes,
+  });
 
   let bodyHtml = params.story.html;
   if (!bodyHtml.includes('jcs-lfb-study-prep')) {
@@ -135,7 +147,7 @@ export async function buildCbsStudyExportHtml(params: {
     }
 
     const prefix = documentPrepPrefix(WCG_PUB, WCG_ISSUE, chapter.documentId);
-    const fieldValues = await getFieldValues(params.userDataDir, prefix);
+    const savedFieldValues = await getFieldValues(params.userDataDir, prefix);
     const highlights = await getHighlights(
       params.userDataDir,
       WCG_PUB,
@@ -145,14 +157,25 @@ export async function buildCbsStudyExportHtml(params: {
     const notes = await getNotes(params.userDataDir, WCG_PUB, WCG_ISSUE, chapter.documentId);
 
     let bodyHtml = buildWcgChapterMeetingHtml(chapter.html);
+    const merged = mergeStudyNotesIntoFieldValues({
+      html: bodyHtml,
+      pub: WCG_PUB,
+      issue: WCG_ISSUE,
+      documentId: chapter.documentId,
+      fieldValues: savedFieldValues,
+      notes,
+    });
     bodyHtml = bakePreparedDocumentHtml({
       html: bodyHtml,
       pub: WCG_PUB,
       issue: WCG_ISSUE,
       documentId: chapter.documentId,
-      fieldValues,
+      fieldValues: merged.fieldValues,
       highlights,
     });
+    const fallback = injectWcgFallbackAnswers(bodyHtml, notes, merged.filledWcgNoteIds);
+    bodyHtml = fallback.html;
+    const placedNoteIds = new Set([...merged.filledWcgNoteIds, ...fallback.injectedIds]);
 
     bodyHtml = await copyMediaAssets({
       jwpubPath,
@@ -161,13 +184,15 @@ export async function buildCbsStudyExportHtml(params: {
     });
 
     const notesHtml = buildJcsReadNotesSection(
-      notes.map((note: PrepNote) => ({
-        id: note.id,
-        title: note.title,
-        body: note.body,
-        anchorText: note.anchorText,
-        tags: note.tags,
-      })),
+      notes
+        .filter((note: PrepNote) => !placedNoteIds.has(note.id))
+        .map((note: PrepNote) => ({
+          id: note.id,
+          title: note.title,
+          body: note.body,
+          anchorText: note.anchorText,
+          tags: note.tags,
+        })),
     );
 
     const samplePrepared = await getPreparedDocumentHtml(jwpubPath, chapter.documentId);

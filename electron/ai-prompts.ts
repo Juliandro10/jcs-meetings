@@ -240,7 +240,9 @@ export const JW_WCG_HIGHLIGHT_RULES = [
 /** Respostas às perguntas do capítulo wcg. */
 export const JW_WCG_QUESTION_RULES = [
   '## Perguntas do capítulo (OBRIGATÓRIO)',
-  '- Responda TODAS as perguntas listadas (noteId exato em questionAnswers).',
+  '- Responda TODAS as perguntas listadas (noteId exato em questionAnswers) — comece por Pense no quadro completo e Medite no que aprendeu; depois Análise e Para considerar.',
+  '- Não pare nas perguntas numeradas da Análise; as seções Medite e Quadro completo também são da reunião.',
+  '- Perguntas ligadas a ilustrações (Imagem A/B/C) também precisam de resposta.',
   '- Cada "body": **3 a 6 frases** equilibradas, baseadas no capítulo e nas Escrituras citadas.',
   '- Vocabulário JW; cite fatos do relato (nomes, ações, lugares) quando couber.',
   '- Para comparações (ex.: Sara e a esposa de Ló): estruture a resposta com paralelos claros.',
@@ -253,6 +255,7 @@ export const JW_WCG_CONDUCTOR_RULES = [
   'Roteiro para o condutor conduzir os ~30 min do EBC neste capítulo:',
   '1) **Narrativa** — o que destacar na leitura das duas primeiras páginas.',
   '2) **Relato na Bíblia** — quais textos principais ler (não precisa ler todos os versículos); ligue a "Para considerar".',
+  '   Preencha também **bibleReadingPlan** com os 2 a 4 trechos que o condutor vai ler na reunião (ex.: Gên. 32:6-12; 33:1-4).',
   '3) **Tempo** — como dividir o tempo para caber as perguntas da segunda metade.',
   '4) **Perguntas** — breve orientação para Análise mais a fundo, Medite e Pense no quadro completo.',
   '5) **Imagens** — sugira comentários para cada ilustração mencionada no capítulo.',
@@ -528,6 +531,15 @@ export function buildAiSystemPrompt(context: AiChatContext): string {
     sections.push('', '## Esboço original (fonte oficial — .jwpub)', context.documentText);
   } else if (context.documentText) {
     sections.push('', '## Texto da matéria aberta (fonte primária)', context.documentText.slice(0, 8000));
+  }
+
+  if (context.importedContextText?.trim()) {
+    sections.push(
+      '',
+      '## Contexto importado pelo usuário (programa, perguntas ou material da parte extra)',
+      'Isto NÃO é tradução bíblica. Use só como pauta da parte. Citações da Bíblia: somente Tradução do Novo Mundo.',
+      context.importedContextText.slice(0, 12000),
+    );
   }
 
   if (outlineMode && context.preparedOutlineText) {

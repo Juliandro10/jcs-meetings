@@ -19,8 +19,12 @@ export function normalizeWcgBlockId(blockId: string) {
 }
 
 export function normalizeWcgQuestionNoteId(noteId: string) {
-  const match = String(noteId).match(/wcg-q-(\d+)/i);
-  return match ? `wcg-q-${match[1]}` : String(noteId).trim();
+  const raw = String(noteId ?? '').trim();
+  const named = raw.match(/wcg-q-(\d+)/i);
+  if (named) return `wcg-q-${named[1]}`;
+  const pid = raw.match(/^p?(\d+)$/i);
+  if (pid) return `wcg-q-${pid[1]}`;
+  return raw;
 }
 
 function narrativeBlockIds(structure: WcgChapterStructure) {
@@ -115,7 +119,10 @@ export function buildWcgQuestionNotes(
 
   const notes: Array<ReturnType<typeof buildWcgQuestionNote>> = [];
   for (const question of questions) {
-    const body = byId.get(question.id);
+    const body =
+      byId.get(question.id) ||
+      byId.get(`wcg-q-${question.blockId}`) ||
+      byId.get(question.blockId);
     if (!body) continue;
     notes.push(
       buildWcgQuestionNote({

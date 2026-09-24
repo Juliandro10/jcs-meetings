@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -40,7 +41,7 @@ export type PreparedElderOutline = {
   updatedAt: string;
 };
 
-import type { FieldServiceSuggestionsBundle } from './types';
+import type { ExtraMeetingPart, ExtraMeetingPartListItem, FieldServiceSuggestionsBundle } from './types';
 
 export type UserPrepData = {
   fields: Record<string, PrepField>;
@@ -51,6 +52,7 @@ export type UserPrepData = {
   fieldServiceSuggestions?: Record<string, FieldServiceSuggestionsBundle>;
   elderOutlineNotes?: Record<string, PrepField>;
   preparedElderOutlines?: Record<string, PreparedElderOutline>;
+  extraMeetingParts?: Record<string, ExtraMeetingPart>;
 };
 
 const EMPTY: UserPrepData = {
@@ -62,7 +64,25 @@ const EMPTY: UserPrepData = {
   fieldServiceSuggestions: {},
   elderOutlineNotes: {},
   preparedElderOutlines: {},
+  extraMeetingParts: {},
 };
+
+const prepWriteQueues = new Map<string, Promise<unknown>>();
+
+export async function updatePrepData<T>(
+  userDataDir: string,
+  mutator: (data: UserPrepData) => T | Promise<T>,
+): Promise<T> {
+  const previous = prepWriteQueues.get(userDataDir) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(async () => {
+    const data = await loadPrepData(userDataDir);
+    const result = await mutator(data);
+    await savePrepData(userDataDir, data);
+    return result;
+  });
+  prepWriteQueues.set(userDataDir, next);
+  return next;
+}
 
 function prepFilePath(userDataDir: string) {
   return path.join(userDataDir, 'prep-data.json');
@@ -81,6 +101,7 @@ export async function loadPrepData(userDataDir: string): Promise<UserPrepData> {
       fieldServiceSuggestions: parsed.fieldServiceSuggestions ?? {},
       elderOutlineNotes: parsed.elderOutlineNotes ?? {},
       preparedElderOutlines: parsed.preparedElderOutlines ?? {},
+      extraMeetingParts: parsed.extraMeetingParts ?? {},
     };
   } catch {
     return { ...EMPTY };
@@ -127,10 +148,10 @@ export async function setFieldValue(
   key: string,
   value: string,
 ): Promise<UserPrepData> {
-  const data = await loadPrepData(userDataDir);
-  data.fields[key] = { value, updatedAt: new Date().toISOString() };
-  await savePrepData(userDataDir, data);
-  return data;
+  return updatePrepData(userDataDir, (data) => {
+    data.fields[key] = { value, updatedAt: new Date().toISOString() };
+    return data;
+  });
 }
 
 export async function getFieldValues(
@@ -166,10 +187,10 @@ export async function saveHighlight(
   documentId: number,
   highlight: Omit<PrepHighlight, 'updatedAt'>,
 ): Promise<PrepHighlight[]> {
-  const data = await loadPrepData(userDataDir);
-  const key = highlightKey(pub, issue, documentId, highlight.id);
-  data.highlights[key] = { ...highlight, updatedAt: new Date().toISOString() };
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    const key = highlightKey(pub, issue, documentId, highlight.id);
+    data.highlights[key] = { ...highlight, updatedAt: new Date().toISOString() };
+  });
   return getHighlights(userDataDir, pub, issue, documentId);
 }
 
@@ -180,13 +201,13 @@ export async function saveHighlightsBatch(
   documentId: number,
   highlights: Omit<PrepHighlight, 'updatedAt'>[],
 ): Promise<PrepHighlight[]> {
-  const data = await loadPrepData(userDataDir);
-  const now = new Date().toISOString();
-  for (const highlight of highlights) {
-    const key = highlightKey(pub, issue, documentId, highlight.id);
-    data.highlights[key] = { ...highlight, updatedAt: now };
-  }
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    const now = new Date().toISOString();
+    for (const highlight of highlights) {
+      const key = highlightKey(pub, issue, documentId, highlight.id);
+      data.highlights[key] = { ...highlight, updatedAt: now };
+    }
+  });
   return getHighlights(userDataDir, pub, issue, documentId);
 }
 
@@ -197,14 +218,14 @@ export async function replaceDocumentHighlights(
   documentId: number,
   highlights: Omit<PrepHighlight, 'updatedAt'>[],
 ): Promise<PrepHighlight[]> {
-  const data = await loadPrepData(userDataDir);
-  purgeKeys(data.highlights, highlightPrefix(pub, issue, documentId));
-  const now = new Date().toISOString();
-  for (const highlight of highlights) {
-    const key = highlightKey(pub, issue, documentId, highlight.id);
-    data.highlights[key] = { ...highlight, updatedAt: now };
-  }
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    purgeKeys(data.highlights, highlightPrefix(pub, issue, documentId));
+    const now = new Date().toISOString();
+    for (const highlight of highlights) {
+      const key = highlightKey(pub, issue, documentId, highlight.id);
+      data.highlights[key] = { ...highlight, updatedAt: now };
+    }
+  });
   return getHighlights(userDataDir, pub, issue, documentId);
 }
 
@@ -215,9 +236,9 @@ export async function removeHighlight(
   documentId: number,
   highlightId: string,
 ): Promise<PrepHighlight[]> {
-  const data = await loadPrepData(userDataDir);
-  delete data.highlights[highlightKey(pub, issue, documentId, highlightId)];
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    delete data.highlights[highlightKey(pub, issue, documentId, highlightId)];
+  });
   return getHighlights(userDataDir, pub, issue, documentId);
 }
 
@@ -242,13 +263,13 @@ export async function saveNote(
   documentId: number,
   note: Omit<PrepNote, 'updatedAt'>,
 ): Promise<PrepNote[]> {
-  const data = await loadPrepData(userDataDir);
-  data.notes[noteKey(pub, issue, documentId, note.id)] = {
-    ...note,
-    tags: note.tags ?? [],
-    updatedAt: new Date().toISOString(),
-  };
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    data.notes[noteKey(pub, issue, documentId, note.id)] = {
+      ...note,
+      tags: note.tags ?? [],
+      updatedAt: new Date().toISOString(),
+    };
+  });
   return getNotes(userDataDir, pub, issue, documentId);
 }
 
@@ -259,16 +280,16 @@ export async function saveNotesBatch(
   documentId: number,
   notes: Omit<PrepNote, 'updatedAt'>[],
 ): Promise<PrepNote[]> {
-  const data = await loadPrepData(userDataDir);
-  const now = new Date().toISOString();
-  for (const note of notes) {
-    data.notes[noteKey(pub, issue, documentId, note.id)] = {
-      ...note,
-      tags: note.tags ?? [],
-      updatedAt: now,
-    };
-  }
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    const now = new Date().toISOString();
+    for (const note of notes) {
+      data.notes[noteKey(pub, issue, documentId, note.id)] = {
+        ...note,
+        tags: note.tags ?? [],
+        updatedAt: now,
+      };
+    }
+  });
   return getNotes(userDataDir, pub, issue, documentId);
 }
 
@@ -280,24 +301,23 @@ export async function replaceTaggedNotes(
   tag: string,
   notes: Omit<PrepNote, 'updatedAt'>[],
 ): Promise<PrepNote[]> {
-  const data = await loadPrepData(userDataDir);
-  const prefix = notePrefix(pub, issue, documentId);
-  for (const key of Object.keys(data.notes)) {
-    if (key.startsWith(prefix) && data.notes[key].tags?.includes(tag)) {
-      delete data.notes[key];
+  await updatePrepData(userDataDir, (data) => {
+    const prefix = notePrefix(pub, issue, documentId);
+    for (const key of Object.keys(data.notes)) {
+      if (key.startsWith(prefix) && data.notes[key].tags?.includes(tag)) {
+        delete data.notes[key];
+      }
     }
-  }
 
-  const now = new Date().toISOString();
-  for (const note of notes) {
-    data.notes[noteKey(pub, issue, documentId, note.id)] = {
-      ...note,
-      tags: note.tags?.length ? note.tags : [tag],
-      updatedAt: now,
-    };
-  }
-
-  await savePrepData(userDataDir, data);
+    const now = new Date().toISOString();
+    for (const note of notes) {
+      data.notes[noteKey(pub, issue, documentId, note.id)] = {
+        ...note,
+        tags: note.tags?.length ? note.tags : [tag],
+        updatedAt: now,
+      };
+    }
+  });
   return getNotes(userDataDir, pub, issue, documentId);
 }
 
@@ -308,9 +328,9 @@ export async function removeNote(
   documentId: number,
   noteId: string,
 ): Promise<PrepNote[]> {
-  const data = await loadPrepData(userDataDir);
-  delete data.notes[noteKey(pub, issue, documentId, noteId)];
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    delete data.notes[noteKey(pub, issue, documentId, noteId)];
+  });
   return getNotes(userDataDir, pub, issue, documentId);
 }
 
@@ -337,13 +357,13 @@ export async function setElderOutlineNote(
   documentId: number,
   value: string,
 ): Promise<void> {
-  const data = await loadPrepData(userDataDir);
-  if (!data.elderOutlineNotes) data.elderOutlineNotes = {};
-  data.elderOutlineNotes[elderOutlineNoteKey(pub, documentId)] = {
-    value,
-    updatedAt: new Date().toISOString(),
-  };
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    if (!data.elderOutlineNotes) data.elderOutlineNotes = {};
+    data.elderOutlineNotes[elderOutlineNoteKey(pub, documentId)] = {
+      value,
+      updatedAt: new Date().toISOString(),
+    };
+  });
 }
 
 function newPreparedOutlineId() {
@@ -394,36 +414,36 @@ export async function savePreparedElderOutline(
     value: string;
   },
 ): Promise<PreparedElderOutline> {
-  const data = await loadPrepData(userDataDir);
-  if (!data.preparedElderOutlines) data.preparedElderOutlines = {};
+  return updatePrepData(userDataDir, (data) => {
+    if (!data.preparedElderOutlines) data.preparedElderOutlines = {};
 
-  const now = new Date().toISOString();
-  const id = params.id ?? newPreparedOutlineId();
-  const existing = data.preparedElderOutlines[id];
+    const now = new Date().toISOString();
+    const id = params.id ?? newPreparedOutlineId();
+    const existing = data.preparedElderOutlines[id];
 
-  const entry: PreparedElderOutline = {
-    id,
-    name: params.name.trim(),
-    pub: params.pub.toLowerCase(),
-    documentId: params.documentId,
-    sourceTitle: params.sourceTitle,
-    sourcePubLabel: params.sourcePubLabel,
-    value: params.value,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-  };
+    const entry: PreparedElderOutline = {
+      id,
+      name: params.name.trim(),
+      pub: params.pub.toLowerCase(),
+      documentId: params.documentId,
+      sourceTitle: params.sourceTitle,
+      sourcePubLabel: params.sourcePubLabel,
+      value: params.value,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
 
-  data.preparedElderOutlines[id] = entry;
-  await savePrepData(userDataDir, data);
-  return entry;
+    data.preparedElderOutlines[id] = entry;
+    return entry;
+  });
 }
 
 export async function deletePreparedElderOutline(userDataDir: string, id: string): Promise<boolean> {
-  const data = await loadPrepData(userDataDir);
-  if (!data.preparedElderOutlines?.[id]) return false;
-  delete data.preparedElderOutlines[id];
-  await savePrepData(userDataDir, data);
-  return true;
+  return updatePrepData(userDataDir, (data) => {
+    if (!data.preparedElderOutlines?.[id]) return false;
+    delete data.preparedElderOutlines[id];
+    return true;
+  });
 }
 
 export async function getPublicTalkNote(
@@ -439,10 +459,10 @@ export async function setPublicTalkNote(
   weekId: string,
   value: string,
 ): Promise<void> {
-  const data = await loadPrepData(userDataDir);
-  if (!data.publicTalkNotes) data.publicTalkNotes = {};
-  data.publicTalkNotes[weekId] = { value, updatedAt: new Date().toISOString() };
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    if (!data.publicTalkNotes) data.publicTalkNotes = {};
+    data.publicTalkNotes[weekId] = { value, updatedAt: new Date().toISOString() };
+  });
 }
 
 export async function getFieldServiceNote(userDataDir: string, weekId: string): Promise<string> {
@@ -455,10 +475,10 @@ export async function setFieldServiceNote(
   weekId: string,
   value: string,
 ): Promise<void> {
-  const data = await loadPrepData(userDataDir);
-  if (!data.fieldServiceNotes) data.fieldServiceNotes = {};
-  data.fieldServiceNotes[weekId] = { value, updatedAt: new Date().toISOString() };
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    if (!data.fieldServiceNotes) data.fieldServiceNotes = {};
+    data.fieldServiceNotes[weekId] = { value, updatedAt: new Date().toISOString() };
+  });
 }
 
 export async function getFieldServiceSuggestions(
@@ -474,10 +494,10 @@ export async function setFieldServiceSuggestions(
   weekId: string,
   bundle: FieldServiceSuggestionsBundle,
 ): Promise<void> {
-  const data = await loadPrepData(userDataDir);
-  if (!data.fieldServiceSuggestions) data.fieldServiceSuggestions = {};
-  data.fieldServiceSuggestions[weekId] = bundle;
-  await savePrepData(userDataDir, data);
+  await updatePrepData(userDataDir, (data) => {
+    if (!data.fieldServiceSuggestions) data.fieldServiceSuggestions = {};
+    data.fieldServiceSuggestions[weekId] = bundle;
+  });
 }
 
 export async function clearDocumentPrep(
@@ -486,19 +506,94 @@ export async function clearDocumentPrep(
   issue: string,
   documentId: number,
 ): Promise<{ fields: number; highlights: number; notes: number }> {
-  const data = await loadPrepData(userDataDir);
-  const prefix = documentPrepPrefix(pub, issue, documentId);
+  return updatePrepData(userDataDir, (data) => {
+    const prefix = documentPrepPrefix(pub, issue, documentId);
+    const counts = {
+      fields: Object.keys(data.fields).filter((key) => key.startsWith(prefix)).length,
+      highlights: Object.keys(data.highlights).filter((key) => key.startsWith(prefix)).length,
+      notes: Object.keys(data.notes).filter((key) => key.startsWith(prefix)).length,
+    };
+    purgeKeys(data.fields, prefix);
+    purgeKeys(data.highlights, prefix);
+    purgeKeys(data.notes, prefix);
+    return counts;
+  });
+}
 
-  const counts = {
-    fields: Object.keys(data.fields).filter((key) => key.startsWith(prefix)).length,
-    highlights: Object.keys(data.highlights).filter((key) => key.startsWith(prefix)).length,
-    notes: Object.keys(data.notes).filter((key) => key.startsWith(prefix)).length,
+function toExtraPartListItem(part: ExtraMeetingPart): ExtraMeetingPartListItem {
+  const { body: _body, contextItems, ...rest } = part;
+  return {
+    ...rest,
+    hasBody: Boolean(part.body?.trim()),
+    contextCount: contextItems?.length ?? 0,
   };
+}
 
-  purgeKeys(data.fields, prefix);
-  purgeKeys(data.highlights, prefix);
-  purgeKeys(data.notes, prefix);
+export async function listExtraMeetingParts(
+  userDataDir: string,
+  weekId: string,
+): Promise<ExtraMeetingPartListItem[]> {
+  const data = await loadPrepData(userDataDir);
+  return Object.values(data.extraMeetingParts ?? {})
+    .filter((part) => part.weekId === weekId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map(toExtraPartListItem);
+}
 
-  await savePrepData(userDataDir, data);
-  return counts;
+export async function getExtraMeetingPart(
+  userDataDir: string,
+  id: string,
+): Promise<ExtraMeetingPart | null> {
+  const data = await loadPrepData(userDataDir);
+  return data.extraMeetingParts?.[id] ?? null;
+}
+
+export async function createExtraMeetingPart(
+  userDataDir: string,
+  weekId: string,
+  title: string,
+): Promise<ExtraMeetingPart> {
+  const now = new Date().toISOString();
+  const part: ExtraMeetingPart = {
+    id: randomUUID(),
+    weekId,
+    title: title.trim() || 'Parte extra',
+    body: '',
+    contextItems: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+  await updatePrepData(userDataDir, (data) => {
+    if (!data.extraMeetingParts) data.extraMeetingParts = {};
+    data.extraMeetingParts[part.id] = part;
+  });
+  return part;
+}
+
+export async function saveExtraMeetingPart(
+  userDataDir: string,
+  patch: Pick<ExtraMeetingPart, 'id'> & Partial<Pick<ExtraMeetingPart, 'title' | 'body' | 'contextItems'>>,
+): Promise<ExtraMeetingPart | null> {
+  return updatePrepData(userDataDir, (data) => {
+    const current = data.extraMeetingParts?.[patch.id];
+    if (!current) return null;
+    const next: ExtraMeetingPart = {
+      ...current,
+      title: patch.title !== undefined ? patch.title.trim() || current.title : current.title,
+      body: patch.body !== undefined ? patch.body : current.body,
+      contextItems: patch.contextItems !== undefined ? patch.contextItems : current.contextItems,
+      updatedAt: new Date().toISOString(),
+    };
+    data.extraMeetingParts = data.extraMeetingParts ?? {};
+    data.extraMeetingParts[next.id] = next;
+    return next;
+  });
+}
+
+export async function deleteExtraMeetingPart(userDataDir: string, id: string): Promise<boolean> {
+  return updatePrepData(userDataDir, (data) => {
+    if (!data.extraMeetingParts?.[id]) return false;
+    delete data.extraMeetingParts[id];
+    return true;
+  });
 }

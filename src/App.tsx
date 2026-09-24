@@ -14,7 +14,9 @@ import { LibraryPage } from '@/pages/LibraryPage';
 import { MeetingsPage, type ReaderOpenTarget } from '@/pages/MeetingsPage';
 import { PersonalStudyPage } from '@/pages/PersonalStudyPage';
 import { PreachingPage } from '@/pages/PreachingPage';
+import { ExtraMeetingPartPage } from '@/pages/ExtraMeetingPartPage';
 import { ChairmanPrepPage } from '@/pages/ChairmanPrepPage';
+import { PublicTalkNotesPage } from '@/pages/PublicTalkNotesPage';
 import { ReaderPage } from '@/pages/ReaderPage';
 import { JwBrowserPage } from '@/pages/JwBrowserPage';
 import { hasBibleSession } from '@/lib/bible-session';
@@ -36,6 +38,7 @@ export default function App() {
   const [section, setSection] = useState<AppSection>('home');
   const [reader, setReader] = useState<ReaderOpenTarget | null>(null);
   const [publicTalkWeek, setPublicTalkWeek] = useState<MeetingWeek | null>(null);
+  const [extraPartTarget, setExtraPartTarget] = useState<{ week: MeetingWeek; partId: string } | null>(null);
   const [chairmanPrepWeek, setChairmanPrepWeek] = useState<MeetingWeek | null>(null);
   const [weeks, setWeeks] = useState<MeetingWeek[]>([]);
   const [weekIndex, setWeekIndex] = useState(0);
@@ -68,6 +71,7 @@ export default function App() {
 
   const handleOpenSearchResult = useCallback((target: TeachingKitReaderTarget) => {
     setPublicTalkWeek(null);
+    setExtraPartTarget(null);
     setReader(null);
     setResearchReader(target);
     setSearchOpen(false);
@@ -293,6 +297,18 @@ export default function App() {
     );
   }
 
+  if (extraPartTarget) {
+    return wrapWithSelectionTools(
+      <AppShell section="meetings" onSectionChange={setSection} onSearchClick={() => openSearch()}>
+        <ExtraMeetingPartPage
+          week={extraPartTarget.week}
+          partId={extraPartTarget.partId}
+          onBack={() => setExtraPartTarget(null)}
+        />
+      </AppShell>,
+    );
+  }
+
   if (researchReader) {
     return wrapWithSelectionTools(
       <TeachingKitPublicationReaderPage target={researchReader} onBack={() => setResearchReader(null)} />,
@@ -350,6 +366,7 @@ export default function App() {
             onDownloadPub={downloadPub}
             onOpenReader={setReader}
             onOpenPublicTalkNotes={setPublicTalkWeek}
+            onOpenExtraMeetingPart={(week, partId) => setExtraPartTarget({ week, partId })}
             onOpenChairmanPrep={setChairmanPrepWeek}
             showElderChairmanTools={showElder}
             loadingWeeks={loadingWeeks}

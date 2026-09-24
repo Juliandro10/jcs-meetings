@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { MeetingWeek } from '@/lib/meeting-types';
 import { MEETING_PUBLICATIONS } from '@/lib/types';
 import { DownloadProgressBar, getDownloadPercent } from '@/components/DownloadProgressBar';
 import { IconChevronLeft, IconChevronRight, IconCloudDownload, IconMore, IconOutlinePodium } from '@/components/Icons';
+import { AddExtraMeetingPartDialog } from '@/components/AddExtraMeetingPartDialog';
 import { AiToolsMenu } from '@/components/AiToolsMenu';
+import type { ExtraMeetingPartListItem } from '../../electron/types';
+import { CbsStudyExportDialog } from '@/components/CbsStudyExportDialog';
 import { PreparedPartsExportDialog } from '@/components/PreparedPartsExportDialog';
-import { isDiscourseScriptNote } from '../../shared/discourse-script';
+import { useWeekTabletExport } from '@/lib/use-week-tablet-export';
 
 export type ReaderOpenTarget = {
   pub: 'mwb' | 'w';
@@ -20,6 +23,7 @@ type MeetingsPageProps = {
   onWeekIndexChange: (index: number) => void;
   onOpenReader: (target: ReaderOpenTarget) => void;
   onOpenPublicTalkNotes: (week: MeetingWeek) => void;
+  onOpenExtraMeetingPart: (week: MeetingWeek, partId: string) => void;
   onOpenChairmanPrep?: (week: MeetingWeek) => void;
   showElderChairmanTools?: boolean;
   onDownloadMeetingPubs: () => Promise<void>;
@@ -38,6 +42,7 @@ export function MeetingsPage({
   onWeekIndexChange,
   onOpenReader,
   onOpenPublicTalkNotes,
+  onOpenExtraMeetingPart,
   onOpenChairmanPrep,
   showElderChairmanTools,
   onDownloadMeetingPubs,
@@ -50,64 +55,118 @@ export function MeetingsPage({
   loadError,
 }: MeetingsPageProps) {
   const [aiOpen, setAiOpen] = useState(false);
-  const [exportingRead, setExportingRead] = useState(false);
-  const [exportReadMessage, setExportReadMessage] = useState<string | null>(null);
-  const [preparedExportOpen, setPreparedExportOpen] = useState(false);
-  const [preparedExportNotes, setPreparedExportNotes] = useState<
-    Awaited<ReturnType<NonNullable<typeof window.jcs>['getNotes']>>
-  >([]);
+  const [meetingPrepping, setMeetingPrepping] = useState(false);
+  const [meetingPrepMessage, setMeetingPrepMessage] = useState<string | null>(null);
+  const [extraParts, setExtraParts] = useState<ExtraMeetingPartListItem[]>([]);
+  const [addExtraOpen, setAddExtraOpen] = useState(false);
+  const [creatingExtra, setCreatingExtra] = useState(false);
 
   const week = weeks[weekIndex];
   const weekLabel = week ? `${week.label}${week.isCurrentWeek ? ' · Esta semana' : ''}` : '—';
   const initialLoading = loadingWeeks && weeks.length === 0;
+  const tablet = useWeekTabletExport(week ?? null);
 
-  const runTabletExport = (preparedPartNoteIds?: string[]) => {
-    if (!window.jcs?.exportReadWeek || !week) return;
-    setExportReadMessage(null);
-    setExportingRead(true);
-    void window.jcs
-      .exportReadWeek(week, { preparedPartNoteIds })
-      .then((result) => {
-        if (result.ok) {
-          const warning = result.warnings?.length ? ` ${result.warnings.join(' ')}` : '';
-          setExportReadMessage(
-            `Exportado (${result.documentCount ?? 0} documento(s)). Envie jcs-read.zip ao tablet.${warning}`,
-          );
-        } else {
-          setExportReadMessage(result.error ?? 'Não foi possível exportar.');
-        }
-      })
-      .catch((err) => {
-        setExportReadMessage(err instanceof Error ? err.message : 'Erro ao exportar.');
-      })
-      .finally(() => {
-        setExportingRead(false);
-        setPreparedExportOpen(false);
+  const loadExtraParts = useCallback(async (weekId: string) => {
+    if (!window.jcs?.listExtraMeetingParts) {
+      setExtraParts([]);
+      return;
+    }
+    const result = await window.jcs.listExtraMeetingParts(weekId);
+    setExtraParts(result.ok ? result.items ?? [] : []);
+  }, []);
+
+  useEffect(() => {
+    if (!week?.id) {
+      setExtraParts([]);
+      return;
+    }
+    void loadExtraParts(week.id);
+  }, [loadExtraParts, week?.id]);
+
+  const handleAiSelect = async (mode: 'auto' | 'summary' | 'talk' | 'chairman' | 'conductor') => {
+    if (!week) return;
+    setAiOpen(false);
+
+    if (mode === 'talk') {
+      onOpenPublicTalkNotes(week);
+      return;
+    }
+    if (mode === 'chairman') {
+      onOpenChairmanPrep?.(week);
+      return;
+    }
+    if (mode === 'conductor' && week.wDocumentId) {
+      onOpenReader({
+        pub: 'w',
+        documentId: week.wDocumentId,
+        issue: week.wIssue,
+        title: week.watchtowerTitle,
       });
-  };
+      return;
+    }
+    if (mode === 'summary' && week.mwbDocumentId) {
+      onOpenReader({
+        pub: 'mwb',
+        documentId: week.mwbDocumentId,
+        issue: week.mwbIssue,
+        title: week.label,
+      });
+      return;
+    }
+    if (mode !== 'auto') return;
 
-  const handleExportForTablet = async () => {
-    if (!window.jcs?.exportReadWeek || !week) return;
-
-    if (week.mwbDownloaded && week.mwbDocumentId && week.mwbIssue && window.jcs.getNotes) {
-      try {
-        const notes = await window.jcs.getNotes({
-          pub: 'mwb',
-          issue: week.mwbIssue,
-          documentId: week.mwbDocumentId,
-        });
-        const prepared = notes.filter((note) => isDiscourseScriptNote(note));
-        if (prepared.length > 0) {
-          setPreparedExportNotes(notes);
-          setPreparedExportOpen(true);
-          return;
-        }
-      } catch {
-        /* exporta semana inteira */
-      }
+    if (!window.jcs?.autoPrep) {
+      setMeetingPrepMessage('Preparação automática disponível apenas no app.');
+      return;
+    }
+    if (!week.mwbDownloaded || !week.mwbDocumentId || !week.mwbIssue) {
+      setMeetingPrepMessage('Baixe a apostila da semana antes de preparar a reunião.');
+      return;
     }
 
-    runTabletExport();
+    setMeetingPrepping(true);
+    setMeetingPrepMessage('Preparando a reunião…');
+    try {
+      const mwb = await window.jcs.autoPrep({
+        pub: 'mwb',
+        issue: week.mwbIssue,
+        documentId: week.mwbDocumentId,
+        weekLabel: week.label,
+        bibleReading: week.bibleReading,
+        publicationTitle: week.mwbPubLabel ?? week.label,
+      });
+      if (!mwb.ok) {
+        setMeetingPrepMessage(mwb.error ?? 'Não foi possível preparar a apostila.');
+        return;
+      }
+
+      let watchtowerNote = '';
+      if (week.wDownloaded && week.wDocumentId && week.wIssue) {
+        const wt = await window.jcs.autoPrep({
+          pub: 'w',
+          issue: week.wIssue,
+          documentId: week.wDocumentId,
+          weekLabel: week.label,
+          bibleReading: week.bibleReading,
+          publicationTitle: week.watchtowerTitle,
+        });
+        if (!wt.ok) {
+          setMeetingPrepMessage(
+            `Apostila preparada, mas a Sentinela falhou: ${wt.error ?? 'erro desconhecido'}.`,
+          );
+          return;
+        }
+        watchtowerNote = ` · Sentinela: ${wt.notes?.length ?? 0} nota(s), ${wt.fields?.length ?? 0} campo(s)`;
+      }
+
+      setMeetingPrepMessage(
+        `Reunião preparada. Apostila: ${mwb.notes?.length ?? 0} nota(s), ${mwb.highlights?.length ?? 0} grifo(s)${watchtowerNote}.`,
+      );
+    } catch (err) {
+      setMeetingPrepMessage(err instanceof Error ? err.message : 'Não foi possível preparar a reunião.');
+    } finally {
+      setMeetingPrepping(false);
+    }
   };
 
   if (initialLoading) {
@@ -182,24 +241,38 @@ export function MeetingsPage({
       <div className="mb-8 flex flex-col items-center gap-2">
         <button
           type="button"
-          disabled={exportingRead || !window.jcs?.exportReadWeek}
-          onClick={() => void handleExportForTablet()}
+          disabled={tablet.exporting || !window.jcs?.exportReadWeek}
+          onClick={() => void tablet.startExport()}
           className="inline-flex items-center gap-2 rounded-full border border-jw-border bg-white px-5 py-2 text-sm font-medium text-jw-text shadow-sm hover:border-jw-purple/40 hover:text-jw-purple disabled:opacity-50"
         >
-          {exportingRead ? 'Exportando…' : 'Exportar para tablet (JCS Read)'}
+          {tablet.exporting ? 'Exportando…' : 'Exportar para tablet (JCS Read)'}
         </button>
-        {exportReadMessage ? (
-          <p className="max-w-md text-center text-xs text-jw-muted">{exportReadMessage}</p>
+        {tablet.message ? (
+          <p className="max-w-md text-center text-xs text-jw-muted">{tablet.message}</p>
+        ) : null}
+        {meetingPrepMessage ? (
+          <p className="max-w-md text-center text-xs text-jw-purple">{meetingPrepMessage}</p>
         ) : null}
       </div>
 
-      <PreparedPartsExportDialog
-        open={preparedExportOpen}
+      <CbsStudyExportDialog
+        open={tablet.cbsExportOpen}
         weekLabel={week.label}
-        notes={preparedExportNotes}
-        exporting={exportingRead}
-        onCancel={() => setPreparedExportOpen(false)}
-        onConfirm={(noteIds) => runTabletExport(noteIds)}
+        chapterTitle={tablet.cbsReview?.title}
+        groups={tablet.cbsReview?.groups ?? []}
+        exporting={tablet.savingReview || tablet.exporting}
+        error={tablet.message}
+        onCancel={() => tablet.setCbsExportOpen(false)}
+        onConfirm={(questions) => void tablet.handleCbsConfirm(questions)}
+      />
+
+      <PreparedPartsExportDialog
+        open={tablet.preparedExportOpen}
+        weekLabel={week.label}
+        notes={tablet.preparedExportNotes}
+        exporting={tablet.exporting}
+        onCancel={() => tablet.setPreparedExportOpen(false)}
+        onConfirm={(noteIds) => tablet.confirmPreparedParts(noteIds)}
       />
 
       <MeetingSection title="Vida e Ministério">
@@ -263,6 +336,49 @@ export function MeetingsPage({
         )}
       </MeetingSection>
 
+      <MeetingSection title="Partes extras">
+        {extraParts.map((part) => (
+          <ExtraPartRow
+            key={part.id}
+            title={part.title}
+            secondary={
+              part.contextCount > 0
+                ? `${part.contextCount} contexto(s)${part.hasBody ? ' · com texto' : ''}`
+                : part.hasBody
+                  ? 'Com texto'
+                  : 'Sem texto ainda'
+            }
+            onOpen={() => onOpenExtraMeetingPart(week, part.id)}
+            onDelete={() => {
+              if (!window.jcs?.deleteExtraMeetingPart) return;
+              if (!window.confirm(`Excluir a parte extra “${part.title}”?`)) return;
+              void window.jcs.deleteExtraMeetingPart(part.id).then((result) => {
+                if (!result.ok) {
+                  setMeetingPrepMessage(result.error ?? 'Não foi possível excluir a parte extra.');
+                  return;
+                }
+                void loadExtraParts(week.id);
+              });
+            }}
+          />
+        ))}
+        <button
+          type="button"
+          onClick={() => setAddExtraOpen(true)}
+          className="mt-1 flex w-full items-center gap-4 rounded-lg px-1 py-2 text-left text-jw-purple hover:bg-jw-surface"
+        >
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded border border-dashed border-jw-purple/40 text-xl font-semibold">
+            +
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Adicionar parte extra</p>
+            <p className="text-xs text-jw-muted">
+              Recapitulação do congresso, anúncio ou outra parte fora do programa
+            </p>
+          </div>
+        </button>
+      </MeetingSection>
+
       <MeetingSection title="Outras publicações usadas nas reuniões">
         <PublicationRow
           title="Apostila da Reunião Vida e Ministério Cristão"
@@ -293,7 +409,38 @@ export function MeetingsPage({
         ))}
       </MeetingSection>
 
-      <AiToolsMenu open={aiOpen} onClose={() => setAiOpen(false)} week={week} />
+      <AiToolsMenu
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        week={week}
+        busy={meetingPrepping}
+        onSelect={(mode) => void handleAiSelect(mode)}
+      />
+
+      <AddExtraMeetingPartDialog
+        open={addExtraOpen}
+        weekLabel={week.label}
+        creating={creatingExtra}
+        onCancel={() => setAddExtraOpen(false)}
+        onConfirm={(title) => {
+          if (!window.jcs?.createExtraMeetingPart) {
+            setMeetingPrepMessage('Partes extras disponíveis apenas no app.');
+            return;
+          }
+          setCreatingExtra(true);
+          void window.jcs
+            .createExtraMeetingPart({ weekId: week.id, title })
+            .then((result) => {
+              if (!result.ok || !result.item) {
+                setMeetingPrepMessage(result.error ?? 'Não foi possível criar a parte extra.');
+                return;
+              }
+              setAddExtraOpen(false);
+              onOpenExtraMeetingPart(week, result.item.id);
+            })
+            .finally(() => setCreatingExtra(false));
+        }}
+      />
     </div>
   );
 }
@@ -330,6 +477,40 @@ function MeetingSection({ title, children }: { title: string; children: React.Re
       </h2>
       {children}
     </section>
+  );
+}
+
+function ExtraPartRow({
+  title,
+  secondary,
+  onOpen,
+  onDelete,
+}: {
+  title: string;
+  secondary?: string;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex w-full items-center gap-2 rounded-lg px-1 py-2 hover:bg-jw-surface">
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-4 text-left">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded bg-jw-purple/10 text-xs font-bold text-jw-purple">
+          EX
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-jw-text">{title}</p>
+          {secondary ? <p className="mt-0.5 text-xs text-jw-muted">{secondary}</p> : null}
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="shrink-0 rounded px-2 py-1 text-xs text-jw-muted hover:text-red-600"
+        aria-label={`Excluir ${title}`}
+      >
+        Excluir
+      </button>
+    </div>
   );
 }
 

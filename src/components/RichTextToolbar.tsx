@@ -14,6 +14,7 @@ type RichTextToolbarProps = {
   onFontFamily: (family: RichFontFamily) => void;
   onFontSize: (size: RichFontSize) => void;
   onClearFormat: () => void;
+  onInsertImage?: () => void;
   autoCorrectMode?: AutoCorrectMode;
   onAutoCorrectModeChange?: (mode: AutoCorrectMode) => void;
 };
@@ -36,6 +37,7 @@ export function RichTextToolbar({
   onFontFamily,
   onFontSize,
   onClearFormat,
+  onInsertImage,
   autoCorrectMode,
   onAutoCorrectModeChange,
 }: RichTextToolbarProps) {
@@ -116,6 +118,11 @@ export function RichTextToolbar({
       <ToolButton disabled={disabled} title="Limpar formatação" onClick={onClearFormat}>
         Limpar
       </ToolButton>
+      {onInsertImage ? (
+        <ToolButton disabled={disabled} title="Inserir imagem" onClick={onInsertImage}>
+          Imagem
+        </ToolButton>
+      ) : null}
       {onAutoCorrectModeChange ? (
         <>
           <Divider />

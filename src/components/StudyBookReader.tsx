@@ -14,6 +14,8 @@ type StudyBookReaderProps = {
   prepClearLabel?: string;
   prepping: boolean;
   clearingPrep?: boolean;
+  savingPrep?: boolean;
+  exportingTablet?: boolean;
   prepMessage: string | null;
   panelOpen: boolean;
   panelTab: SidePanelTab;
@@ -27,6 +29,8 @@ type StudyBookReaderProps = {
   onNextStory: () => void;
   onPrepareLessons: () => void;
   onClearPrep?: () => void;
+  onSavePrep?: () => void;
+  onExportTablet?: () => void;
   onPanelClose: () => void;
   onPanelOpen?: () => void;
   onPanelTabChange: (tab: SidePanelTab) => void;
@@ -52,6 +56,8 @@ export function StudyBookReader({
   prepClearLabel = 'Limpar preparação',
   prepping,
   clearingPrep = false,
+  savingPrep = false,
+  exportingTablet = false,
   prepMessage,
   panelOpen,
   panelTab,
@@ -65,6 +71,8 @@ export function StudyBookReader({
   onNextStory,
   onPrepareLessons,
   onClearPrep,
+  onSavePrep,
+  onExportTablet,
   onPanelClose,
   onPanelOpen,
   onPanelTabChange,
@@ -121,9 +129,27 @@ export function StudyBookReader({
               >
                 {clearingPrep ? 'Limpando…' : prepClearLabel}
               </ToolbarButton>
-              <ToolbarButton label={prepPrepareLabel} onClick={onPrepareLessons} disabled={prepping || clearingPrep}>
+              <ToolbarButton label={prepPrepareLabel} onClick={onPrepareLessons} disabled={prepping || clearingPrep || savingPrep || exportingTablet}>
                 {prepping ? 'Preparando…' : prepPrepareLabel}
               </ToolbarButton>
+              {onSavePrep ? (
+                <ToolbarButton
+                  label="Salvar preparação"
+                  onClick={onSavePrep}
+                  disabled={prepping || clearingPrep || savingPrep || exportingTablet}
+                >
+                  {savingPrep ? 'Salvando…' : 'Salvar'}
+                </ToolbarButton>
+              ) : null}
+              {onExportTablet ? (
+                <ToolbarButton
+                  label="Exportar semana para o tablet"
+                  onClick={onExportTablet}
+                  disabled={prepping || clearingPrep || savingPrep || exportingTablet}
+                >
+                  {exportingTablet ? 'Exportando…' : 'Exportar tablet'}
+                </ToolbarButton>
+              ) : null}
             </>
           ) : null}
           {!panelOpen ? (

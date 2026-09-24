@@ -19,6 +19,9 @@ import {
 } from '@/lib/highlight-dom';
 import { applyNoteAnchor, noteFromSelection, removeNoteAnchor, type DocumentNote } from '@/lib/note-dom';
 import { isLfbStudyFieldId } from '@/lib/lfb-study-fields';
+import { CbsStudyExportDialog } from '@/components/CbsStudyExportDialog';
+import { PreparedPartsExportDialog } from '@/components/PreparedPartsExportDialog';
+import { useWeekTabletExport } from '@/lib/use-week-tablet-export';
 import type { ResolveLinkResult, StudyBookStoryRef } from '../../electron/types';
 
 type StudyBookSession = {
@@ -94,6 +97,10 @@ export function ReaderPage({
   const [notes, setNotes] = useState<DocumentNote[]>([]);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const saveNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notesRef = useRef(notes);
+  const activeNoteIdRef = useRef(activeNoteId);
+  const [savingPrep, setSavingPrep] = useState(false);
+  const tablet = useWeekTabletExport(week);
 
   const title =
     target.pub === 'mwb'
@@ -128,6 +135,9 @@ export function ReaderPage({
     setLfbPrepMessage(null);
   }, [studyBookSession?.currentIndex, activeStory?.documentId]);
 
+  notesRef.current = notes;
+  activeNoteIdRef.current = activeNoteId;
+
   const prepTarget = useMemo(() => {
     if (studyBookSession && activeStory?.documentId) {
       return { pub: studyBookPub, issue: '', documentId: activeStory.documentId };
@@ -154,7 +164,50 @@ export function ReaderPage({
     [prepTarget],
   );
 
+  const flushPrepToDisk = useCallback(async () => {
+    if (!window.jcs?.saveNote) return false;
+    if (!isStudyBookPub(prepTarget.pub) && !prepTarget.issue) return false;
+    if (saveNoteTimerRef.current) {
+      clearTimeout(saveNoteTimerRef.current);
+      saveNoteTimerRef.current = null;
+    }
+
+    const active = notesRef.current.find((note) => note.id === activeNoteIdRef.current);
+    if (active) {
+      await window.jcs.saveNote({
+        pub: prepTarget.pub,
+        issue: prepTarget.issue,
+        documentId: prepTarget.documentId,
+        note: active,
+      });
+    }
+
+    const reader = studyBookSession ? studyReaderRef.current : readerRef.current;
+    await reader?.flushFields();
+    return true;
+  }, [prepTarget, studyBookSession]);
+
+  const handleSavePrep = useCallback(async () => {
+    setSavingPrep(true);
+    try {
+      const ok = await flushPrepToDisk();
+      const message = ok ? 'Preparação salva neste computador.' : 'Não foi possível salvar a preparação.';
+      if (studyBookSession) setLfbPrepMessage(message);
+      else setAutoPrepMessage(message);
+    } finally {
+      setSavingPrep(false);
+    }
+  }, [flushPrepToDisk, studyBookSession]);
+
   const openNote = useCallback((noteId: string) => {
+    if (noteId === 'wcg-bible-reading') {
+      const textarea = document.querySelector<HTMLTextAreaElement>('#wcg-bible-reading');
+      if (textarea) {
+        setNotes((current) =>
+          current.map((note) => (note.id === noteId ? { ...note, body: textarea.value } : note)),
+        );
+      }
+    }
     setActiveNoteId(noteId);
     setPanelOpen(true);
     setPanelTab('references');
@@ -202,9 +255,37 @@ export function ReaderPage({
           persistNote(updated);
           if (patch.body !== undefined && isLfbStudyFieldId(activeNoteId)) {
             const textarea = document.querySelector<HTMLTextAreaElement>(`#${activeNoteId}`);
-            if (textarea && textarea.value !== patch.body) {
+            if (
+              textarea &&
+              textarea.value !== patch.body &&
+              document.activeElement !== textarea
+            ) {
               textarea.value = patch.body;
-              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+              textarea.dispatchEvent(new Event('jcs-persist-now'));
+            }
+          }
+          if (patch.body !== undefined && activeNoteId === 'wcg-bible-reading') {
+            const textarea = document.querySelector<HTMLTextAreaElement>('#wcg-bible-reading');
+            if (
+              textarea &&
+              textarea.value !== patch.body &&
+              document.activeElement !== textarea
+            ) {
+              textarea.value = patch.body;
+              textarea.dispatchEvent(new Event('jcs-persist-now'));
+            }
+          }
+          if (patch.body !== undefined && updated.blockId) {
+            const wcgField = document.querySelector<HTMLTextAreaElement>(
+              `textarea[data-wcg-question-block="${updated.blockId}"]`,
+            );
+            if (
+              wcgField &&
+              wcgField.value !== patch.body &&
+              document.activeElement !== wcgField
+            ) {
+              wcgField.value = patch.body;
+              wcgField.dispatchEvent(new Event('jcs-persist-now'));
             }
           }
         }
@@ -232,17 +313,33 @@ export function ReaderPage({
   }, [activeNoteId, prepTarget]);
 
   useEffect(() => {
-    const syncSelection = () => setSelectedText(getSelectedTextFromReader());
+    const syncSelection = () => {
+      const active = document.activeElement;
+      if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) return;
+      setSelectedText(getSelectedTextFromReader());
+    };
     document.addEventListener('selectionchange', syncSelection);
     return () => document.removeEventListener('selectionchange', syncSelection);
   }, []);
 
-  useEffect(
-    () => () => {
-      if (saveNoteTimerRef.current) clearTimeout(saveNoteTimerRef.current);
-    },
-    [],
-  );
+  useEffect(() => {
+    const targetSnapshot = prepTarget;
+    return () => {
+      if (saveNoteTimerRef.current) {
+        clearTimeout(saveNoteTimerRef.current);
+        saveNoteTimerRef.current = null;
+      }
+      const active = notesRef.current.find((note) => note.id === activeNoteIdRef.current);
+      if (!active || !window.jcs?.saveNote) return;
+      if (!isStudyBookPub(targetSnapshot.pub) && !targetSnapshot.issue) return;
+      void window.jcs.saveNote({
+        pub: targetSnapshot.pub,
+        issue: targetSnapshot.issue,
+        documentId: targetSnapshot.documentId,
+        note: active,
+      });
+    };
+  }, [prepTarget]);
 
   const assistantContext = useMemo(
     () => ({
@@ -657,7 +754,7 @@ export function ReaderPage({
           prepClearLabel={studyBookPub === 'wcg' ? 'Limpar preparação' : 'Limpar preparação'}
           prepping={lfbPrepping}
           clearingPrep={clearingPrep}
-          prepMessage={lfbPrepMessage}
+          prepMessage={lfbPrepMessage ?? tablet.message}
           panelOpen={panelOpen}
           panelTab={panelTab}
           panelLoading={panelLoading}
@@ -681,6 +778,7 @@ export function ReaderPage({
             />
           }
           onBackToApostila={() => {
+            void flushPrepToDisk();
             setStudyBookSession(null);
             setPanelOpen(true);
             setPanelTab('references');
@@ -701,6 +799,10 @@ export function ReaderPage({
           }}
           onPrepareLessons={() => void handleStudyBookPrep()}
           onClearPrep={() => void handleStudyBookClearPrep()}
+          onSavePrep={() => void handleSavePrep()}
+          onExportTablet={week ? () => void flushPrepToDisk().then(() => tablet.startExport()) : undefined}
+          savingPrep={savingPrep}
+          exportingTablet={tablet.exporting || tablet.savingReview}
           onPanelClose={() => setPanelOpen(false)}
           onPanelOpen={() => setPanelOpen(true)}
           onPanelTabChange={setPanelTab}
@@ -731,6 +833,24 @@ export function ReaderPage({
             setDownloadModalOpen(false);
           }}
         />
+        <CbsStudyExportDialog
+          open={tablet.cbsExportOpen}
+          weekLabel={weekLabel}
+          chapterTitle={tablet.cbsReview?.title}
+          groups={tablet.cbsReview?.groups ?? []}
+          exporting={tablet.savingReview || tablet.exporting}
+          error={tablet.message}
+          onCancel={() => tablet.setCbsExportOpen(false)}
+          onConfirm={(questions) => void tablet.handleCbsConfirm(questions)}
+        />
+        <PreparedPartsExportDialog
+          open={tablet.preparedExportOpen}
+          weekLabel={weekLabel}
+          notes={tablet.preparedExportNotes}
+          exporting={tablet.exporting}
+          onCancel={() => tablet.setPreparedExportOpen(false)}
+          onConfirm={(noteIds) => tablet.confirmPreparedParts(noteIds)}
+        />
       </>
     );
   }
@@ -740,7 +860,10 @@ export function ReaderPage({
       <div className="flex items-center gap-3 border-b border-jw-border bg-jw-surface px-4 py-3">
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => {
+            void flushPrepToDisk();
+            onBack();
+          }}
           className="rounded-lg px-3 py-1.5 text-sm text-jw-purple hover:bg-jw-purple-light"
         >
           ← Reuniões
@@ -750,8 +873,8 @@ export function ReaderPage({
           <p className="truncate text-xs text-jw-muted">
             {weekLabel} · {target.title}
           </p>
-          {autoPrepMessage ? (
-            <p className="truncate text-xs text-jw-purple">{autoPrepMessage}</p>
+          {autoPrepMessage || tablet.message ? (
+            <p className="truncate text-xs text-jw-purple">{autoPrepMessage || tablet.message}</p>
           ) : null}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -778,14 +901,30 @@ export function ReaderPage({
           <ToolbarButton
             label="Limpar preparação desta matéria"
             onClick={() => void handleClearPrep()}
-            disabled={clearingPrep || autoPrepping || fullDiscoursePrepping}
+            disabled={clearingPrep || autoPrepping || fullDiscoursePrepping || savingPrep}
           >
             {clearingPrep ? 'Limpando…' : 'Limpar preparação'}
           </ToolbarButton>
           <ToolbarButton
+            label="Salvar preparação"
+            onClick={() => void handleSavePrep()}
+            disabled={clearingPrep || autoPrepping || fullDiscoursePrepping || savingPrep}
+          >
+            {savingPrep ? 'Salvando…' : 'Salvar'}
+          </ToolbarButton>
+          {week ? (
+            <ToolbarButton
+              label="Exportar semana para o tablet"
+              onClick={() => void flushPrepToDisk().then(() => tablet.startExport())}
+              disabled={clearingPrep || autoPrepping || fullDiscoursePrepping || savingPrep || tablet.exporting}
+            >
+              {tablet.exporting ? 'Exportando…' : 'Exportar tablet'}
+            </ToolbarButton>
+          ) : null}
+          <ToolbarButton
             label="Preparar automaticamente"
             onClick={() => void handleAutoPrep()}
-            disabled={autoPrepping || clearingPrep || fullDiscoursePrepping}
+            disabled={autoPrepping || clearingPrep || fullDiscoursePrepping || savingPrep}
           >
             {autoPrepping ? 'Preparando…' : 'Preparar automático'}
           </ToolbarButton>
@@ -904,6 +1043,24 @@ export function ReaderPage({
           pendingStudyBookOpenRef.current = false;
           setDownloadModalOpen(false);
         }}
+      />
+      <CbsStudyExportDialog
+        open={tablet.cbsExportOpen}
+        weekLabel={weekLabel}
+        chapterTitle={tablet.cbsReview?.title}
+        groups={tablet.cbsReview?.groups ?? []}
+        exporting={tablet.savingReview || tablet.exporting}
+        error={tablet.message}
+        onCancel={() => tablet.setCbsExportOpen(false)}
+        onConfirm={(questions) => void tablet.handleCbsConfirm(questions)}
+      />
+      <PreparedPartsExportDialog
+        open={tablet.preparedExportOpen}
+        weekLabel={weekLabel}
+        notes={tablet.preparedExportNotes}
+        exporting={tablet.exporting}
+        onCancel={() => tablet.setPreparedExportOpen(false)}
+        onConfirm={(noteIds) => tablet.confirmPreparedParts(noteIds)}
       />
     </div>
   );

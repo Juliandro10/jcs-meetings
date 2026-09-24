@@ -18,6 +18,7 @@ public final class DocumentUi {
             if ("chairman".equals(doc.id)) return "chairman";
             if ("public-talk".equals(doc.id)) return "public-talk";
             if (doc.id.startsWith("discourse-outline")) return "discourse-outline";
+            if (doc.id.startsWith("extra-part-")) return "extra-part";
             if (doc.id.startsWith("imported-doc")) return "imported-doc";
         }
         if (doc.file != null) {
@@ -33,7 +34,7 @@ public final class DocumentUi {
     }
 
     public static String sectionKeyForKind(String kind) {
-        if ("mwb".equals(kind) || "prepared-parts".equals(kind) || "prepared-part".equals(kind)) return "mwb";
+        if ("mwb".equals(kind) || "prepared-parts".equals(kind) || "prepared-part".equals(kind) || "extra-part".equals(kind)) return "mwb";
         if ("cbs".equals(kind)) return "cbs";
         if ("w".equals(kind)) return "w";
         if ("imported-doc".equals(kind)) return "imported";
@@ -41,7 +42,7 @@ public final class DocumentUi {
     }
 
     public static int thumbDrawableForKind(String kind) {
-        if ("mwb".equals(kind) || "prepared-parts".equals(kind) || "prepared-part".equals(kind)) {
+        if ("mwb".equals(kind) || "prepared-parts".equals(kind) || "prepared-part".equals(kind) || "extra-part".equals(kind)) {
             return R.drawable.thumb_placeholder_mwb;
         }
         if ("cbs".equals(kind)) {
@@ -79,9 +80,10 @@ public final class DocumentUi {
     public static int documentOrder(String kind) {
         if ("mwb".equals(kind)) return 0;
         if ("prepared-parts".equals(kind) || "prepared-part".equals(kind)) return 1;
-        if ("cbs".equals(kind)) return 2;
-        if ("w".equals(kind)) return 3;
-        return 4;
+        if ("extra-part".equals(kind)) return 2;
+        if ("cbs".equals(kind)) return 3;
+        if ("w".equals(kind)) return 4;
+        return 5;
     }
 
     public static String displayTitle(Context context, JcsStorage.DocumentEntry doc, String weekLabel) {

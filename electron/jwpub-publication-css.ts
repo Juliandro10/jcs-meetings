@@ -221,6 +221,36 @@ export const JW_PUB_FIGURE_FALLBACK_CSS = `
 }
 `.trim();
 
+/** Galerias do wcg usam JS do JW Library; no app as imagens precisam aparecer estáticas. */
+export const JW_FLIPBOOK_VISIBLE_CSS = `
+.jwpub-content .gen-flipbook,
+.jwpub-content .pm-flipbook-gallery,
+.jcs-read-body .gen-flipbook,
+.jcs-read-body .pm-flipbook-gallery {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+  position: static !important;
+}
+.jwpub-content .gen-flipbook img,
+.jwpub-content .pm-flipbook-gallery img,
+.jwpub-content figure img,
+.jcs-read-body .gen-flipbook img,
+.jcs-read-body .pm-flipbook-gallery img,
+.jcs-read-body figure img {
+  display: block !important;
+  position: static !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 8px 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+`.trim();
+
 export type PreparedJwpubDocument = {
   html: string;
   publicationCss: string;
@@ -421,8 +451,8 @@ export async function prepareJwpubDocument(
   const combined = [cached, linkedCss, inlineFromDoc].filter(Boolean).join('\n\n');
   const scoped = combined ? scopeCssToJwpubContent(combined) : '';
   const publicationCss = scoped
-    ? `${JW_PUB_FIGURE_FALLBACK_CSS}\n\n${scoped}`
-    : JW_PUB_FIGURE_FALLBACK_CSS;
+    ? `${JW_PUB_FIGURE_FALLBACK_CSS}\n\n${scoped}\n\n${JW_FLIPBOOK_VISIBLE_CSS}`
+    : `${JW_PUB_FIGURE_FALLBACK_CSS}\n\n${JW_FLIPBOOK_VISIBLE_CSS}`;
 
   const html = enrichImagesFromMultimedia(htmlWithMedia, bundle.db);
 

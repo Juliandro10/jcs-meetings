@@ -47,6 +47,8 @@ import {
   getHighlights,
   getNotes,
   getPublicTalkNote,
+  listExtraMeetingParts,
+  getExtraMeetingPart,
   type PrepNote,
 } from './user-prep-store';
 
@@ -793,6 +795,35 @@ export async function exportWeekForJcsRead(params: {
         kind: 'public-talk',
         title: 'Discurso público',
         file: 'public-talk.html',
+      });
+    }
+
+    await ensureDir(assetsDir);
+    const extraParts = await listExtraMeetingParts(params.userDataDir, params.week.id);
+    for (const extra of extraParts) {
+      const full = await getExtraMeetingPart(params.userDataDir, extra.id);
+      const body = full?.body?.trim() ?? '';
+      if (!body) continue;
+      const slug = sanitizeJcsReadFileSlug(`extra-${extra.title}`) || `extra-${extra.id.slice(0, 8)}`;
+      const file = `${slug}.html`;
+      const withImages = await rewriteImportedImagesForExport({
+        html: body,
+        userDataRoot: params.userDataRoot,
+        documentId: extra.id,
+        assetsDir,
+        namePrefix: extra.id.slice(0, 8),
+      });
+      const html = buildJcsReadRichNoteHtml({
+        title: extra.title,
+        subtitle: params.week.label,
+        body: withImages,
+      });
+      await writeTextFile(path.join(weekDir, file), html);
+      documents.push({
+        id: `extra-part-${extra.id}`,
+        kind: 'extra-part',
+        title: extra.title,
+        file,
       });
     }
 
